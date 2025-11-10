@@ -1,4 +1,28 @@
+
 function Connect-XdrWebsite {
+    <#
+    .SYNOPSIS
+        Establishes an authenticated session to the Microsoft Defender XDR portal.
+    
+    .DESCRIPTION
+        Connects to security.microsoft.com using an ESTSAUTHPERSISTENT cookie value to establish
+        an authenticated web session. This function creates global session and headers variables
+        that can be used by other XDR cmdlets to interact with the portal APIs.
+    
+    .PARAMETER ESTSAUTHCookieValue
+        The ESTSAUTHPERSISTENT cookie value from an authenticated browser session.
+    
+    .PARAMETER UserAgent
+        The User-Agent string to use for the web requests. Defaults to Edge browser user agent.
+    
+    .EXAMPLE
+        Connect-XdrWebsite -ESTSAUTHCookieValue "your_cookie_value_here"
+        Connects to the XDR portal using the provided authentication cookie.
+    
+    .OUTPUTS
+        String
+        Returns a confirmation message when successfully connected.
+    #>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -44,16 +68,7 @@ function Connect-XdrWebsite {
 
     $sccauth = $session.cookies.GetCookies("https://security.microsoft.com")['sccauth'].Value
     $xsrf = $session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value
-    if ($xsrf.Length -ne 347) { Write-Output "xsrf was $($xsrf.Length) characters and may be incorrect" }
 
     # Create session and cookies
-    $global:session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-    $global:session.Cookies.Add((New-Object System.Net.Cookie("sccauth", "$($sccauth | ConvertFrom-SecureString -AsPlainText)", "/", "security.microsoft.com")))
-    $global:session.Cookies.Add((New-Object System.Net.Cookie("XSRF-TOKEN", "$($xsrf | ConvertFrom-SecureString -AsPlainText)", "/", "security.microsoft.com")))
-
-    # Set the headers to include the xsrf token
-    [Hashtable]$global:headers = @{}
-    $global:headers["X-XSRF-TOKEN"] = [System.Net.WebUtility]::UrlDecode($global:session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value)
-
-    Write-Output "Connected to security.microsoft.com"
+    New-XdrConnectionSettings -sccauth $sccauth -xsrf $xsrf
 }

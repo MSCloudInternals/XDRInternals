@@ -1,4 +1,28 @@
 function New-XdrConnectionSettings {
+    <#
+    .SYNOPSIS
+        Creates XDR connection settings using authentication cookies.
+    
+    .DESCRIPTION
+        Creates global session and headers variables for XDR API calls using the provided
+        sccauth and XSRF token values. This function sets up the necessary authentication
+        context for other XDR cmdlets to interact with the Microsoft Defender XDR portal.
+    
+    .PARAMETER sccauth
+        The sccauth cookie value from an authenticated session to security.microsoft.com.
+    
+    .PARAMETER xsrf
+        The XSRF-TOKEN cookie value from an authenticated session to security.microsoft.com.
+        Should be 347 characters in length.
+    
+    .EXAMPLE
+        New-XdrConnectionSettings -sccauth "your_sccauth_value" -xsrf "your_xsrf_value"
+        Creates XDR connection settings using the provided authentication cookies.
+    
+    .OUTPUTS
+        String
+        Returns a confirmation message when connection settings are created.
+    #>
     [CmdletBinding()]
     param (
         [Parameter()]

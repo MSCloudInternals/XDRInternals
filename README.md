@@ -1,2 +1,3 @@
 # XDRInternals
-A PowerShell module for the Defender XDR portal
+
+The unofficial API cmdlet to interact with the Microsoft Defender XDR portal

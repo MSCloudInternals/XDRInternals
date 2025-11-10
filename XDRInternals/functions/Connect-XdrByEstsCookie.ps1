@@ -1,5 +1,5 @@
 
-function Connect-XdrWebsite {
+function Connect-XdrByEstsCookie {
     <#
     .SYNOPSIS
         Establishes an authenticated session to the Microsoft Defender XDR portal.
@@ -9,14 +9,14 @@ function Connect-XdrWebsite {
         an authenticated web session. This function creates global session and headers variables
         that can be used by other XDR cmdlets to interact with the portal APIs.
     
-    .PARAMETER ESTSAUTHCookieValue
+    .PARAMETER EstsAuthCookieValue
         The ESTSAUTHPERSISTENT cookie value from an authenticated browser session.
     
     .PARAMETER UserAgent
         The User-Agent string to use for the web requests. Defaults to Edge browser user agent.
     
     .EXAMPLE
-        Connect-XdrWebsite -ESTSAUTHCookieValue "your_cookie_value_here"
+        Connect-XdrByEstsCookie -EstsAuthCookieValue "your_cookie_value_here"
         Connects to the XDR portal using the provided authentication cookie.
     
     .OUTPUTS
@@ -26,7 +26,7 @@ function Connect-XdrWebsite {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
-        [string]$ESTSAUTHCookieValue,
+        [string]$EstsAuthCookieValue,
 
         [Parameter()]
         [string]$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
@@ -35,15 +35,15 @@ function Connect-XdrWebsite {
     $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
     $session.UserAgent = $UserAgent
     # Bootstrap the session by making an initial request to login.microsoftonline.com
-    $null = Invoke-WebRequest -UseBasicParsing -MaximumRedirection 99 -ErrorAction SilentlyContinue -WebSession $session -Method Get -Uri "https://login.microsoftonline.com/error"
+    $null = Invoke-WebRequest -UseBasicParsing -MaximumRedirection 99 -ErrorAction SilentlyContinue -WebSession $session -Method Get -Uri "https://login.microsoftonline.com/error" -Verbose:$false
 
-    $cookie = [System.Net.Cookie]::new("ESTSAUTHPERSISTENT", $ESTSAUTHCookieValue)
+    $cookie = [System.Net.Cookie]::new("ESTSAUTHPERSISTENT", $EstsAuthCookieValue)
     $session.Cookies.Add('https://login.microsoftonline.com/', $cookie)
     $SessionCookies = $session.Cookies.GetCookies('https://login.microsoftonline.com') | Select-Object -ExpandProperty Name
     Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
 
     # Invoke a GET request to security.microsoft.com to initiate the authentication flow
-    $SecurityPortal = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Get -Uri "https://security.microsoft.com/"
+    $SecurityPortal = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Get -Uri "https://security.microsoft.com/" -Verbose:$false
     $requiredFields = @("code", "id_token", "state", "session_state", "correlation_id")
     # Check if all required fields are present in returned input fields
     foreach ($field in $requiredFields) {
@@ -53,18 +53,22 @@ function Connect-XdrWebsite {
     }
     $SessionCookies = $session.Cookies.GetCookies('https://security.microsoft.com') | Select-Object -ExpandProperty Name
     Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
+    Write-Output "Successfully signed into to XDR portal using ESTSAUTHPERSISTENT cookie."
+    Write-Output "Exchange the received authorization code for session cookies."
 
     # Invoke a POST request to get the session cookies for security.microsoft.com
-    $Headers = @{
+    $Body = @{
         code           = $SecurityPortal.InputFields | Where-Object { $_.name -eq "code" } | Select-Object -ExpandProperty value
         id_token       = $SecurityPortal.InputFields | Where-Object { $_.name -eq "id_token" } | Select-Object -ExpandProperty value
         state          = $SecurityPortal.InputFields | Where-Object { $_.name -eq "state" } | Select-Object -ExpandProperty value
         session_state  = $SecurityPortal.InputFields | Where-Object { $_.name -eq "session_state" } | Select-Object -ExpandProperty value
         correlation_id = $SecurityPortal.InputFields | Where-Object { $_.name -eq "correlation_id" } | Select-Object -ExpandProperty value
     }
-    $AuthResponse = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Post -Uri "https://security.microsoft.com/" -Headers $Headers
+    Write-Verbose "POST Headers: $($Headers | Out-String)"
+    $AuthResponse = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Post -Uri "https://security.microsoft.com/" -Body $Body -Verbose:$false
     $SessionCookies = $session.Cookies.GetCookies('https://security.microsoft.com') | Select-Object -ExpandProperty Name
     Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
+    Write-Output "Successfully obtained XDR session cookies."
 
     $sccauth = $session.cookies.GetCookies("https://security.microsoft.com")['sccauth'].Value
     $xsrf = $session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value

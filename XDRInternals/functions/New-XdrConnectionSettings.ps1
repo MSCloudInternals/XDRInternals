@@ -43,4 +43,5 @@ function New-XdrConnectionSettings {
     [Hashtable]$global:headers = @{}
     $global:headers["X-XSRF-TOKEN"] = [System.Net.WebUtility]::UrlDecode($session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value)
     Write-Output "XDR Connection Settings created"
+    Write-Output "You can now run other XDRInternals cmdlets to interact with the XDR portal."
 }

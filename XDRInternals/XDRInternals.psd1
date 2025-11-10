@@ -62,8 +62,8 @@
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(
-        "Connect-XdrWebsite",
-        "Get-XdrAdvancedFeaturesConfiguration",
+        "Connect-XdrByEstsCookie",
+        "Get-XdrConfigurationAdvancedFeatures",
         "Get-XdrConfigurationIntuneConnection",
         "Get-XdrConfigurationLiveResponse",
         "Get-XdrConfigurationPotentiallyUnwantedApplications",

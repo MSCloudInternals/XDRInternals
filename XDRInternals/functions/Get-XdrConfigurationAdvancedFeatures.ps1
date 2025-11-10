@@ -1,4 +1,4 @@
-function Get-XdrAdvancedFeaturesConfiguration {
+function Get-XdrConfigurationAdvancedFeatures {
     <#
     .SYNOPSIS
         Retrieves the advanced features configuration settings for XDR.
@@ -13,7 +13,7 @@ function Get-XdrAdvancedFeaturesConfiguration {
         The headers to use for the request. Defaults to the global headers variable.
     
     .EXAMPLE
-        Get-XdrAdvancedFeaturesConfiguration
+        Get-XdrConfigurationAdvancedFeatures
         Retrieves the advanced features configuration using the global session and headers.
     #>
     [CmdletBinding()]

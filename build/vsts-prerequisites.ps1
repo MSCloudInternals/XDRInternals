@@ -11,8 +11,7 @@ foreach ($dependency in $data.RequiredModules) {
     if ($dependency -is [string]) {
         if ($modules -contains $dependency) { continue }
         $modules += $dependency
-    }
-    else {
+    } else {
         if ($modules -contains $dependency.ModuleName) { continue }
         $modules += $dependency.ModuleName
     }

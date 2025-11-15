@@ -11,6 +11,9 @@
     
     .PARAMETER LookingBackInDays
         The number of days to look back for device data. Defaults to 30 days.
+
+    .PARAMETER Force
+        Whether to force bypassing the cache and retrieve fresh data. Defaults to $false.
     
     .EXAMPLE
         Get-XdrEndpointDeviceTotals

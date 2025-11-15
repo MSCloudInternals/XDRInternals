@@ -53,8 +53,8 @@ function Connect-XdrByEstsCookie {
     }
     $SessionCookies = $session.Cookies.GetCookies('https://security.microsoft.com') | Select-Object -ExpandProperty Name
     Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
-    Write-Output "Successfully signed into to XDR portal using ESTSAUTHPERSISTENT cookie."
-    Write-Output "Exchange the received authorization code for session cookies."
+    Write-Host "Successfully signed into to XDR portal using ESTSAUTHPERSISTENT cookie."
+    Write-Host "Exchange the received authorization code for session cookies."
 
     # Invoke a POST request to get the session cookies for security.microsoft.com
     $Body = @{
@@ -68,7 +68,7 @@ function Connect-XdrByEstsCookie {
     $AuthResponse = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Post -Uri "https://security.microsoft.com/" -Body $Body -Verbose:$false
     $SessionCookies = $session.Cookies.GetCookies('https://security.microsoft.com') | Select-Object -ExpandProperty Name
     Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
-    Write-Output "Successfully obtained XDR session cookies."
+    Write-Host "Successfully obtained XDR session cookies."
     # Save session and headers in script scope
     Set-XdrConnectionSettings -WebSession $session
 }

@@ -1,4 +1,4 @@
-function Get-XdrEndpointDeviceModel {
+﻿function Get-XdrEndpointDeviceModel {
     <#
     .SYNOPSIS
         Retrieves all device models from Microsoft Defender for Endpoint.

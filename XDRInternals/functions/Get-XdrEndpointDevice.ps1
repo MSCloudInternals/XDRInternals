@@ -1,4 +1,4 @@
-function Get-XdrEndpointDevice {
+﻿function Get-XdrEndpointDevice {
     <#
     .SYNOPSIS
         Retrieves endpoint devices from Microsoft Defender XDR.

@@ -1,4 +1,19 @@
-function Update-XdrConnectionSettings {
+﻿function Update-XdrConnectionSettings {
+    <#
+    .SYNOPSIS
+        Updates XDR connection session cookies and authentication tokens.
+    
+    .DESCRIPTION
+        Refreshes the web session cookies and XSRF tokens for Microsoft Defender XDR by making a request to the portal.
+        This function is called automatically by other XDR cmdlets to ensure the session remains valid.
+    
+    .EXAMPLE
+        Update-XdrConnectionSettings
+        Updates the XDR session cookies and headers.
+    
+    .NOTES
+        This function requires an existing connection established by Connect-XdrByEstsCookie or Set-XdrConnectionSettings.
+    #>
     [CmdletBinding()]
     param (
 

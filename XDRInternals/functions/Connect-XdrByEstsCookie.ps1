@@ -1,4 +1,4 @@
-
+﻿
 function Connect-XdrByEstsCookie {
     <#
     .SYNOPSIS

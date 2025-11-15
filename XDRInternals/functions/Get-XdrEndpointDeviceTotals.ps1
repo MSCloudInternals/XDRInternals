@@ -1,4 +1,4 @@
-function Get-XdrEndpointDeviceTotals {
+﻿function Get-XdrEndpointDeviceTotals {
     <#
     .SYNOPSIS
         Retrieves the device totals from Microsoft Defender XDR.
@@ -30,7 +30,10 @@ function Get-XdrEndpointDeviceTotals {
         [bool]$HideLowFidelityDevices = $true,
         
         [Parameter()]
-        [int]$LookingBackInDays = 30
+        [int]$LookingBackInDays = 30,
+        
+        [Parameter()]
+        [switch]$Force
     )
 
     begin {
@@ -38,9 +41,22 @@ function Get-XdrEndpointDeviceTotals {
     }
     
     process {
+        $cacheKey = "XdrEndpointDeviceTotals_$($HideLowFidelityDevices)_$($LookingBackInDays)"
+        $currentCacheValue = Get-XdrCache -CacheKey $cacheKey -ErrorAction SilentlyContinue
+        if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
+            Write-Verbose "Using cached XDR Endpoint device totals"
+            return $currentCacheValue.Value
+        } elseif ($Force) {
+            Write-Verbose "Force parameter specified, bypassing cache"
+            Clear-XdrCache -CacheKey $cacheKey
+        } else {
+            Write-Verbose "XDR Endpoint device totals cache is missing or expired"
+        }
         $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/deviceTotals/?hideLowFidelityDevices=$($HideLowFidelityDevices.ToString().ToLower())&lookingBackIndays=$LookingBackInDays"
         Write-Verbose "Retrieving XDR Endpoint device totals (HideLowFidelity: $HideLowFidelityDevices, LookbackDays: $LookingBackInDays)"
-        Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        $XdrEndpointDeviceTotals = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        Set-XdrCache -CacheKey $cacheKey -Value $XdrEndpointDeviceTotals -TTLMinutes 10
+        return $XdrEndpointDeviceTotals
     }
     
     end {

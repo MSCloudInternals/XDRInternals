@@ -1,4 +1,4 @@
-function Set-XdrConnectionSettings {
+﻿function Set-XdrConnectionSettings {
     <#
     .SYNOPSIS
         Creates XDR connection settings using authentication cookies.

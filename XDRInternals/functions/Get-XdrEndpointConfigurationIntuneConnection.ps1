@@ -1,20 +1,22 @@
-function Get-XdrEndpointConfigurationIntuneConnection {
+﻿function Get-XdrEndpointConfigurationIntuneConnection {
     <#
     .SYNOPSIS
-        Retrieves the Intune connection status for XDR.
+        Retrieves the Intune connection status for Microsoft Defender for Endpoint.
     
     .DESCRIPTION
         Gets the Intune onboarding connection status from the Microsoft Defender XDR portal.
+        This function includes caching support with a 30-minute TTL to reduce API calls.
     
-    .PARAMETER session
-        The web session to use for the request. Defaults to the global session variable.
-    
-    .PARAMETER headers
-        The headers to use for the request. Defaults to the global headers variable.
+    .PARAMETER Force
+        Bypasses the cache and forces a fresh retrieval from the API.
     
     .EXAMPLE
         Get-XdrEndpointConfigurationIntuneConnection
-        Retrieves the Intune connection status using the global session and headers.
+        Retrieves the Intune connection status using cached data if available.
+    
+    .EXAMPLE
+        Get-XdrEndpointConfigurationIntuneConnection -Force
+        Forces a fresh retrieval of the Intune connection status, bypassing the cache.
     #>
     [CmdletBinding()]
     param (

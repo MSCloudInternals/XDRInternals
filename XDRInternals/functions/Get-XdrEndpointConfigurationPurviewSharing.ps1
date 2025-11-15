@@ -1,20 +1,22 @@
-function Get-XdrEndpointConfigurationPurviewSharing {
+﻿function Get-XdrEndpointConfigurationPurviewSharing {
     <#
     .SYNOPSIS
-        Retrieves the Purview alert sharing configuration for XDR.
+        Retrieves the Purview alert sharing configuration for Microsoft Defender for Endpoint.
     
     .DESCRIPTION
         Gets the Purview alert sharing status and configuration from the Microsoft Defender XDR portal.
+        This function includes caching support with a 30-minute TTL to reduce API calls.
     
-    .PARAMETER session
-        The web session to use for the request. Defaults to the global session variable.
-    
-    .PARAMETER headers
-        The headers to use for the request. Defaults to the global headers variable.
+    .PARAMETER Force
+        Bypasses the cache and forces a fresh retrieval from the API.
     
     .EXAMPLE
         Get-XdrEndpointConfigurationPurviewSharing
-        Retrieves the Purview sharing configuration using the global session and headers.
+        Retrieves the Purview sharing configuration using cached data if available.
+    
+    .EXAMPLE
+        Get-XdrEndpointConfigurationPurviewSharing -Force
+        Forces a fresh retrieval of the Purview sharing configuration, bypassing the cache.
     #>
     [CmdletBinding()]
     param (

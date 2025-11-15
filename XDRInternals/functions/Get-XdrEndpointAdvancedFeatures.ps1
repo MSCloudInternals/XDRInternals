@@ -1,13 +1,34 @@
-function Get-XdrEndpointAdvancedFeatures {
+﻿function Get-XdrEndpointAdvancedFeatures {
+    <#
+    .SYNOPSIS
+        Retrieves comprehensive advanced features configuration for Microsoft Defender for Endpoint.
+
+    .DESCRIPTION
+        Gets a consolidated view of all advanced features settings from Microsoft Defender for Endpoint,
+        including EDR in block mode, device discovery, integrations, and various security features.
+        This is a wrapper function that combines multiple configuration endpoints into a single, formatted output.
+
+    .EXAMPLE
+        Get-XdrEndpointAdvancedFeatures
+        Retrieves all advanced features configuration settings with detailed descriptions.
+
+    .EXAMPLE
+        Get-XdrEndpointAdvancedFeatures | Where-Object { $_.Value -eq $true }
+        Retrieves only the advanced features that are currently enabled.
+
+    .OUTPUTS
+        PSCustomObject[]
+        Returns an array of custom objects with Name, Value, and Description properties for each advanced feature.
+    #>
     [CmdletBinding()]
     param (
-        
+
     )
-    
+
     begin {
         Update-XdrConnectionSettings
     }
-    
+
     process {
         # This is a wrapper function for multiple advanced features configurations
         Write-Verbose "Retrieving XDR Advanced Features configuration"
@@ -199,14 +220,14 @@ function Get-XdrEndpointAdvancedFeatures {
         )
         # Remove unlicensed features
         if (-not $BasicAdvancedFeatures.LicenseEnabled) {
-            $AdvancedSettings = $AdvancedSettings | Where-Object { 
-                $_.Name -notin @("SkypeForBusinessIntegration", "ShowUserDetails", "MicrosoftIntuneConnection") 
+            $AdvancedSettings = $AdvancedSettings | Where-Object {
+                $_.Name -notin @("SkypeForBusinessIntegration", "ShowUserDetails", "MicrosoftIntuneConnection")
             }
         }
         return $AdvancedSettings
     }
-    
+
     end {
-    
+
     }
 }

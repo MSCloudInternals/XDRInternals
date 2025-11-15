@@ -1,20 +1,22 @@
-function Get-XdrEndpointConfigurationAdvancedFeatures {
+﻿function Get-XdrEndpointConfigurationAdvancedFeatures {
     <#
     .SYNOPSIS
-        Retrieves the advanced features configuration settings for XDR.
+        Retrieves the advanced features configuration settings for Microsoft Defender for Endpoint.
     
     .DESCRIPTION
-        Gets the advanced features settings from the Microsoft Defender XDR portal.
+        Gets the raw advanced features settings from the Microsoft Defender XDR portal.
+        This function includes caching support with a 15-minute TTL to reduce API calls.
     
-    .PARAMETER session
-        The web session to use for the request. Defaults to the global session variable.
-    
-    .PARAMETER headers
-        The headers to use for the request. Defaults to the global headers variable.
+    .PARAMETER Force
+        Bypasses the cache and forces a fresh retrieval from the API.
     
     .EXAMPLE
         Get-XdrEndpointConfigurationAdvancedFeatures
-        Retrieves the advanced features configuration using the global session and headers.
+        Retrieves the advanced features configuration using cached data if available.
+    
+    .EXAMPLE
+        Get-XdrEndpointConfigurationAdvancedFeatures -Force
+        Forces a fresh retrieval of the advanced features configuration, bypassing the cache.
     #>
     [CmdletBinding()]
     param (

@@ -1,20 +1,22 @@
-function Get-XdrEndpointConfigurationPreviewFeatures {
+﻿function Get-XdrEndpointConfigurationPreviewFeatures {
     <#
     .SYNOPSIS
-        Retrieves the preview features configuration for XDR.
+        Retrieves the preview features configuration for Microsoft Defender for Endpoint.
     
     .DESCRIPTION
         Gets the preview experience settings from the Microsoft Defender XDR portal.
+        This function includes caching support with a 30-minute TTL to reduce API calls.
     
-    .PARAMETER session
-        The web session to use for the request. Defaults to the global session variable.
-    
-    .PARAMETER headers
-        The headers to use for the request. Defaults to the global headers variable.
+    .PARAMETER Force
+        Bypasses the cache and forces a fresh retrieval from the API.
     
     .EXAMPLE
         Get-XdrEndpointConfigurationPreviewFeatures
-        Retrieves the preview features configuration using the global session and headers.
+        Retrieves the preview features configuration using cached data if available.
+    
+    .EXAMPLE
+        Get-XdrEndpointConfigurationPreviewFeatures -Force
+        Forces a fresh retrieval of the preview features configuration, bypassing the cache.
     #>
     [CmdletBinding()]
     param (

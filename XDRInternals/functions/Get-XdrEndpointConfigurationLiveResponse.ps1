@@ -1,20 +1,22 @@
-function Get-XdrEndpointConfigurationLiveResponse {
+﻿function Get-XdrEndpointConfigurationLiveResponse {
     <#
     .SYNOPSIS
-        Retrieves the Live Response configuration settings for XDR.
+        Retrieves the Live Response configuration settings for Microsoft Defender for Endpoint.
     
     .DESCRIPTION
         Gets the Live Response configuration settings from the Microsoft Defender XDR portal.
+        This function includes caching support with a 30-minute TTL to reduce API calls.
     
-    .PARAMETER session
-        The web session to use for the request. Defaults to the global session variable.
-    
-    .PARAMETER headers
-        The headers to use for the request. Defaults to the global headers variable.
+    .PARAMETER Force
+        Bypasses the cache and forces a fresh retrieval from the API.
     
     .EXAMPLE
         Get-XdrEndpointConfigurationLiveResponse
-        Retrieves the Live Response configuration using the global session and headers.
+        Retrieves the Live Response configuration using cached data if available.
+    
+    .EXAMPLE
+        Get-XdrEndpointConfigurationLiveResponse -Force
+        Forces a fresh retrieval of the Live Response configuration, bypassing the cache.
     #>
     [CmdletBinding()]
     param (

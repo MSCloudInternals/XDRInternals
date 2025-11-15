@@ -2,38 +2,38 @@
     <#
     .SYNOPSIS
         Retrieves and evaluates the workload status from Microsoft Defender XDR tenant context.
-    
+
     .DESCRIPTION
         Gets the tenant context information and evaluates all properties named "Is*Active" to determine which
         Microsoft Defender workloads are active in the tenant. Provides friendly names and descriptions for known workloads.
-    
+
     .PARAMETER Workload
         Filter results to a specific workload. Can match either the OriginalProperty or WorkloadName.
         Supports wildcards.
-    
+
     .PARAMETER Force
         Bypasses the cache and forces a fresh retrieval from the API.
-    
+
     .EXAMPLE
         Get-XdrTenantWorkloadStatus
         Retrieves and evaluates all workload statuses using cached data if available.
-    
+
     .EXAMPLE
         Get-XdrTenantWorkloadStatus -Workload "IsMdeActive"
         Retrieves only the Microsoft Defender for Endpoint workload status.
-    
+
     .EXAMPLE
         Get-XdrTenantWorkloadStatus -Workload "IsMdatpActive"
         Retrieves the workload status using the original property name.
-    
+
     .EXAMPLE
         Get-XdrTenantWorkloadStatus -Workload "*Sentinel*"
         Retrieves workload statuses that match the Sentinel pattern.
-    
+
     .EXAMPLE
         Get-XdrTenantWorkloadStatus -Force
         Forces a fresh retrieval of the tenant context and evaluates workload statuses.
-    
+
     .OUTPUTS
         Array
         Returns an array of objects containing the workload name, status, and description.
@@ -42,14 +42,14 @@
     param (
         [Parameter()]
         [string]$Workload,
-        
+
         [Parameter()]
         [switch]$Force
     )
 
     begin {
         Update-XdrConnectionSettings
-        
+
         # Lookup table for known workload properties
         $workloadLookup = @{
             'IsMdatpActive'    = @{
@@ -98,15 +98,15 @@
         } else {
             $tenantContext = Get-XdrTenantContext
         }
-        
+
         # Find all properties that match the pattern "Is*Active"
         $activeProperties = $tenantContext.PSObject.Properties | Where-Object { $_.Name -match '^Is.*Active$' }
-        
+
         # Build the result array
         $results = foreach ($property in $activeProperties) {
             $propertyName = $property.Name
             $propertyValue = $property.Value
-            
+
             # Check if we have a friendly name and description in the lookup table
             if ($workloadLookup.ContainsKey($propertyName)) {
                 [PSCustomObject]@{
@@ -125,17 +125,17 @@
                 }
             }
         }
-        
+
         # Apply workload filter if specified
         if ($PSBoundParameters.ContainsKey('Workload')) {
-            $results = $results | Where-Object { 
-                $_.OriginalProperty -like $Workload -or $_.WorkloadName -like $Workload 
+            $results = $results | Where-Object {
+                $_.OriginalProperty -like $Workload -or $_.WorkloadName -like $Workload
             }
         }
-        
+
         return $results
     }
-    
+
     end {
     }
 }

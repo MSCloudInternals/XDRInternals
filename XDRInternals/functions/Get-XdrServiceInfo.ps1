@@ -50,17 +50,17 @@
 
         $Token = Get-XdrToken -ResourceName MATP
         Set-XdrCache -CacheKey "XdrServiceInfoToken" -Value $Token -TTLMinutes 40
-        
+
         Write-Verbose "Building authorization header for `"https://securitycenter.microsoft.com/mtp`""
-        $AuthorizationHeader = @{ 
+        $AuthorizationHeader = @{
             "Authorization" = "Bearer $($Token.Token)"
         }
-        
+
         $Uri = "https://api.security.microsoft.com/mtpserviceinfo"
-        
+
         Write-Verbose "Retrieving XDR service information from $Uri"
         $result = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -Headers $AuthorizationHeader
-        
+
         return $result
     }
 

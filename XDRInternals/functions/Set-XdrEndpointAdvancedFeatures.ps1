@@ -94,6 +94,12 @@
     .PARAMETER LiveResponseUnsignedScriptExecution
         Enable unsigned script execution in Live Response.
 
+    .PARAMETER WhatIf
+        Shows what would happen if the command runs. The command is not run.
+
+    .PARAMETER Confirm
+        Prompts for confirmation before making changes.
+
     .EXAMPLE
         Set-XdrEndpointAdvancedFeatures -EnableEDRInBlockMode $true
         Enables EDR in block mode.

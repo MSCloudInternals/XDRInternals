@@ -50,17 +50,17 @@
 
         $Token = Get-XdrToken -ResourceName MATP
         Set-XdrCache -CacheKey "XdrUnifiedPortalIsOnboardedToken" -Value $Token -TTLMinutes 40
-        
+
         Write-Verbose "Building authorization header for `"https://securitycenter.microsoft.com/mtp`""
-        $AuthorizationHeader = @{ 
+        $AuthorizationHeader = @{
             "Authorization" = "Bearer $($Token.Token)"
         }
-        
+
         $Uri = "https://partnersgw.securitycenter.windows.com/api/mdgw/sentinel/workspaces/isOnboarded"
-        
+
         Write-Verbose "Checking Unified Portal onboarding status from $Uri"
         $result = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -Headers $AuthorizationHeader
-        
+
         return $result
     }
 

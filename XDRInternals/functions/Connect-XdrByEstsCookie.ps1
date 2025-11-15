@@ -11,6 +11,9 @@ function Connect-XdrByEstsCookie {
     
     .PARAMETER EstsAuthCookieValue
         The ESTSAUTHPERSISTENT cookie value from an authenticated browser session.
+
+    .PARAMETER TenantId
+        The Tenant ID to use for the connection. If not provided, the default tenant will be used.
     
     .PARAMETER UserAgent
         The User-Agent string to use for the web requests. Defaults to Edge browser user agent.

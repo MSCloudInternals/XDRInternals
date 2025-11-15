@@ -22,6 +22,9 @@
     .PARAMETER Headers
         The headers to include in the request. Defaults to the script-scoped headers variable.
 
+    .PARAMETER Body
+        The body of the request, if applicable.
+
     .EXAMPLE
         Invoke-XdrRestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/GetAdvancedFeaturesSetting"
         Makes a GET request to the specified XDR API endpoint.

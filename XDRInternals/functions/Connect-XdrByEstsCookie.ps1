@@ -69,10 +69,6 @@ function Connect-XdrByEstsCookie {
     $SessionCookies = $session.Cookies.GetCookies('https://security.microsoft.com') | Select-Object -ExpandProperty Name
     Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
     Write-Output "Successfully obtained XDR session cookies."
-
-    $sccauth = $session.cookies.GetCookies("https://security.microsoft.com")['sccauth'].Value
-    $xsrf = $session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value
-
-    # Create session and cookies
-    New-XdrConnectionSettings -sccauth $sccauth -xsrf $xsrf
+    # Save session and headers in script scope
+    Set-XdrConnectionSettings -WebSession $session
 }

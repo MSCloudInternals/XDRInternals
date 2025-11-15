@@ -1,4 +1,4 @@
-function Get-XdrConfigurationLiveResponse {
+function Get-XdrEndpointConfigurationLiveResponse {
     <#
     .SYNOPSIS
         Retrieves the Live Response configuration settings for XDR.
@@ -13,17 +13,22 @@ function Get-XdrConfigurationLiveResponse {
         The headers to use for the request. Defaults to the global headers variable.
     
     .EXAMPLE
-        Get-XdrConfigurationLiveResponse
+        Get-XdrEndpointConfigurationLiveResponse
         Retrieves the Live Response configuration using the global session and headers.
     #>
     [CmdletBinding()]
     param (
-        [Parameter()]
-        [string]$session = $global:session,
-
-        [Parameter()]
-        [string]$headers = $global:headers
     )
+
+    begin {
+        Update-XdrConnectionSettings
+    }
     
-    Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/get_properties?useV2Api=true&useV3Api=true" -ContentType "application/json" -WebSession $global:session -Headers $global:headers
+    process {
+        Write-Verbose "Retrieving XDR Live Response configuration"
+        Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/get_properties?useV2Api=true&useV3Api=true" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+    }
+    
+    end {
+    }
 }

@@ -1,0 +1,58 @@
+function Set-XdrConnectionSettings {
+    <#
+    .SYNOPSIS
+        Creates XDR connection settings using authentication cookies.
+    
+    .DESCRIPTION
+        Creates global session and headers variables for XDR API calls using the provided
+        sccauth and XSRF token values. This function sets up the necessary authentication
+        context for other XDR cmdlets to interact with the Microsoft Defender XDR portal.
+    
+    .PARAMETER sccauth
+        The sccauth cookie value from an authenticated session to security.microsoft.com.
+    
+    .PARAMETER xsrf
+        The XSRF-TOKEN cookie value from an authenticated session to security.microsoft.com.
+
+    .PARAMETER WebSession
+        An optional WebRequestSession object to use for the requests. If not provided,
+        a new session will be created.
+    
+    .EXAMPLE
+        Set-XdrConnectionSettings -sccauth "your_sccauth_value" -xsrf "your_xsrf_value"
+        Creates XDR connection settings using the provided authentication cookies.
+    
+    .OUTPUTS
+        String
+        Returns a confirmation message when connection settings are created.
+    #>
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory, ParameterSetName = 'Manual')]
+        [string]$SccAuth,
+
+        [Parameter(Mandatory, ParameterSetName = 'Manual')]
+        [string]$Xsrf,
+
+        [Parameter(Mandatory, ParameterSetName = 'Websession')]
+        [Microsoft.PowerShell.Commands.WebRequestSession]$WebSession
+    )
+    
+    Write-Verbose "Setting session cookies for XDR webpage requests"
+    if ($PSBoundParameters.ContainsKey('WebSession')) {
+        # Use the provided WebSession instead of creating a new one
+        $script:session = $WebSession
+    } else {
+        # Create session and cookies
+        $script:session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+        $script:session.Cookies.Add((New-Object System.Net.Cookie("sccauth", $SccAuth, "/", "security.microsoft.com")))
+        $script:session.Cookies.Add((New-Object System.Net.Cookie("XSRF-TOKEN", $Xsrf, "/", "security.microsoft.com")))
+    }
+
+    # Set the headers to include the xsrf token
+    Write-Verbose "Setting headers for XDR API proxy requests"
+    [Hashtable]$script:headers = @{}
+    $script:headers["X-XSRF-TOKEN"] = [System.Net.WebUtility]::UrlDecode($session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value)
+    Write-Output "XDR Connection Settings created"
+    Write-Output "You can now run other XDRInternals cmdlets to interact with the XDR portal."
+}

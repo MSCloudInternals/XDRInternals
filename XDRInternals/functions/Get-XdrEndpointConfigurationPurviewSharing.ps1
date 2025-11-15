@@ -1,4 +1,4 @@
-function Get-XdrConfigurationPurviewSharing {
+function Get-XdrEndpointConfigurationPurviewSharing {
     <#
     .SYNOPSIS
         Retrieves the Purview alert sharing configuration for XDR.
@@ -13,17 +13,22 @@ function Get-XdrConfigurationPurviewSharing {
         The headers to use for the request. Defaults to the global headers variable.
     
     .EXAMPLE
-        Get-XdrConfigurationPurviewSharing
+        Get-XdrEndpointConfigurationPurviewSharing
         Retrieves the Purview sharing configuration using the global session and headers.
     #>
     [CmdletBinding()]
     param (
-        [Parameter()]
-        [string]$session = $global:session,
-
-        [Parameter()]
-        [string]$headers = $global:headers
     )
+
+    begin {
+        Update-XdrConnectionSettings
+    }
     
-    Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/wdatpInternalApi/compliance/alertSharing/status" -ContentType "application/json" -WebSession $global:session -Headers $global:headers
+    process {
+        Write-Verbose "Retrieving XDR Purview Sharing configuration"
+        Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/wdatpInternalApi/compliance/alertSharing/status" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+    }
+    
+    end {
+    }
 }

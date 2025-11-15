@@ -55,7 +55,7 @@
     # TypesToProcess = @()
 
     # Format files (.ps1xml) to be loaded when importing this module
-    # FormatsToProcess = @()
+    FormatsToProcess  = @('XDRInternals.Format.ps1xml')
 
     # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
     # NestedModules = @()
@@ -63,14 +63,27 @@
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(
         "Connect-XdrByEstsCookie",
-        "Get-XdrConfigurationAdvancedFeatures",
-        "Get-XdrConfigurationIntuneConnection",
-        "Get-XdrConfigurationLiveResponse",
-        "Get-XdrConfigurationPotentiallyUnwantedApplications",
-        "Get-XdrConfigurationPreviewFeatures",
-        "Get-XdrConfigurationPurviewSharing",
+        "Get-XdrEndpointAdvancedFeatures",
+        "Get-XdrEndpointConfigurationAdvancedFeatures",
+        "Get-XdrEndpointConfigurationIntuneConnection",
+        "Get-XdrEndpointConfigurationLiveResponse",
+        "Get-XdrEndpointConfigurationPotentiallyUnwantedApplications",
+        "Get-XdrEndpointConfigurationPreviewFeatures",
+        "Get-XdrEndpointConfigurationPurviewSharing",
+        "Get-XdrEndpointDevice",
+        "Get-XdrEndpointDeviceModel",
+        "Get-XdrEndpointDeviceOsVersionFriendlyName",
+        "Get-XdrEndpointDeviceRbacGroup",
+        "Get-XdrEndpointDeviceTotals",
+        "Get-XdrEndpointDeviceTags",
+        "Get-XdrEndpointDeviceTimeline",
+        "Get-XdrEndpointDeviceVendors",
+        "Get-XdrEndpointDeviceWindowsReleaseVersion",
         "Get-XdrTenantContext",
-        "New-XdrConnectionSettings"
+        "Get-XdrToken",
+        "Invoke-XdrRestMethod",
+        "Set-XdrConnectionSettings",
+        "Update-XdrConnectionSettings"
     )
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.

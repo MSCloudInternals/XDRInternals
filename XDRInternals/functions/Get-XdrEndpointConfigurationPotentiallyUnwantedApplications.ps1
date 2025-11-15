@@ -1,4 +1,4 @@
-function Get-XdrConfigurationPotentiallyUnwantedApplications {
+function Get-XdrEndpointConfigurationPotentiallyUnwantedApplications {
     <#
     .SYNOPSIS
         Retrieves the potentially unwanted applications (PUA) configuration for XDR.
@@ -13,17 +13,22 @@ function Get-XdrConfigurationPotentiallyUnwantedApplications {
         The headers to use for the request. Defaults to the global headers variable.
     
     .EXAMPLE
-        Get-XdrConfigurationPotentiallyUnwantedApplications
+        Get-XdrEndpointConfigurationPotentiallyUnwantedApplications
         Retrieves the PUA configuration using the global session and headers.
     #>
     [CmdletBinding()]
     param (
-        [Parameter()]
-        [string]$session = $global:session,
-
-        [Parameter()]
-        [string]$headers = $global:headers
     )
+
+    begin {
+        Update-XdrConnectionSettings
+    }
     
-    Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/autoIr/ui/properties/" -ContentType "application/json" -WebSession $global:session -Headers $global:headers
+    process {
+        Write-Verbose "Retrieving XDR Potentially Unwanted Applications configuration"
+        Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/autoIr/ui/properties/" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+    }
+    
+    end {
+    }
 }

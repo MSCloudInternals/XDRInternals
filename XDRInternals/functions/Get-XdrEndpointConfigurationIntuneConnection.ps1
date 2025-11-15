@@ -1,4 +1,4 @@
-function Get-XdrConfigurationIntuneConnection {
+function Get-XdrEndpointConfigurationIntuneConnection {
     <#
     .SYNOPSIS
         Retrieves the Intune connection status for XDR.
@@ -13,17 +13,22 @@ function Get-XdrConfigurationIntuneConnection {
         The headers to use for the request. Defaults to the global headers variable.
     
     .EXAMPLE
-        Get-XdrConfigurationIntuneConnection
+        Get-XdrEndpointConfigurationIntuneConnection
         Retrieves the Intune connection status using the global session and headers.
     #>
     [CmdletBinding()]
     param (
-        [Parameter()]
-        [string]$session = $global:session,
-
-        [Parameter()]
-        [string]$headers = $global:headers
     )
+
+    begin {
+        Update-XdrConnectionSettings
+    }
     
-    Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/status" -ContentType "application/json" -WebSession $global:session -Headers $global:headers
+    process {
+        Write-Verbose "Retrieving XDR Intune Connection configuration"
+        Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/status" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+    }
+    
+    end {
+    }
 }

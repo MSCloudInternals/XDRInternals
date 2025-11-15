@@ -1,4 +1,4 @@
-function Get-XdrConfigurationPreviewFeatures {
+function Get-XdrEndpointConfigurationPreviewFeatures {
     <#
     .SYNOPSIS
         Retrieves the preview features configuration for XDR.
@@ -13,17 +13,22 @@ function Get-XdrConfigurationPreviewFeatures {
         The headers to use for the request. Defaults to the global headers variable.
     
     .EXAMPLE
-        Get-XdrConfigurationPreviewFeatures
+        Get-XdrEndpointConfigurationPreviewFeatures
         Retrieves the preview features configuration using the global session and headers.
     #>
     [CmdletBinding()]
     param (
-        [Parameter()]
-        [string]$session = $global:session,
-
-        [Parameter()]
-        [string]$headers = $global:headers
     )
+
+    begin {
+        Update-XdrConnectionSettings
+    }
     
-    Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/GetPreviewExperienceSetting?context=MdatpContext" -ContentType "application/json" -WebSession $global:session -Headers $global:headers
+    process {
+        Write-Verbose "Retrieving XDR Preview Features configuration"
+        Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/GetPreviewExperienceSetting?context=MdatpContext" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+    }
+    
+    end {
+    }
 }

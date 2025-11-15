@@ -1,4 +1,4 @@
-function Get-XdrConfigurationAdvancedFeatures {
+function Get-XdrEndpointConfigurationAdvancedFeatures {
     <#
     .SYNOPSIS
         Retrieves the advanced features configuration settings for XDR.
@@ -13,17 +13,22 @@ function Get-XdrConfigurationAdvancedFeatures {
         The headers to use for the request. Defaults to the global headers variable.
     
     .EXAMPLE
-        Get-XdrConfigurationAdvancedFeatures
+        Get-XdrEndpointConfigurationAdvancedFeatures
         Retrieves the advanced features configuration using the global session and headers.
     #>
     [CmdletBinding()]
     param (
-        [Parameter()]
-        [string]$session = $global:session,
-
-        [Parameter()]
-        [string]$headers = $global:headers
     )
+
+    begin {
+        Update-XdrConnectionSettings
+    }
     
-    Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/GetAdvancedFeaturesSetting" -ContentType "application/json" -WebSession $global:session -Headers $global:headers
+    process {
+        Write-Verbose "Retrieving XDR Advanced Features configuration"
+        Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/GetAdvancedFeaturesSetting" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+    }
+    
+    end {
+    }
 }

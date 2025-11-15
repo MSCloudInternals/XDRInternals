@@ -63,6 +63,10 @@
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(
         "Connect-XdrByEstsCookie",
+        "Get-AdvancedHuntingUserHistory",
+        "Get-XdrAdvancedHuntingTableSchema",
+        "Get-XdrDatalakeDatabases",
+        "Get-XdrDatalakeTableSchema",
         "Get-XdrEndpointAdvancedFeatures",
         "Get-XdrEndpointConfigurationAdvancedFeatures",
         "Get-XdrEndpointConfigurationIntuneConnection",
@@ -79,10 +83,16 @@
         "Get-XdrEndpointDeviceTotals",
         "Get-XdrEndpointDeviceVendors",
         "Get-XdrEndpointDeviceWindowsReleaseVersion",
+        "Get-XdrIdentityDomainControllerCoverage",
+        "Get-XdrServiceInfo",
         "Get-XdrTenantContext",
+        "Get-XdrTenantWorkloadStatus",
         "Get-XdrToken",
+        "Get-XdrUnifiedPortalIsOnboarded",
+        "Get-XdrUnifiedPortalOnboardedWorkspaces",
         "Invoke-XdrRestMethod",
         "Set-XdrConnectionSettings",
+        "Set-XdrEndpointAdvancedFeatures",
         "Update-XdrConnectionSettings"
     )
 

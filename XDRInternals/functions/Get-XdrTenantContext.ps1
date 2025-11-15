@@ -44,9 +44,13 @@
             Write-Verbose "XDR Tenant Context cache is missing or expired"
         }
         Write-Verbose "Retrieving XDR Tenant Context"
-        $XdrTenantContext = Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/sccManagement/mgmt/TenantContext?realTime=true" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        Set-XdrCache -CacheKey "XdrTenantContext" -Value $XdrTenantContext -TTLMinutes 30
-        return $XdrTenantContext
+        try {
+            $XdrTenantContext = Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/sccManagement/mgmt/TenantContext?realTime=true" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "XdrTenantContext" -Value $XdrTenantContext -TTLMinutes 30
+            return $XdrTenantContext
+        } catch {
+            throw "Failed to retrieve XDR Tenant Context: $($_.Exception.Message)"
+        }
     }
     
     end {

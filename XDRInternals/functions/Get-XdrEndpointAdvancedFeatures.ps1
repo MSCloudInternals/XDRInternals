@@ -153,7 +153,7 @@
                 Description = "Allows the ability to exclude devices from vulnerability management pages and reports."
             }
             [PSCustomObject]@{
-                Name        = "Active Incident Response (DART)"
+                Name        = "ActiveIncidentResponse"
                 Value       = $BasicAdvancedFeatures.DartDataCollection
                 Description = "Enable Microsoft IR team (DART) to perform advanced investigation and Incident Response in a large scale"
             }

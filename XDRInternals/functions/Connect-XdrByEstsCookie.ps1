@@ -29,8 +29,14 @@ function Connect-XdrByEstsCookie {
         [string]$EstsAuthCookieValue,
 
         [Parameter()]
+        $TenantId,
+
+        [Parameter()]
         [string]$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
     )
+
+    # Clear cache if existing
+    Clear-XdrCache
 
     $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
     $session.UserAgent = $UserAgent
@@ -43,7 +49,14 @@ function Connect-XdrByEstsCookie {
     Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
 
     # Invoke a GET request to security.microsoft.com to initiate the authentication flow
-    $SecurityPortal = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Get -Uri "https://security.microsoft.com/" -Verbose:$false
+    if ($TenantId) {
+        $SecurityPortalUri = "https://security.microsoft.com/" + "?tenantId=$TenantId"
+        Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 3660
+    } else {
+        $SecurityPortalUri = "https://security.microsoft.com/"
+    }
+    Write-Verbose "Initiating authentication flow to $SecurityPortalUri"
+    $SecurityPortal = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Get -Uri $SecurityPortalUri -Verbose:$false
     $requiredFields = @("code", "id_token", "state", "session_state", "correlation_id")
     # Check if all required fields are present in returned input fields
     foreach ($field in $requiredFields) {
@@ -65,7 +78,7 @@ function Connect-XdrByEstsCookie {
         correlation_id = $SecurityPortal.InputFields | Where-Object { $_.name -eq "correlation_id" } | Select-Object -ExpandProperty value
     }
     Write-Verbose "POST Headers: $($Headers | Out-String)"
-    $AuthResponse = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Post -Uri "https://security.microsoft.com/" -Body $Body -Verbose:$false
+    $null = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Post -Uri $SecurityPortalUri -Body $Body -Verbose:$false
     $SessionCookies = $session.Cookies.GetCookies('https://security.microsoft.com') | Select-Object -ExpandProperty Name
     Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
     Write-Host "Successfully obtained XDR session cookies."

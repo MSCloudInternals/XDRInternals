@@ -8,15 +8,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v5
       - name: Install Prerequisites
-        run: .\build\vsts-prerequisites.ps1
+        run: ./build/vsts-prerequisites.ps1
         shell: powershell
       - name: Validate
-        run: .\build\vsts-validate.ps1
+        run: ./build/vsts-validate.ps1
         shell: powershell
       - name: Build
-        run: .\build\vsts-build.ps1 -ApiKey $env:APIKEY -AutoVersion -SkipPublish
+        run: ./build/vsts-build.ps1 -ApiKey $env:APIKEY -AutoVersion -SkipPublish
         shell: powershell
         env:
           APIKEY: ${{ secrets.ApiKey }}

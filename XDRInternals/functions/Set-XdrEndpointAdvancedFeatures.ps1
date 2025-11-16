@@ -112,6 +112,8 @@
         Set-XdrEndpointAdvancedFeatures -LiveResponse $true -LiveResponseForServers $true
         Enables Live Response for both workstations and servers.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '')]
     [CmdletBinding(SupportsShouldProcess)]
     param (
         # Advanced Features parameters

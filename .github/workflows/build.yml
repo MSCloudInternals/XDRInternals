@@ -5,7 +5,7 @@
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v1
@@ -16,7 +16,7 @@ jobs:
         run: .\build\vsts-validate.ps1
         shell: powershell
       - name: Build
-        run: .\build\vsts-build.ps1 -ApiKey $env:APIKEY
+        run: .\build\vsts-build.ps1 -ApiKey $env:APIKEY -AutoVersion -SkipPublish
         shell: powershell
         env:
           APIKEY: ${{ secrets.ApiKey }}

@@ -1,4 +1,4 @@
-﻿function Get-XdrEndpointDeviceVendors {
+﻿function Get-XdrEndpointDeviceVendor {
     <#
     .SYNOPSIS
         Retrieves all device vendors from Microsoft Defender for Endpoint.
@@ -11,11 +11,11 @@
         Bypasses the cache and forces a fresh retrieval from the API.
     
     .EXAMPLE
-        Get-XdrEndpointDeviceVendors
+        Get-XdrEndpointDeviceVendor
         Retrieves all device vendors using cached data if available.
     
     .EXAMPLE
-        Get-XdrEndpointDeviceVendors -Force
+        Get-XdrEndpointDeviceVendor -Force
         Forces a fresh retrieval of device vendors, bypassing the cache.
     
     .OUTPUTS

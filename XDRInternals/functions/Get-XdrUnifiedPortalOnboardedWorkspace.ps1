@@ -1,4 +1,4 @@
-﻿function Get-XdrUnifiedPortalOnboardedWorkspaces {
+﻿function Get-XdrUnifiedPortalOnboardedWorkspace {
     <#
     .SYNOPSIS
         Retrieves onboarded Sentinel workspaces from Microsoft Defender Unified Portal.
@@ -12,11 +12,11 @@
         Bypasses the token cache and forces a fresh token retrieval from the API.
 
     .EXAMPLE
-        Get-XdrUnifiedPortalOnboardedWorkspaces
+        Get-XdrUnifiedPortalOnboardedWorkspace
         Retrieves the list of onboarded Sentinel workspaces using a cached token if available.
 
     .EXAMPLE
-        Get-XdrUnifiedPortalOnboardedWorkspaces -Force
+        Get-XdrUnifiedPortalOnboardedWorkspace -Force
         Forces a fresh token retrieval, bypassing the cache, and gets the onboarded workspaces.
 
     .OUTPUTS

@@ -20,6 +20,7 @@
         PSCustomObject[]
         Returns an array of custom objects with Name, Value, and Description properties for each advanced feature.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'Advanced Features is plural by design')]
     [CmdletBinding()]
     param (
 
@@ -40,7 +41,7 @@
         }
         $LiveResponse = Get-XdrEndpointConfigurationLiveResponse
         $PotentiallyUnwantedApplications = Get-XdrEndpointConfigurationPotentiallyUnwantedApplications
-        $PreviewFeatures = Get-XdrEndpointConfigurationPreviewFeatures
+        $PreviewFeatures = Get-XdrEndpointConfigurationPreviewFeature
         $PurviewSharing = Get-XdrEndpointConfigurationPurviewSharing
         # Overwrite specific properties with more detailed configurations
         if (-not $BasicAdvancedFeatures.AatpWorkspaceExists) {

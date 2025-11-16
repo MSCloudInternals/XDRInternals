@@ -1,4 +1,4 @@
-﻿function Get-XdrDatalakeDatabases {
+﻿function Get-XdrDatalakeDatabase {
     <#
     .SYNOPSIS
         Retrieves databases from Microsoft Defender XDR datalake.
@@ -11,11 +11,11 @@
         Bypasses the cache and forces a fresh retrieval from the API.
     
     .EXAMPLE
-        Get-XdrDatalakeDatabases
+        Get-XdrDatalakeDatabase
         Retrieves the datalake databases using cached data if available.
     
     .EXAMPLE
-        Get-XdrDatalakeDatabases -Force
+        Get-XdrDatalakeDatabase -Force
         Forces a fresh retrieval of the datalake databases, bypassing the cache.
     
     .OUTPUTS

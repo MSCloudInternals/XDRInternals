@@ -23,6 +23,7 @@
         Set-XdrCache -CacheKey "TenantInfo" -Value $tenantData -TTLMinutes 60
         Caches tenant information for 1 hour.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'No state is changed outside of the current session')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]

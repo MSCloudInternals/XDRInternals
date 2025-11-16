@@ -18,6 +18,7 @@
         Get-XdrEndpointConfigurationPotentiallyUnwantedApplications -Force
         Forces a fresh retrieval of the PUA configuration, bypassing the cache.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'Potentially Unwanted Applications is plural by design')]
     [CmdletBinding()]
     param (
     )

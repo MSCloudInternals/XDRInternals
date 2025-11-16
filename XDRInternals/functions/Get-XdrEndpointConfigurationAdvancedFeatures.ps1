@@ -18,6 +18,7 @@
         Get-XdrEndpointConfigurationAdvancedFeatures -Force
         Forces a fresh retrieval of the advanced features configuration, bypassing the cache.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'Advanced Features is plural by design')]
     [CmdletBinding()]
     param (
     )

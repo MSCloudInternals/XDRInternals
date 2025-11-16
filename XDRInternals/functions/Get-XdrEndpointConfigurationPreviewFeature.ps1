@@ -1,4 +1,4 @@
-﻿function Get-XdrEndpointConfigurationPreviewFeatures {
+﻿function Get-XdrEndpointConfigurationPreviewFeature {
     <#
     .SYNOPSIS
         Retrieves the preview features configuration for Microsoft Defender for Endpoint.
@@ -11,11 +11,11 @@
         Bypasses the cache and forces a fresh retrieval from the API.
     
     .EXAMPLE
-        Get-XdrEndpointConfigurationPreviewFeatures
+        Get-XdrEndpointConfigurationPreviewFeature
         Retrieves the preview features configuration using cached data if available.
     
     .EXAMPLE
-        Get-XdrEndpointConfigurationPreviewFeatures -Force
+        Get-XdrEndpointConfigurationPreviewFeature -Force
         Forces a fresh retrieval of the preview features configuration, bypassing the cache.
     #>
     [CmdletBinding()]

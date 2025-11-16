@@ -1,4 +1,4 @@
-﻿function Get-XdrEndpointDeviceTags {
+﻿function Get-XdrEndpointDeviceTag {
     <#
     .SYNOPSIS
         Retrieves all device tags from Microsoft Defender for Endpoint.
@@ -11,11 +11,11 @@
         Bypasses the cache and forces a fresh retrieval from the API.
     
     .EXAMPLE
-        Get-XdrEndpointDeviceTags
+        Get-XdrEndpointDeviceTag
         Retrieves all device tags using cached data if available.
     
     .EXAMPLE
-        Get-XdrEndpointDeviceTags -Force
+        Get-XdrEndpointDeviceTag -Force
         Forces a fresh retrieval of device tags, bypassing the cache.
     
     .OUTPUTS

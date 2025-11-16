@@ -1,4 +1,4 @@
-﻿function Get-XdrConfigurationAlertServiceSettings {
+﻿function Get-XdrConfigurationAlertServiceSetting {
     <#
     .SYNOPSIS
         Retrieves alert service settings from Microsoft Defender XDR.
@@ -12,11 +12,11 @@
         Bypasses the cache and forces a fresh retrieval from the API.
 
     .EXAMPLE
-        Get-XdrConfigurationAlertServiceSettings
+        Get-XdrConfigurationAlertServiceSetting
         Retrieves the alert service settings using cached data if available.
 
     .EXAMPLE
-        Get-XdrConfigurationAlertServiceSettings -Force
+        Get-XdrConfigurationAlertServiceSetting -Force
         Forces a fresh retrieval of the alert service settings, bypassing the cache.
 
     .OUTPUTS

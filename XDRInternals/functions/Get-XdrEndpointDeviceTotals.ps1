@@ -27,6 +27,7 @@
         Get-XdrEndpointDeviceTotals -LookingBackInDays 7
         Retrieves device totals for the last 7 days, hiding low fidelity devices.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'DeviceTotals is plural by design')]
     [CmdletBinding()]
     param (
         [Parameter()]

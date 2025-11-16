@@ -1,31 +1,31 @@
-﻿
-function Connect-XdrByEstsCookie {
+﻿function Connect-XdrByEstsCookie {
     <#
     .SYNOPSIS
         Establishes an authenticated session to the Microsoft Defender XDR portal.
-    
+
     .DESCRIPTION
         Connects to security.microsoft.com using an ESTSAUTHPERSISTENT cookie value to establish
         an authenticated web session. This function creates global session and headers variables
         that can be used by other XDR cmdlets to interact with the portal APIs.
-    
+
     .PARAMETER EstsAuthCookieValue
         The ESTSAUTHPERSISTENT cookie value from an authenticated browser session.
 
     .PARAMETER TenantId
         The Tenant ID to use for the connection. If not provided, the default tenant will be used.
-    
+
     .PARAMETER UserAgent
         The User-Agent string to use for the web requests. Defaults to Edge browser user agent.
-    
+
     .EXAMPLE
         Connect-XdrByEstsCookie -EstsAuthCookieValue "your_cookie_value_here"
         Connects to the XDR portal using the provided authentication cookie.
-    
+
     .OUTPUTS
         String
         Returns a confirmation message when successfully connected.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]

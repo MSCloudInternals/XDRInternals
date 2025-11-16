@@ -2,23 +2,26 @@
     <#
     .SYNOPSIS
         Updates XDR connection session cookies and authentication tokens.
-    
+
     .DESCRIPTION
         Refreshes the web session cookies and XSRF tokens for Microsoft Defender XDR by making a request to the portal.
         This function is called automatically by other XDR cmdlets to ensure the session remains valid.
-    
+
     .EXAMPLE
         Update-XdrConnectionSettings
         Updates the XDR session cookies and headers.
-    
+
     .NOTES
         This function requires an existing connection established by Connect-XdrByEstsCookie or Set-XdrConnectionSettings.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'ConnectionSettings is singular by design')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'No state is changed outside of the current session')]
     [CmdletBinding()]
     param (
 
     )
-    
+
     Write-Verbose "Checking cached XSRF token validity"
     # Check if cached XSRF token is still valid
     $cachedXsrfToken = Get-XdrCache -CacheKey "XsrfToken" -ErrorAction SilentlyContinue
@@ -26,7 +29,7 @@
         Write-Verbose "Cached XSRF token is still valid. Skipping session update."
         return
     }
-    
+
     Write-Verbose "Cached XSRF token expired or not found. Updating session cookies for XDR webpage requests"
 
     $TenantId = Get-XdrCache -CacheKey "XdrTenantId" -ErrorAction SilentlyContinue
@@ -49,7 +52,7 @@
         Write-Verbose "XSRF token has been updated."
         [Hashtable]$script:headers = @{}
         $script:headers["X-XSRF-TOKEN"] = [System.Net.WebUtility]::UrlDecode($session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value)
-        
+
         # Cache the updated XSRF token with 5 minute TTL
         Write-Verbose "Caching updated XSRF token with 5 minute TTL"
         Set-XdrCache -CacheKey "XsrfToken" -Value $script:headers["X-XSRF-TOKEN"] -TTLMinutes 5

@@ -53,17 +53,36 @@
 
     # Invoke a GET request to security.microsoft.com to initiate the authentication flow
     if ($TenantId) {
-        $SecurityPortalUri = "https://security.microsoft.com/" + "?tenantId=$TenantId"
+        $SecurityPortalUri = "https://security.microsoft.com/" + "?tid=$TenantId"
         Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 3660
     } else {
         $SecurityPortalUri = "https://security.microsoft.com/"
     }
     Write-Verbose "Initiating authentication flow to $SecurityPortalUri"
     $SecurityPortal = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Get -Uri $SecurityPortalUri -Verbose:$false
+
+    # Errorhandling for special cases
+    try {
+        $SecurityPortal.Content -match '{(.*)}' | Out-Null
+        $SessionInformation = $Matches[0] | ConvertFrom-Json
+        $sessionid = $SessionInformation.arrSessions.id
+        $UrlLogin = $SessionInformation.urlLogin
+        $NextUri = $UrlLogin + '&sessionid=' + $sessionid
+        Write-Verbose "Additional authentication step detected, performing secondary request to $NextUri"
+        $SecurityPortal = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Get -Uri $NextUri -Verbose:$false
+    } catch {
+        # Silently continue
+    }
+
     $requiredFields = @("code", "id_token", "state", "session_state", "correlation_id")
+    Write-Verbose "Input fields received: $($SecurityPortal.InputFields.name -join ', ')"
+
     # Check if all required fields are present in returned input fields
     foreach ($field in $requiredFields) {
         if (-not ($SecurityPortal.InputFields.name -contains $field)) {
+            $SecurityPortal.Content -match '{(.*)}' | Out-Null
+            $SessionInformation = $Matches[0] | ConvertFrom-Json
+            Write-Verbose "Session information received: $($SessionInformation | ConvertTo-Json -Depth 5)"
             throw "Required field '$field' is missing from the response."
         }
     }

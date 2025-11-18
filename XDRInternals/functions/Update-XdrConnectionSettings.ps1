@@ -39,7 +39,7 @@
         $PreviousXSRFValue = $script:session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value
         $PreviousSccAuthValue = $script:session.cookies.GetCookies("https://security.microsoft.com")['sccauth'].Value
         if ($TenantId) {
-            $SecurityPortalUri = "https://security.microsoft.com/" + "?tenantId=$TenantId"
+            $SecurityPortalUri = "https://security.microsoft.com/" + "?tid=$TenantId"
         } else {
             $SecurityPortalUri = "https://security.microsoft.com/"
         }

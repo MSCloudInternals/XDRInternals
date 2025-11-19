@@ -103,8 +103,13 @@
         "Get-XdrUnifiedPortalIsOnboarded",
         "Get-XdrUnifiedPortalOnboardedWorkspace",
         "Get-XdrConfigurationUnifiedRBACWorkload",
+        "Get-XdrXspmAttackPath",
+        "Get-XdrXspmChokePoint",
+        "Get-XdrXspmTopEntryPoint",
+        "Get-XdrXspmTopTarget",
         "Invoke-XdrHuntingQueryValidation",
         "Invoke-XdrRestMethod",
+        "Invoke-XdrXspmHuntingQuery",
         "Set-XdrConnectionSettings",
         "Set-XdrEndpointAdvancedFeatures",
         "Update-XdrConnectionSettings"

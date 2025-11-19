@@ -82,8 +82,13 @@ Get-XdrTenantContext -Force
 | Get-XdrToken                                                | Retrieve authentication token information                     |
 | Get-XdrUnifiedPortalIsOnboarded                             | Check if unified portal is onboarded                          |
 | Get-XdrUnifiedPortalOnboardedWorkspace                      | Get onboarded workspace information                           |
+| Get-XdrXspmAttackPath                                       | Retrieve attack path data from XSPM                           |
+| Get-XdrXspmChokePoint                                       | Get choke points in attack paths                              |
+| Get-XdrXspmTopEntryPoint                                    | Retrieve top entry points from attack paths                   |
+| Get-XdrXspmTopTarget                                        | Get top targets from attack paths                             |
 | Invoke-XdrHuntingQueryValidation                            | Validate an Advanced Hunting query for custom detection rules |
 | Invoke-XdrRestMethod                                        | Invoke REST API calls to XDR endpoints                        |
+| Invoke-XdrXspmHuntingQuery                                  | Execute hunting queries against XSPM attack surface API       |
 | Set-XdrConnectionSettings                                   | Configure connection settings for XDR                         |
 | Set-XdrEndpointAdvancedFeatures                             | Set endpoint advanced features configuration                  |
 | Update-XdrConnectionSettings                                | Update and refresh connection settings                        |
@@ -112,6 +117,22 @@ Get-XdrEndpointDevice -PageSize 50
 
 # Get all identities with automatic pagination
 Get-XdrIdentityIdentity -All
+
+# Get attack paths from XSPM
+Get-XdrXspmAttackPath -Top 50
+
+# Retrieve all attack paths with automatic pagination
+Get-XdrXspmAttackPath -All
+
+# Get choke points (critical nodes in multiple attack paths)
+Get-XdrXspmChokePoint
+
+# Get top entry points and targets
+Get-XdrXspmTopEntryPoint
+Get-XdrXspmTopTarget
+
+# Execute custom XSPM hunting queries
+Invoke-XdrXspmHuntingQuery -Query "AttackPathsV2 | where RiskLevel == 'High'" -ScenarioName "CustomQuery"
 ```
 
 ## License

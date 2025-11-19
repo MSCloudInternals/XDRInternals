@@ -1,3 +1,119 @@
 # XDRInternals
 
 The unofficial API cmdlet to interact with the Microsoft Defender XDR portal
+
+## Description
+
+XDRInternals is a PowerShell module that provides direct access to the Microsoft Defender XDR portal APIs. It enables automation and scripting capabilities for managing and querying XDR resources including endpoints, identities, configurations, and advanced hunting queries.
+
+## Disclaimer
+
+This is an unofficial, community-driven project and is not affiliated with, endorsed by, or supported by Microsoft. This module interacts with undocumented APIs that may change without notice.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+USE AT YOUR OWN RISK. The authors and contributors are not responsible for any issues, data loss, or security implications that may arise from using this module.
+
+## Key Features
+
+### Caching Functionality
+
+Many cmdlets in this module implement intelligent caching to improve performance and reduce API calls:
+
+- Cached data is stored in memory with configurable Time-To-Live (TTL) values
+- Default cache duration varies by cmdlet (typically 10-30 minutes)
+- Use the `-Force` parameter on supported cmdlets to bypass cache and retrieve fresh data
+- Cache keys are automatically generated based on query parameters to ensure accurate results
+
+Example:
+```powershell
+# First call retrieves from API and caches the result
+Get-XdrTenantContext
+
+# Second call uses cached data (if within TTL)
+Get-XdrTenantContext
+
+# Force fresh retrieval
+Get-XdrTenantContext -Force
+```
+
+## Available Cmdlets
+
+| Cmdlet                                                      | Description                                                   |
+| ----------------------------------------------------------- | ------------------------------------------------------------- |
+| Connect-XdrByEstsCookie                                     | Authenticate to Microsoft Defender XDR using ESTS cookie      |
+| Get-XdrActionsCenterHistory                                 | Retrieve historical actions from the Action Center            |
+| Get-XdrActionsCenterPending                                 | Retrieve pending actions from the Action Center               |
+| Get-XdrAdvancedHuntingTableSchema                           | Get the schema for Advanced Hunting tables                    |
+| Get-XdrAdvancedHuntingUserHistory                           | Retrieve user's Advanced Hunting query history                |
+| Get-XdrConfigurationAlertServiceSetting                     | Get alert service configuration settings                      |
+| Get-XdrConfigurationAlertTuning                             | Retrieve alert tuning and suppression rules                   |
+| Get-XdrConfigurationAssetRuleManagement                     | Get asset rule management configuration                       |
+| Get-XdrConfigurationCriticalAssetManagement                 | Retrieve critical asset management settings                   |
+| Get-XdrConfigurationServiceAccountClassification            | Get service account classification configuration              |
+| Get-XdrConfigurationUnifiedRBACWorkload                     | Retrieve Unified RBAC workload configuration                  |
+| Get-XdrDatalakeDatabase                                     | Get available datalake databases                              |
+| Get-XdrDatalakeTableSchema                                  | Retrieve schema for datalake tables                           |
+| Get-XdrEndpointAdvancedFeatures                             | Get endpoint advanced features settings                       |
+| Get-XdrEndpointConfigurationAdvancedFeatures                | Retrieve endpoint advanced features configuration             |
+| Get-XdrEndpointConfigurationAuthenticatedTelemetry          | Get authenticated telemetry configuration                     |
+| Get-XdrEndpointConfigurationIntuneConnection                | Retrieve Intune connection configuration                      |
+| Get-XdrEndpointConfigurationLiveResponse                    | Get Live Response configuration settings                      |
+| Get-XdrEndpointConfigurationPotentiallyUnwantedApplications | Retrieve PUA configuration                                    |
+| Get-XdrEndpointConfigurationPreviewFeature                  | Get preview feature configuration                             |
+| Get-XdrEndpointConfigurationPurviewSharing                  | Retrieve Purview data sharing configuration                   |
+| Get-XdrEndpointDevice                                       | Get endpoint devices with filtering and pagination            |
+| Get-XdrEndpointDeviceModel                                  | Retrieve device models                                        |
+| Get-XdrEndpointDeviceOsVersionFriendlyName                  | Get friendly names for OS versions                            |
+| Get-XdrEndpointDeviceRbacGroup                              | Retrieve RBAC groups for devices                              |
+| Get-XdrEndpointDeviceTag                                    | Get device tags                                               |
+| Get-XdrEndpointDeviceTimeline                               | Retrieve timeline events for a specific device                |
+| Get-XdrEndpointDeviceTotals                                 | Get total counts of endpoint devices                          |
+| Get-XdrEndpointDeviceVendor                                 | Retrieve device vendor information                            |
+| Get-XdrEndpointDeviceWindowsReleaseVersion                  | Get Windows release version information                       |
+| Get-XdrIdentityDomainControllerCoverage                     | Retrieve domain controller coverage information               |
+| Get-XdrIdentityIdentity                                     | Get identities from Microsoft Defender for Identity           |
+| Get-XdrIdentityServiceAccount                               | Retrieve service account information                          |
+| Get-XdrIdentityStatistic                                    | Get identity statistics                                       |
+| Get-XdrServiceInfo                                          | Retrieve XDR service information                              |
+| Get-XdrStreamingApiConfiguration                            | Get Streaming API configuration                               |
+| Get-XdrTenantContext                                        | Retrieve tenant context information                           |
+| Get-XdrTenantWorkloadStatus                                 | Get workload status for the tenant                            |
+| Get-XdrToken                                                | Retrieve authentication token information                     |
+| Get-XdrUnifiedPortalIsOnboarded                             | Check if unified portal is onboarded                          |
+| Get-XdrUnifiedPortalOnboardedWorkspace                      | Get onboarded workspace information                           |
+| Invoke-XdrHuntingQueryValidation                            | Validate an Advanced Hunting query for custom detection rules |
+| Invoke-XdrRestMethod                                        | Invoke REST API calls to XDR endpoints                        |
+| Set-XdrConnectionSettings                                   | Configure connection settings for XDR                         |
+| Set-XdrEndpointAdvancedFeatures                             | Set endpoint advanced features configuration                  |
+| Update-XdrConnectionSettings                                | Update and refresh connection settings                        |
+
+## Installation
+
+```powershell
+# Clone the repository
+git clone https://github.com/MSCloudInternals/XDRInternals.git
+
+# Import the module
+Import-Module .\XDRInternals\XDRInternals.psd1
+```
+
+## Usage
+
+```powershell
+# Connect to Microsoft Defender XDR
+Connect-XdrByEstsCookie
+
+# Get tenant context
+Get-XdrTenantContext
+
+# Retrieve endpoint devices
+Get-XdrEndpointDevice -PageSize 50
+
+# Get all identities with automatic pagination
+Get-XdrIdentityIdentity -All
+```
+
+## License
+
+See LICENSE file for details.

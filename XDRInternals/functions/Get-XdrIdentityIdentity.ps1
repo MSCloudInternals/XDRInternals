@@ -96,9 +96,8 @@
         Object
         Returns the identities data from the API.
     #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseOutputTypeCorrectly', '')]
+    [OutputType([System.Object[]])]
     [CmdletBinding(DefaultParameterSetName = 'Paged')]
-    [OutputType([Object])]
     param (
         [Parameter()]
         [ValidateSet('RepresentableName', 'AccountDomain', 'CreatedDateTime')]

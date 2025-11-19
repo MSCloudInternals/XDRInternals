@@ -29,6 +29,7 @@
         Array
         Returns an array of entry point objects containing EntryPointId, EntryPointName, and AttackPathsCount.
     #>
+    [OutputType([System.Object[]])]
     [CmdletBinding()]
     param (
         [Parameter()]

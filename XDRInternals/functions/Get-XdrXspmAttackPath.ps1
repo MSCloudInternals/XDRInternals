@@ -47,6 +47,7 @@
         Array
         Returns an array of attack path objects containing entry points, targets, paths, risk scores, and status information.
     #>
+    [OutputType([System.Object[]])]
     [CmdletBinding()]
     param (
         [Parameter()]
@@ -61,6 +62,7 @@
         [Parameter()]
         [switch]$Force
     )
+
 
     begin {
         Update-XdrConnectionSettings

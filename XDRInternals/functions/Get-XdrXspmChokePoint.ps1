@@ -49,6 +49,7 @@
         Array
         Returns an array of choke point objects containing node information, attack path counts, and risk levels.
     #>
+    [OutputType([System.Object[]])]
     [CmdletBinding()]
     param (
         [Parameter()]

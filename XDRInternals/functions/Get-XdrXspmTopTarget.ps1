@@ -33,6 +33,7 @@
         Array
         Returns an array of target objects containing TargetId, TargetName, and count (number of attack paths).
     #>
+    [OutputType([System.Object[]])]
     [CmdletBinding()]
     param (
         [Parameter()]

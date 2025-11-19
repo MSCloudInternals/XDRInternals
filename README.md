@@ -78,6 +78,7 @@ Get-XdrTenantContext -Force
 | Get-XdrServiceInfo                                          | Retrieve XDR service information                              |
 | Get-XdrStreamingApiConfiguration                            | Get Streaming API configuration                               |
 | Get-XdrTenantContext                                        | Retrieve tenant context information                           |
+| Get-XdrTenants                                              | Retrieve list of accessible tenants                           |
 | Get-XdrTenantWorkloadStatus                                 | Get workload status for the tenant                            |
 | Get-XdrToken                                                | Retrieve authentication token information                     |
 | Get-XdrUnifiedPortalIsOnboarded                             | Check if unified portal is onboarded                          |

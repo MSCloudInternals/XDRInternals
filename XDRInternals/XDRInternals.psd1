@@ -98,6 +98,7 @@
         "Get-XdrServiceInfo",
         "Get-XdrStreamingApiConfiguration",
         "Get-XdrTenantContext",
+        "Get-XdrTenants",
         "Get-XdrTenantWorkloadStatus",
         "Get-XdrToken",
         "Get-XdrUnifiedPortalIsOnboarded",

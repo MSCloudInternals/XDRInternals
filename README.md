@@ -75,6 +75,7 @@ Get-XdrTenantContext -Force
 | Get-XdrIdentityIdentity                                     | Get identities from Microsoft Defender for Identity           |
 | Get-XdrIdentityServiceAccount                               | Retrieve service account information                          |
 | Get-XdrIdentityStatistic                                    | Get identity statistics                                       |
+| Get-XdrIncident                                             | Retrieve incidents with filtering and pagination              |
 | Get-XdrServiceInfo                                          | Retrieve XDR service information                              |
 | Get-XdrStreamingApiConfiguration                            | Get Streaming API configuration                               |
 | Get-XdrSuppressionRule                                      | Retrieve alert suppression rules                              |

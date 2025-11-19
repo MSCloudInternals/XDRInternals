@@ -97,6 +97,7 @@
         "Get-XdrIdentityStatistic",
         "Get-XdrServiceInfo",
         "Get-XdrStreamingApiConfiguration",
+        "Get-XdrSuppressionRule",
         "Get-XdrTenantContext",
         "Get-XdrTenants",
         "Get-XdrTenantWorkloadStatus",

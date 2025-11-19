@@ -77,6 +77,7 @@ Get-XdrTenantContext -Force
 | Get-XdrIdentityStatistic                                    | Get identity statistics                                       |
 | Get-XdrServiceInfo                                          | Retrieve XDR service information                              |
 | Get-XdrStreamingApiConfiguration                            | Get Streaming API configuration                               |
+| Get-XdrSuppressionRule                                      | Retrieve alert suppression rules                              |
 | Get-XdrTenantContext                                        | Retrieve tenant context information                           |
 | Get-XdrTenants                                              | Retrieve list of accessible tenants                           |
 | Get-XdrTenantWorkloadStatus                                 | Get workload status for the tenant                            |

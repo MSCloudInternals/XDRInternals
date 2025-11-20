@@ -160,6 +160,7 @@ function ConvertTo-CustomCollectionYaml {
     .PARAMETER Rules
         Array of rule objects to convert.
     #>
+    [OutputType([System.String])]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -225,6 +226,7 @@ function ConvertTo-YamlFilterFormat {
     .PARAMETER Expression
         The filter expression object to convert.
     #>
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]

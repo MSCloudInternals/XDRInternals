@@ -91,8 +91,12 @@
         "Get-XdrEndpointDeviceTotals",
         "Get-XdrEndpointDeviceVendor",
         "Get-XdrEndpointDeviceWindowsReleaseVersion",
+        "Get-XdrIdentityAlertThreshold",
+        "Get-XdrIdentityConfigurationDirectoryServiceAccount",
+        "Get-XdrIdentityConfigurationRemediationActionAccount",
         "Get-XdrIdentityDomainControllerCoverage",
         "Get-XdrIdentityIdentity",
+        "Get-XdrIdentityOnboardingStatus",
         "Get-XdrIdentityServiceAccount",
         "Get-XdrIdentityStatistic",
         "Get-XdrServiceInfo",
@@ -112,8 +116,11 @@
         "Invoke-XdrHuntingQueryValidation",
         "Invoke-XdrRestMethod",
         "Invoke-XdrXspmHuntingQuery",
+        "New-XdrIdentityConfigurationRemediationActionAccount",
+        "Remove-XdrIdentityConfigurationRemediationActionAccount",
         "Set-XdrConnectionSettings",
         "Set-XdrEndpointAdvancedFeatures",
+        "Set-XdrIdentityConfigurationRemediationActionAccount",
         "Update-XdrConnectionSettings"
     )
 

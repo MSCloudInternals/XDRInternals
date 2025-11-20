@@ -77,6 +77,7 @@
         "Get-XdrEndpointAdvancedFeatures",
         "Get-XdrEndpointConfigurationAdvancedFeatures",
         "Get-XdrEndpointConfigurationAuthenticatedTelemetry",
+        "Get-XdrEndpointConfigurationCustomCollectionRule",
         "Get-XdrEndpointConfigurationIntuneConnection",
         "Get-XdrEndpointConfigurationLiveResponse",
         "Get-XdrEndpointConfigurationPotentiallyUnwantedApplications",
@@ -121,6 +122,8 @@
         "Set-XdrConnectionSettings",
         "Set-XdrEndpointAdvancedFeatures",
         "Set-XdrIdentityConfigurationRemediationActionAccount",
+        "New-XdrEndpointConfigurationCustomCollectionRule",
+        "Set-XdrEndpointConfigurationCustomCollectionRule",
         "Update-XdrConnectionSettings"
     )
 

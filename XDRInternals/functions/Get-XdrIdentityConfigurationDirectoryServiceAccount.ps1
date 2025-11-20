@@ -52,6 +52,7 @@
         - IsGroupManagedServiceAccount: Boolean indicating if account is a gMSA
         - IsSingleLabelAccountDomainName: Boolean for single-label domain configuration
     #>
+    [OutputType([object[]])]
     [CmdletBinding(DefaultParameterSetName = 'Paged')]
     param (
         [Parameter(ParameterSetName = 'Paged')]

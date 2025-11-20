@@ -27,6 +27,12 @@
         Bypasses any existing cache entries when updating the rule.
         Will slow down processing if multiple rules are updated in succession.
 
+    .PARAMETER Confirm
+        Prompts for confirmation before creating each rule.
+
+    .PARAMETER WhatIf
+    Shows what would happen if the cmdlet runs. The cmdlet is not run.
+
     .EXAMPLE
         Set-XdrEndpointConfigurationCustomCollectionRule -FilePath "C:\Rules\FileMonitoring.yaml" -RuleId "12345678-1234-1234-1234-123456789012"
         Updates a single custom collection rule from the specified YAML file.
@@ -36,8 +42,8 @@
         Updates custom collection rules from all YAML files in the specified directory.
 
     .EXAMPLE
-        Get-XdrEndpointConfigurationCustomCollectionRule | 
-            Where-Object { $_.ruleName -eq "My Rule" } | 
+        Get-XdrEndpointConfigurationCustomCollectionRule |
+            Where-Object { $_.ruleName -eq "My Rule" } |
             Set-XdrEndpointConfigurationCustomCollectionRule
         Updates a rule by passing a PSObject from Get cmdlet through the pipeline.
 

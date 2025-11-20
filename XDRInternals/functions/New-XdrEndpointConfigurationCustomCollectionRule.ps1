@@ -21,6 +21,12 @@
         Bypasses any existing cache entries when creating the rule.
         Will slow down processing if multiple rules are created in succession.
 
+    .PARAMETER Confirm
+        Prompts for confirmation before creating each rule.
+
+    .PARAMETER WhatIf
+    Shows what would happen if the cmdlet runs. The cmdlet is not run.
+
     .EXAMPLE
         New-XdrEndpointConfigurationCustomCollectionRule -FilePath "C:\Rules\FileMonitoring.yaml"
         Creates a single custom collection rule from the specified YAML file.

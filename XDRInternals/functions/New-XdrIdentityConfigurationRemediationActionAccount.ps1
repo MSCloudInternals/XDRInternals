@@ -26,6 +26,12 @@
         New-XdrIdentityConfigurationRemediationActionAccount -AccountName "DefenderRemediator" -DomainDnsName "corp.contoso.com" -IsSingleLabelAccountDomainName
         Registers a gMSA account with single-label domain name configuration.
 
+    .PARAMETER Confirm
+        Prompts for confirmation before registering the account.
+
+    .PARAMETER WhatIf
+        Shows what would happen if the cmdlet runs. The cmdlet is not run.
+
     .OUTPUTS
         Object
         Returns the registration response from the API including the account configuration details.

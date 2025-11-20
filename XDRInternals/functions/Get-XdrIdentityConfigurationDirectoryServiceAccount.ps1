@@ -38,7 +38,7 @@
         Forces a fresh retrieval of directory service accounts, bypassing the cache.
 
     .EXAMPLE
-        Get-XdrIdentityConfigurationDirectoryServiceAccount -All | 
+        Get-XdrIdentityConfigurationDirectoryServiceAccount -All |
             Where-Object { $_.IsGroupManagedServiceAccount -eq $true }
         Retrieves all directory service accounts and filters for gMSAs.
 
@@ -76,51 +76,51 @@
         # If All switch is specified, retrieve all accounts through pagination
         if ($All) {
             Write-Verbose "Retrieving all directory service accounts with pagination"
-            
+
             # Use maximum page size for efficiency
             $pageSizeForAll = 100
             $allResults = [System.Collections.Generic.List[object]]::new()
             $currentSkip = 0
             $totalCount = $null
-            
+
             do {
                 Write-Verbose "Retrieving page: Skip=$currentSkip, PageSize=$pageSizeForAll"
-                
+
                 $Uri = "https://security.microsoft.com/apiproxy/aatp/odata/directoryServices?`$count=true&`$top=$pageSizeForAll&`$skip=$currentSkip"
                 $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-                
+
                 # Get total count from first request
                 if ($null -eq $totalCount) {
                     $totalCount = $result.'@odata.count'
                     Write-Verbose "Total directory service accounts to retrieve: $totalCount"
-                    
+
                     if ($totalCount -eq 0) {
                         Write-Verbose "No directory service accounts found"
                         return @()
                     }
                 }
-                
+
                 $pageData = $result.value
-                
+
                 if ($null -ne $pageData -and $pageData.Count -gt 0) {
                     $allResults.AddRange([array]$pageData)
                     Write-Verbose "Retrieved $($pageData.Count) directory service accounts (Total so far: $($allResults.Count))"
                 }
-                
+
                 $currentSkip += $pageSizeForAll
-                
+
                 # Safety check to prevent infinite loops
                 if ($null -eq $pageData -or $pageData.Count -eq 0) {
                     Write-Verbose "No more data returned, stopping pagination"
                     break
                 }
             } while ($currentSkip -lt $totalCount)
-            
+
             Write-Verbose "Completed retrieving all directory service accounts: $($allResults.Count) total"
-            
+
             return $allResults.ToArray()
         }
-        
+
         # Standard single-page retrieval with caching
         $cacheKeySuffix = "$PageSize-$Skip"
         $cacheKey = "XdrIdentityConfigurationDirectoryServiceAccount-$cacheKeySuffix"
@@ -139,13 +139,13 @@
         $Uri = "https://security.microsoft.com/apiproxy/aatp/odata/directoryServices?`$count=true&`$top=$PageSize&`$skip=$Skip"
         Write-Verbose "Retrieving XDR Identity directory service accounts (PageSize: $PageSize, Skip: $Skip)"
         $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        
+
         $accounts = $result.value
-        
+
         if ($null -eq $accounts) {
             $accounts = @()
         }
-        
+
         Write-Verbose "Retrieved $($accounts.Count) directory service account(s)"
 
         Set-XdrCache -CacheKey $cacheKey -Value $accounts -TTLMinutes 30

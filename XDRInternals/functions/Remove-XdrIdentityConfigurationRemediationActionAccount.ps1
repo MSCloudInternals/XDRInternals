@@ -12,6 +12,12 @@
         Must be in the format: accountname@domain.com
         Accepts pipeline input.
 
+    .PARAMETER Confirm
+        Prompts for confirmation before removing each account.
+
+    .PARAMETER WhatIf
+        Shows what would happen if the cmdlet runs. The cmdlet is not run.
+
     .EXAMPLE
         Remove-XdrIdentityConfigurationRemediationActionAccount -Id "MDIRemediation@contoso.com"
         Removes the specified remediation action account.
@@ -28,8 +34,8 @@
         Removes all registered remediation accounts.
 
     .EXAMPLE
-        Get-XdrIdentityConfigurationRemediationActionAccount | 
-            Select-Object -ExpandProperty RemediationAccounts | 
+        Get-XdrIdentityConfigurationRemediationActionAccount |
+            Select-Object -ExpandProperty RemediationAccounts |
             Remove-XdrIdentityConfigurationRemediationActionAccount
         Removes all remediation accounts using pipeline input.
 
@@ -55,21 +61,21 @@
 
     process {
         $Uri = "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials/delete"
-        
+
         $body = @{
             id = $Id
         } | ConvertTo-Json
 
         if ($PSCmdlet.ShouldProcess($Id, "Remove remediation action account")) {
             Write-Verbose "Removing remediation action account: $Id"
-            
+
             try {
                 # No response expected from the API
                 $null = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
-                
+
                 # Clear the cache for the Get cmdlet
                 Clear-XdrCache -CacheKey "XdrIdentityConfigurationRemediationActionAccount" -ErrorAction SilentlyContinue
-                
+
                 Write-Verbose "Successfully removed remediation action account: $Id"
             } catch {
                 Write-Error "Failed to remove remediation action account '$Id': $($_.Exception.Message)"

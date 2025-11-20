@@ -12,6 +12,12 @@
         Switch parameter to enable the use of Local System account for remediation actions.
         If not specified, the configuration is set to use a dedicated remediation account.
 
+    .PARAMETER Confirm
+        Prompts for confirmation before creating each rule.
+
+    .PARAMETER WhatIf
+        Shows what would happen if the cmdlet runs. The cmdlet is not run.
+
     .EXAMPLE
         Set-XdrIdentityConfigurationRemediationActionAccount -UseLocalSystem
         Configures MDI to use the Local System account for remediation actions.
@@ -40,20 +46,20 @@
 
     process {
         $Uri = "https://security.microsoft.com/apiproxy/aatp/api/remediationActions/configuration"
-        
+
         $body = @{
             IsRemediationWithLocalSystemEnabled = $UseLocalSystem
         } | ConvertTo-Json
 
         $accountType = if ($UseLocalSystem) { "Local System" } else { "dedicated account" }
-        
+
         if ($PSCmdlet.ShouldProcess("MDI Remediation Action Configuration", "Set remediation account type to $accountType")) {
             Write-Verbose "Configuring MDI remediation to use $accountType"
             $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
-            
+
             # Clear the cache for the Get cmdlet
             Clear-XdrCache -CacheKey "XdrIdentityConfigurationRemediationActionAccount" -ErrorAction SilentlyContinue
-            
+
             Write-Verbose "Successfully configured remediation account type"
             return $result
         }

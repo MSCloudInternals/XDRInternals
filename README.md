@@ -57,6 +57,7 @@ Get-XdrTenantContext -Force
 | Get-XdrEndpointAdvancedFeatures                             | Get endpoint advanced features settings                       |
 | Get-XdrEndpointConfigurationAdvancedFeatures                | Retrieve endpoint advanced features configuration             |
 | Get-XdrEndpointConfigurationAuthenticatedTelemetry          | Get authenticated telemetry configuration                     |
+| Get-XdrEndpointConfigurationCustomCollectionRule            | Get custom collection rules for MDE                           |
 | Get-XdrEndpointConfigurationIntuneConnection                | Retrieve Intune connection configuration                      |
 | Get-XdrEndpointConfigurationLiveResponse                    | Get Live Response configuration settings                      |
 | Get-XdrEndpointConfigurationPotentiallyUnwantedApplications | Retrieve PUA configuration                                    |
@@ -91,8 +92,10 @@ Get-XdrTenantContext -Force
 | Invoke-XdrHuntingQueryValidation                            | Validate an Advanced Hunting query for custom detection rules |
 | Invoke-XdrRestMethod                                        | Invoke REST API calls to XDR endpoints                        |
 | Invoke-XdrXspmHuntingQuery                                  | Execute hunting queries against XSPM attack surface API       |
+| New-XdrEndpointConfigurationCustomCollectionRule            | Create custom collection rules from YAML files                |
 | Set-XdrConnectionSettings                                   | Configure connection settings for XDR                         |
 | Set-XdrEndpointAdvancedFeatures                             | Set endpoint advanced features configuration                  |
+| Set-XdrEndpointConfigurationCustomCollectionRule            | Update existing custom collection rules                       |
 | Update-XdrConnectionSettings                                | Update and refresh connection settings                        |
 
 ## Installation
@@ -119,6 +122,23 @@ Get-XdrEndpointDevice -PageSize 50
 
 # Get all identities with automatic pagination
 Get-XdrIdentityIdentity -All
+
+# Get custom collection rules
+Get-XdrEndpointConfigurationCustomCollectionRule
+
+# Export custom collection rules to YAML
+Get-XdrEndpointConfigurationCustomCollectionRule -Output YAML | Out-File "rules.yaml"
+
+# Create a new custom collection rule from YAML
+New-XdrEndpointConfigurationCustomCollectionRule -FilePath "C:\Rules\FileMonitoring.yaml"
+
+# Update an existing rule from YAML
+Set-XdrEndpointConfigurationCustomCollectionRule -FilePath "C:\Rules\UpdatedRule.yaml" -RuleId "guid"
+
+# Update a rule using PSObject
+$rule = Get-XdrEndpointConfigurationCustomCollectionRule | Where-Object { $_.ruleName -eq "My Rule" }
+$rule.isEnabled = $false
+Set-XdrEndpointConfigurationCustomCollectionRule -InputObject $rule
 
 # Get attack paths from XSPM
 Get-XdrXspmAttackPath -Top 50

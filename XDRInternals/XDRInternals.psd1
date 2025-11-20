@@ -77,6 +77,7 @@
         "Get-XdrEndpointAdvancedFeatures",
         "Get-XdrEndpointConfigurationAdvancedFeatures",
         "Get-XdrEndpointConfigurationAuthenticatedTelemetry",
+        "Get-XdrEndpointConfigurationCustomCollectionRule",
         "Get-XdrEndpointConfigurationIntuneConnection",
         "Get-XdrEndpointConfigurationLiveResponse",
         "Get-XdrEndpointConfigurationPotentiallyUnwantedApplications",
@@ -112,8 +113,10 @@
         "Invoke-XdrHuntingQueryValidation",
         "Invoke-XdrRestMethod",
         "Invoke-XdrXspmHuntingQuery",
+        "New-XdrEndpointConfigurationCustomCollectionRule",
         "Set-XdrConnectionSettings",
         "Set-XdrEndpointAdvancedFeatures",
+        "Set-XdrEndpointConfigurationCustomCollectionRule",
         "Update-XdrConnectionSettings"
     )
 

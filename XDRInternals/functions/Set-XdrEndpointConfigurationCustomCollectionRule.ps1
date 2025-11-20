@@ -166,9 +166,9 @@
 
                         # If WhatIf is specified, output the JSON body
                         if ($WhatIfPreference) {
-                            Write-Output "Uri: $Uri"
-                            Write-Output "JSON Body for rule '$($rule.name)' (ID: $RuleId):"
-                            Write-Output $body
+                            Write-Host "Uri: $Uri"
+                            Write-Host "JSON Body for rule '$($rule.name)' (ID: $RuleId):"
+                            Write-Host $body
                             continue
                         }
 
@@ -181,7 +181,7 @@
                             Clear-XdrCache -CacheKey "XdrEndpointConfigurationCustomCollectionRule" -ErrorAction SilentlyContinue
 
                             Write-Verbose "Successfully updated rule with ID: $($result.ruleId)"
-                            Write-Output $result
+                            Write-Host $result
                         }
                     } catch {
                         Write-Error "Failed to update custom collection rule from file '$($resolvedPath.Path)': $($_.Exception.Message)"
@@ -233,9 +233,9 @@
 
                 # If WhatIf is specified, output the JSON body
                 if ($WhatIfPreference) {
-                    Write-Output "Uri: $Uri"
-                    Write-Output "JSON Body for rule '$($InputObject.ruleName)' (ID: $($InputObject.ruleId)):"
-                    Write-Output $body
+                    Write-Host "Uri: $Uri"
+                    Write-Host "JSON Body for rule '$($InputObject.ruleName)' (ID: $($InputObject.ruleId)):"
+                    Write-Host $body
                     return
                 }
 
@@ -248,7 +248,7 @@
                     Clear-XdrCache -CacheKey "XdrEndpointConfigurationCustomCollectionRule" -ErrorAction SilentlyContinue
 
                     Write-Verbose "Successfully updated rule with ID: $($result.ruleId)"
-                    Write-Output $result
+                    Write-Host $result
                 }
             } catch {
                 Write-Error "Failed to update custom collection rule '$($InputObject.ruleName)': $($_.Exception.Message)"

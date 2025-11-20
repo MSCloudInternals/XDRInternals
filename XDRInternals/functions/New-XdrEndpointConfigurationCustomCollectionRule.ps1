@@ -135,8 +135,8 @@
 
                     # If WhatIf is specified, output the JSON body
                     if ($WhatIfPreference) {
-                        Write-Output "JSON Body for rule '$($rule.name)':"
-                        Write-Output $body
+                        Write-Host "JSON Body for rule '$($rule.name)':"
+                        Write-Host $body
                         continue
                     }
 
@@ -149,7 +149,7 @@
                         Clear-XdrCache -CacheKey "XdrEndpointConfigurationCustomCollectionRule" -ErrorAction SilentlyContinue
 
                         Write-Verbose "Successfully created rule with ID: $($result.ruleId)"
-                        Write-Output $result
+                        Write-Host $result
                     }
                 } catch {
                     Write-Error "Failed to create custom collection rule from file '$($resolvedPath.Path)': $($_.Exception.Message)"

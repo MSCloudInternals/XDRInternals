@@ -117,8 +117,8 @@
 
             # If WhatIf is specified, output the JSON body
             if ($WhatIfPreference) {
-                Write-Output "JSON Body for function '$Name':"
-                Write-Output $body
+                Write-Host "JSON Body for function '$Name':"
+                Write-Host $body
                 return
             }
 
@@ -128,7 +128,7 @@
                 $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
 
                 Write-Verbose "Successfully created function with ID: $($result.Id)"
-                Write-Output $result
+                Write-Host $result
             }
         } catch {
             Write-Error "Failed to create Advanced Hunting function '$Name': $($_.Exception.Message)"

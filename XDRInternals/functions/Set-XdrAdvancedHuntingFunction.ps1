@@ -153,8 +153,8 @@
 
             # If WhatIf is specified, output the JSON body
             if ($WhatIfPreference) {
-                Write-Output "JSON Body for function '$functionName' (ID: $Id):"
-                Write-Output $body
+                Write-Host "JSON Body for function '$functionName' (ID: $Id):"
+                Write-Host $body
                 return
             }
 
@@ -167,7 +167,7 @@
                 Clear-XdrCache -CacheKey "XdrAdvancedHuntingFunction" -ErrorAction SilentlyContinue
 
                 Write-Verbose "Successfully updated function with ID: $($result.Id)"
-                Write-Output $result
+                Write-Host $result
             }
         } catch {
             Write-Error "Failed to update Advanced Hunting function with ID '$Id': $($_.Exception.Message)"

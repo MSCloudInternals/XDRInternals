@@ -33,6 +33,12 @@
         PSObject containing the function to update. The object must include an Id property.
         Typically obtained from Get-XdrAdvancedHuntingFunction.
 
+    .PARAMETER WhatIf
+        Shows what would happen if the cmdlet runs. The function is not created.
+
+    .PARAMETER Confirm
+        Prompts you for confirmation before running the cmdlet.
+
     .EXAMPLE
         Set-XdrAdvancedHuntingFunction -Id 6 -Name "UpdatedFunctionName"
         Updates the name of function with ID 6.
@@ -59,6 +65,7 @@
         The function must exist before it can be updated.
         All unspecified parameters will preserve their existing values.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding(DefaultParameterSetName = 'Parameters', SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     param (
         [Parameter(Mandatory = $true, ParameterSetName = 'Parameters')]
@@ -120,7 +127,7 @@
                 $functionBody = if ($PSBoundParameters.ContainsKey('KQLQuery')) { $KQLQuery } else { $existingFunction.Body }
                 $functionDescription = if ($PSBoundParameters.ContainsKey('Description')) { $Description } else { if ($existingFunction.Description) { $existingFunction.Description } else { "" } }
                 $functionIsShared = if ($PSBoundParameters.ContainsKey('IsShared')) { $IsShared.IsPresent } else { $existingFunction.IsShared }
-                
+
                 # Handle folder path
                 if ($PSBoundParameters.ContainsKey('FolderPath')) {
                     if (-not [string]::IsNullOrWhiteSpace($FolderPath)) {
@@ -134,7 +141,7 @@
                 } else {
                     $functionPath = if ($existingFunction.Path) { $existingFunction.Path } else { "" }
                 }
-                
+
                 $functionInputParameters = if ($existingFunction.InputParameters) { $existingFunction.InputParameters } else { @() }
             }
 

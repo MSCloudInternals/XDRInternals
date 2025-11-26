@@ -27,6 +27,12 @@
         Use forward slashes (/) or backslashes (\) - they will be automatically converted to double backslashes.
         Example: "MyFolder/SubFolder" or "MyFolder\SubFolder"
 
+    .PARAMETER WhatIf
+        Shows what would happen if the cmdlet runs. The function is not created.
+
+    .PARAMETER Confirm
+        Prompts you for confirmation before running the cmdlet.
+
     .EXAMPLE
         New-XdrAdvancedHuntingFunction -Name "GetSuspiciousLogons" -KQLQuery "DeviceLogonEvents | where LogonType == 'Network'" -IsShared
         Creates a shared function that can be used across the organization.
@@ -67,6 +73,7 @@
         Shared functions are visible to all users in the organization.
         Private functions can be organized in folders for better management.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
     param (
         [Parameter(Mandatory = $true)]

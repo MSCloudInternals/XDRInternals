@@ -14,6 +14,12 @@
         PSObject containing the function to remove. The object must include an Id property.
         Typically obtained from Get-XdrAdvancedHuntingFunction.
 
+    .PARAMETER WhatIf
+        Shows what would happen if the cmdlet runs. The function is not created.
+
+    .PARAMETER Confirm
+        Prompts you for confirmation before running the cmdlet.
+
     .EXAMPLE
         Remove-XdrAdvancedHuntingFunction -Id 6
         Removes the function with ID 6.
@@ -34,6 +40,7 @@
         The function must exist before it can be removed.
         This operation requires confirmation by default due to high impact.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding(DefaultParameterSetName = 'Id', SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     param (
         [Parameter(Mandatory = $true, ParameterSetName = 'Id', Position = 0)]
@@ -64,7 +71,7 @@
                 if (-not $existingFunction) {
                     throw "No Advanced Hunting function found with ID '$Id'. Cannot remove a non-existent function."
                 }
-                
+
                 $functionName = if ($existingFunction.Name) { $existingFunction.Name } else { "ID: $Id" }
             }
 

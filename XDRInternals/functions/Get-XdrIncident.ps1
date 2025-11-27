@@ -35,6 +35,10 @@
         Retrieves all incidents by automatically paging through all results.
         When specified, PageSize and PageIndex parameters are used for the page size, but pagination is automatic.
 
+    .PARAMETER IncidentId
+        Retrieves a specific incident by its ID. When specified, all other filtering and pagination parameters are ignored.
+        Cannot be combined with any other parameters.
+
     .PARAMETER Force
         Bypasses the cache and forces a fresh retrieval from the API.
 
@@ -63,6 +67,10 @@
         Retrieves incidents from the last 90 days for a tenant with Defender Experts license.
 
     .EXAMPLE
+        Get-XdrIncident -IncidentId 2823
+        Retrieves a specific incident by its ID.
+
+    .EXAMPLE
         Get-XdrIncident | Where-Object { $_.SeverityName -eq "High" }
         Retrieves incidents and filters for high severity ones.
 
@@ -84,39 +92,42 @@
         And many other properties from the API response
     #>
     [OutputType([System.Object[]])]
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'List')]
     param (
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [string[]]$TitleSearchTerms,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [ValidateRange(1, 365)]
         [int]$LookBackInDays = 30,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [ValidateSet("TopRisk", "CreatedDate", "LastUpdatedDate", "Status", "severity", "name")]
         [string]$SortByField = "TopRisk",
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [ValidateSet("Ascending", "Descending")]
         [string]$SortOrder = "Descending",
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [ValidateRange(1, 1000)]
         [int]$PageSize = 40,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [ValidateRange(1, [int]::MaxValue)]
         [int]$PageIndex = 1,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [switch]$DefenderExpertsLicensed,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [switch]$All,
 
-        [Parameter()]
-        [switch]$Force
+        [Parameter(ParameterSetName = 'List')]
+        [switch]$Force,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'ById')]
+        [int]$IncidentId
     )
 
     begin {
@@ -132,6 +143,34 @@
     }
     
     process {
+        # Handle single incident retrieval by ID
+        if ($PSCmdlet.ParameterSetName -eq 'ById') {
+            Write-Verbose "Retrieving incident with ID: $IncidentId"
+            try {
+                $Uri = "https://security.microsoft.com/apiproxy/mtp/incidentQueue/incidents/$IncidentId"
+                $incident = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+
+                # Add severity name
+                $IncidentSeverity = [int]$incident.Severity
+                if ($severityMap.ContainsKey($IncidentSeverity)) {
+                    $incident | Add-Member -NotePropertyName "SeverityName" -NotePropertyValue $severityMap[$IncidentSeverity] -Force
+                } else {
+                    $incident | Add-Member -NotePropertyName "SeverityName" -NotePropertyValue "Unknown ($($IncidentSeverity))" -Force
+                }
+
+                # Add detection source names
+                if ($incident.DetectionSources) {
+                    $detectionSourceNames = $incident.DetectionSources | ForEach-Object { ConvertFrom-XdrDetectionSourceId -Id $_ }
+                    $incident | Add-Member -NotePropertyName "DetectionSourceNames" -NotePropertyValue $detectionSourceNames -Force
+                }
+
+                return $incident
+            } catch {
+                throw "Failed to retrieve incident with ID $IncidentId : $($_.Exception.Message)"
+            }
+        }
+
+        # Handle list retrieval with pagination
         $allIncidents = @()
         $currentPageIndex = $PageIndex
 

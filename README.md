@@ -46,8 +46,10 @@ Get-XdrTenantContext -Force
 | Connect-XdrByEstsCookie                                     | Authenticate to Microsoft Defender XDR using ESTS cookie      |
 | Get-XdrActionsCenterHistory                                 | Retrieve historical actions from the Action Center            |
 | Get-XdrActionsCenterPending                                 | Retrieve pending actions from the Action Center               |
+| Get-XdrAdvancedHuntingFunction                              | Get saved Advanced Hunting functions                          |
 | Get-XdrAdvancedHuntingTableSchema                           | Get the schema for Advanced Hunting tables                    |
 | Get-XdrAdvancedHuntingUserHistory                           | Retrieve user's Advanced Hunting query history                |
+| Get-XdrAlert                                                | Retrieve alerts with filtering and pagination                 |
 | Get-XdrConfigurationAlertServiceSetting                     | Get alert service configuration settings                      |
 | Get-XdrConfigurationAlertTuning                             | Retrieve alert tuning and suppression rules                   |
 | Get-XdrConfigurationAssetRuleManagement                     | Get asset rule management configuration                       |
@@ -100,9 +102,13 @@ Get-XdrTenantContext -Force
 | Invoke-XdrHuntingQueryValidation                            | Validate an Advanced Hunting query for custom detection rules |
 | Invoke-XdrRestMethod                                        | Invoke REST API calls to XDR endpoints                        |
 | Invoke-XdrXspmHuntingQuery                                  | Execute hunting queries against XSPM attack surface API       |
+| Merge-XdrIncident                                           | Merge multiple incidents into a single incident               |
+| New-XdrAdvancedHuntingFunction                              | Create new Advanced Hunting functions                         |
 | New-XdrEndpointConfigurationCustomCollectionRule            | Create custom collection rules from YAML files                |
 | New-XdrIdentityConfigurationRemediationActionAccount        | Create new remediation action account configuration           |
+| Remove-XdrAdvancedHuntingFunction                           | Remove Advanced Hunting functions                             |
 | Remove-XdrIdentityConfigurationRemediationActionAccount     | Remove remediation action account configuration               |
+| Set-XdrAdvancedHuntingFunction                              | Update existing Advanced Hunting functions                    |
 | Set-XdrConnectionSettings                                   | Configure connection settings for XDR                         |
 | Set-XdrEndpointAdvancedFeatures                             | Set endpoint advanced features configuration                  |
 | Set-XdrEndpointConfigurationCustomCollectionRule            | Update existing custom collection rules                       |

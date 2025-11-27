@@ -33,7 +33,11 @@
         Update-XdrConnectionSettings
     }
     process {
-        $currentCacheValue = Get-XdrCache -CacheKey "XdrTenantContext" -ErrorAction SilentlyContinue
+        try {
+            $currentCacheValue = Get-XdrCache -CacheKey "XdrTenantContext" -ErrorAction SilentlyContinue
+        } catch {
+            $currentCacheValue = $null
+        }
         if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
             Write-Verbose "Using cached XDR Tenant Context"
             return $currentCacheValue.Value

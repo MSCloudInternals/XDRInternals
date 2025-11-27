@@ -15,6 +15,12 @@
     .PARAMETER Comment
         Comment explaining the reason for merging the incidents.
         This will be recorded in the incident history.
+    
+    .PARAMETER Confirm
+    Prompts for confirmation before executing the merge operation.
+
+    .PARAMETER WhatIf
+        Shows what would happen if the cmdlet runs. The JSON body for the merge operation will be displayed.
 
     .EXAMPLE
         Merge-XdrIncident -IncidentIds 2821, 2823 -Comment "Related phishing attacks"
@@ -38,6 +44,7 @@
         All specified incidents must exist in the tenant.
         The operation requires user confirmation unless -Confirm:$false is specified.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     param (
         [Parameter(Mandatory = $true)]
@@ -122,8 +129,8 @@
 
         # If WhatIf is specified, output the JSON body
         if ($WhatIfPreference) {
-            Write-Output "JSON Body for merging incidents:"
-            Write-Output $body
+            Write-Host "JSON Body for merging incidents:"
+            Write-Host $body
             return
         }
 
@@ -134,7 +141,7 @@
                 $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
 
                 Write-Verbose "Successfully merged $($validatedIncidents.Count) incidents"
-                Write-Output $result
+                return $result
             } catch {
                 throw "Failed to merge incidents: $($_.Exception.Message)"
             }

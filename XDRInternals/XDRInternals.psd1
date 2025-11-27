@@ -155,16 +155,16 @@
         PSData = @{
 
             # Tags applied to this module. These help with module discovery in online galleries.
-            # Tags = @()
+            Tags       = @('XDR', 'Defender', 'DefenderXDR', 'MDE', 'MDI', 'DataLake', 'Sentinel', 'MDA', 'MDO', 'XDRInternals', 'Community')
 
             # A URL to the license for this module.
-            # LicenseUri = ''
+            LicenseUri = 'https://github.com/MSCloudInternals/XDRInternals/blob/main/LICENSE'
 
             # A URL to the main website for this project.
-            # ProjectUri = ''
+            ProjectUri = 'https://github.com/MSCloudInternals/XDRInternals'
 
             # A URL to an icon representing this module.
-            # IconUri = ''
+            IconUri    = 'https://raw.githubusercontent.com/MSCloudInternals/XDRInternals/main/images/xdrinternals-icon.jpg'
 
             # ReleaseNotes of this module
             # ReleaseNotes = ''

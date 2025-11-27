@@ -5,7 +5,7 @@
     
     .DESCRIPTION
         Gets the raw advanced features settings from the Microsoft Defender XDR portal.
-        This function includes caching support with a 15-minute TTL to reduce API calls.
+        This function includes caching support with a 30-minute TTL to reduce API calls.
     
     .PARAMETER Force
         Bypasses the cache and forces a fresh retrieval from the API.
@@ -17,10 +17,16 @@
     .EXAMPLE
         Get-XdrEndpointConfigurationAdvancedFeatures -Force
         Forces a fresh retrieval of the advanced features configuration, bypassing the cache.
+    
+    .OUTPUTS
+        Object
+        Returns the API response.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'Advanced Features is plural by design')]
     [CmdletBinding()]
     param (
+        [Parameter()]
+        [switch]$Force
     )
 
     begin {
@@ -28,8 +34,25 @@
     }
     
     process {
-        Write-Verbose "Retrieving XDR Advanced Features configuration"
-        Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/GetAdvancedFeaturesSetting" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        $currentCacheValue = Get-XdrCache -CacheKey "GetXdrEndpointConfigurationAdvancedFeatures" -ErrorAction SilentlyContinue
+        if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
+            Write-Verbose "Using cached GetXdrEndpointConfigurationAdvancedFeatures data"
+            return $currentCacheValue.Value
+        }
+        elseif ($Force) {
+            Write-Verbose "Force parameter specified, bypassing cache"
+            Clear-XdrCache -CacheKey "GetXdrEndpointConfigurationAdvancedFeatures"
+        }
+        else {
+            Write-Verbose "GetXdrEndpointConfigurationAdvancedFeatures cache is missing or expired"
+        }
+
+        $Uri = "https://security.microsoft.com/apiproxy/mtp/settings/GetAdvancedFeaturesSetting"
+        Write-Verbose "Retrieving GetXdrEndpointConfigurationAdvancedFeatures data"
+        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+
+        Set-XdrCache -CacheKey "GetXdrEndpointConfigurationAdvancedFeatures" -Value $result -TTLMinutes 30
+        return $result
     }
     
     end {

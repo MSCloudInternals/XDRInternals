@@ -7,10 +7,10 @@
         Gets the timeline of security events for a device from the Microsoft Defender XDR portal with options to filter by date range and other parameters.
 
     .PARAMETER DeviceId
-        The unique identifier of the device. Accepts pipeline input and can also be specified as MachineId.
+        The unique identifier of the device. Accepts pipeline input and can also be specified as MachineId. Use this parameter set when identifying the device by ID.
 
     .PARAMETER MachineDnsName
-        Optional. The DNS name of the machine.
+        The DNS name of the machine. Use this parameter set when identifying the device by DNS name.
 
     .PARAMETER SenseClientVersion
         Optional. The version of the Sense client.
@@ -47,6 +47,10 @@
         Retrieves the last hour of timeline events for the specified device.
 
     .EXAMPLE
+        Get-XdrEndpointDeviceTimeline -MachineDnsName "computer.contoso.com"
+        Retrieves the last hour of timeline events using the machine DNS name.
+
+    .EXAMPLE
         Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -FromDate (Get-Date).AddDays(-7) -ToDate (Get-Date)
         Retrieves timeline events for the last 7 days.
 
@@ -54,43 +58,53 @@
         "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" | Get-XdrEndpointDeviceTimeline
         Retrieves timeline events using pipeline input.
     #>
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'ByDeviceId')]
     param (
-        [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, ParameterSetName = 'ByDeviceId')]
         [Alias('MachineId')]
         [string]$DeviceId,
 
-        [Parameter()]
+        [Parameter(Mandatory, ParameterSetName = 'ByMachineDnsName')]
         [string]$MachineDnsName,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [string]$SenseClientVersion,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [bool]$GenerateIdentityEvents = $true,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [bool]$IncludeIdentityEvents = $true,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [bool]$SupportMdiOnlyEvents = $true,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [datetime]$FromDate = ((Get-Date).AddHours(-1)),
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [datetime]$ToDate = (Get-Date),
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [bool]$DoNotUseCache = $false,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [bool]$ForceUseCache = $false,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [int]$PageSize = 200,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [bool]$IncludeSentinelEvents = $false
     )
 
@@ -124,13 +138,15 @@
             $queryParams = @("SenseClientVersion=$([System.Uri]::EscapeDataString($SenseClientVersion))") + $queryParams
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/mdeTimelineExperience/machines/$DeviceId/events/?$($queryParams -join '&')"
+        # Determine the device identifier to use in the URI
+        $deviceIdentifier = if ($PSCmdlet.ParameterSetName -eq 'ByDeviceId') { $DeviceId } else { (Get-XdrEndpointDevice -MachineSearchPrefix $MachineDnsName).MachineId }
 
-        Write-Verbose "Retrieving XDR Endpoint device timeline for device $DeviceId (From: $FromDate, To: $ToDate, CorrelationId: $correlationId)"
+        $Uri = "https://security.microsoft.com/apiproxy/mtp/mdeTimelineExperience/machines/$deviceIdentifier/events/?$($queryParams -join '&')"
+
+        Write-Verbose "Retrieving XDR Endpoint device timeline for device $deviceIdentifier (From: $FromDate, To: $ToDate, CorrelationId: $correlationId)"
         Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
     }
 
     end {
-
     }
 }

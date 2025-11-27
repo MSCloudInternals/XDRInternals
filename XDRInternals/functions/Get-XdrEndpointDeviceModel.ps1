@@ -5,7 +5,7 @@
 
     .DESCRIPTION
         Gets a list of all device models (hardware models) from the Microsoft Defender XDR portal.
-        This function includes caching support with a 15-minute TTL to reduce API calls.
+        This function includes caching support with a 30-minute TTL to reduce API calls.
 
     .PARAMETER Force
         Bypasses the cache and forces a fresh retrieval from the API.
@@ -46,12 +46,11 @@
         $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allModels"
         Write-Verbose "Retrieving XDR Endpoint device models"
         $XdrEndpointDeviceModels = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        Set-XdrCache -CacheKey "XdrEndpointDeviceModels" -Value $XdrEndpointDeviceModels -TTLMinutes 15
+        Set-XdrCache -CacheKey "XdrEndpointDeviceModels" -Value $XdrEndpointDeviceModels -TTLMinutes 30
         return $XdrEndpointDeviceModels
 
     }
 
     end {
-
     }
 }

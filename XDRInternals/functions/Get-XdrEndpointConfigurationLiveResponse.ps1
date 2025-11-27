@@ -17,9 +17,15 @@
     .EXAMPLE
         Get-XdrEndpointConfigurationLiveResponse -Force
         Forces a fresh retrieval of the Live Response configuration, bypassing the cache.
+    
+    .OUTPUTS
+        Object
+        Returns the API response.
     #>
     [CmdletBinding()]
     param (
+        [Parameter()]
+        [switch]$Force
     )
 
     begin {
@@ -27,8 +33,25 @@
     }
     
     process {
+        $currentCacheValue = Get-XdrCache -CacheKey "GetXdrEndpointConfigurationLiveResponse" -ErrorAction SilentlyContinue
+        if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
+            Write-Verbose "Using cached GetXdrEndpointConfigurationLiveResponse data"
+            return $currentCacheValue.Value
+        }
+        elseif ($Force) {
+            Write-Verbose "Force parameter specified, bypassing cache"
+            Clear-XdrCache -CacheKey "GetXdrEndpointConfigurationLiveResponse"
+        }
+        else {
+            Write-Verbose "GetXdrEndpointConfigurationLiveResponse cache is missing or expired"
+        }
+
+        $Uri = "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/get_properties?useV2Api=true&useV3Api=true"
         Write-Verbose "Retrieving XDR Live Response configuration"
-        Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/get_properties?useV2Api=true&useV3Api=true" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+
+        Set-XdrCache -CacheKey "GetXdrEndpointConfigurationLiveResponse" -Value $result -TTLMinutes 30
+        return $result
     }
     
     end {

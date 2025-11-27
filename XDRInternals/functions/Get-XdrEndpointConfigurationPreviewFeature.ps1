@@ -17,9 +17,15 @@
     .EXAMPLE
         Get-XdrEndpointConfigurationPreviewFeature -Force
         Forces a fresh retrieval of the preview features configuration, bypassing the cache.
+
+    .OUTPUTS
+        Object
+        Returns the API response.
     #>
     [CmdletBinding()]
     param (
+        [Parameter()]
+        [switch]$Force
     )
 
     begin {
@@ -27,8 +33,25 @@
     }
     
     process {
+        $currentCacheValue = Get-XdrCache -CacheKey "GetXdrEndpointConfigurationPreviewFeature" -ErrorAction SilentlyContinue
+        if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
+            Write-Verbose "Using cached GetXdrEndpointConfigurationPreviewFeature data"
+            return $currentCacheValue.Value
+        }
+        elseif ($Force) {
+            Write-Verbose "Force parameter specified, bypassing cache"
+            Clear-XdrCache -CacheKey "GetXdrEndpointConfigurationPreviewFeature"
+        }
+        else {
+            Write-Verbose "GetXdrEndpointConfigurationPreviewFeature cache is missing or expired"
+        }
+
+        $Uri = "https://security.microsoft.com/apiproxy/mtp/settings/GetPreviewExperienceSetting?context=MdatpContext"
         Write-Verbose "Retrieving XDR Preview Features configuration"
-        Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/GetPreviewExperienceSetting?context=MdatpContext" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+
+        Set-XdrCache -CacheKey "GetXdrEndpointConfigurationPreviewFeature" -Value $result -TTLMinutes 30
+        return $result
     }
     
     end {

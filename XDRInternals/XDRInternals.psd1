@@ -65,6 +65,7 @@
         "Connect-XdrByEstsCookie",
         "Get-XdrActionsCenterHistory",
         "Get-XdrActionsCenterPending",
+        "Get-XdrAdvancedHuntingFunction",
         "Get-XdrAdvancedHuntingTableSchema",
         "Get-XdrAdvancedHuntingUserHistory",
         "Get-XdrConfigurationAlertServiceSetting",
@@ -72,11 +73,13 @@
         "Get-XdrConfigurationAssetRuleManagement",
         "Get-XdrConfigurationCriticalAssetManagement",
         "Get-XdrConfigurationServiceAccountClassification",
+        "Get-XdrConfigurationUnifiedRBACWorkload",
         "Get-XdrDatalakeDatabase",
         "Get-XdrDatalakeTableSchema",
         "Get-XdrEndpointAdvancedFeatures",
         "Get-XdrEndpointConfigurationAdvancedFeatures",
         "Get-XdrEndpointConfigurationAuthenticatedTelemetry",
+        "Get-XdrEndpointConfigurationCustomCollectionRule",
         "Get-XdrEndpointConfigurationIntuneConnection",
         "Get-XdrEndpointConfigurationLiveResponse",
         "Get-XdrEndpointConfigurationPotentiallyUnwantedApplications",
@@ -91,8 +94,13 @@
         "Get-XdrEndpointDeviceTotals",
         "Get-XdrEndpointDeviceVendor",
         "Get-XdrEndpointDeviceWindowsReleaseVersion",
+        "Get-XdrEndpointLicenseReport",
+        "Get-XdrIdentityAlertThreshold",
+        "Get-XdrIdentityConfigurationDirectoryServiceAccount",
+        "Get-XdrIdentityConfigurationRemediationActionAccount",
         "Get-XdrIdentityDomainControllerCoverage",
         "Get-XdrIdentityIdentity",
+        "Get-XdrIdentityOnboardingStatus",
         "Get-XdrIdentityServiceAccount",
         "Get-XdrIdentityStatistic",
         "Get-XdrIncident",
@@ -102,10 +110,8 @@
         "Get-XdrTenantContext",
         "Get-XdrTenants",
         "Get-XdrTenantWorkloadStatus",
-        "Get-XdrToken",
         "Get-XdrUnifiedPortalIsOnboarded",
         "Get-XdrUnifiedPortalOnboardedWorkspace",
-        "Get-XdrConfigurationUnifiedRBACWorkload",
         "Get-XdrXspmAttackPath",
         "Get-XdrXspmChokePoint",
         "Get-XdrXspmTopEntryPoint",
@@ -113,8 +119,16 @@
         "Invoke-XdrHuntingQueryValidation",
         "Invoke-XdrRestMethod",
         "Invoke-XdrXspmHuntingQuery",
+        "New-XdrAdvancedHuntingFunction",
+        "New-XdrEndpointConfigurationCustomCollectionRule",
+        "New-XdrIdentityConfigurationRemediationActionAccount",
+        "Remove-XdrAdvancedHuntingFunction",
+        "Remove-XdrIdentityConfigurationRemediationActionAccount",
+        "Set-XdrAdvancedHuntingFunction",
         "Set-XdrConnectionSettings",
         "Set-XdrEndpointAdvancedFeatures",
+        "Set-XdrEndpointConfigurationCustomCollectionRule",
+        "Set-XdrIdentityConfigurationRemediationActionAccount",
         "Update-XdrConnectionSettings"
     )
 
@@ -142,16 +156,16 @@
         PSData = @{
 
             # Tags applied to this module. These help with module discovery in online galleries.
-            # Tags = @()
+            Tags       = @('XDR', 'Defender', 'DefenderXDR', 'MDE', 'MDI', 'DataLake', 'Sentinel', 'MDA', 'MDO', 'XDRInternals', 'Community')
 
             # A URL to the license for this module.
-            # LicenseUri = ''
+            LicenseUri = 'https://github.com/MSCloudInternals/XDRInternals/blob/main/LICENSE'
 
             # A URL to the main website for this project.
-            # ProjectUri = ''
+            ProjectUri = 'https://github.com/MSCloudInternals/XDRInternals'
 
             # A URL to an icon representing this module.
-            # IconUri = ''
+            IconUri    = 'https://raw.githubusercontent.com/MSCloudInternals/XDRInternals/main/images/xdrinternals-icon.jpg'
 
             # ReleaseNotes of this module
             # ReleaseNotes = ''
@@ -176,4 +190,3 @@
     # DefaultCommandPrefix = ''
 
 }
-

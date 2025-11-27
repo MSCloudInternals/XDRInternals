@@ -17,10 +17,16 @@
     .EXAMPLE
         Get-XdrEndpointConfigurationPotentiallyUnwantedApplications -Force
         Forces a fresh retrieval of the PUA configuration, bypassing the cache.
+    
+    .OUTPUTS
+        Object
+        Returns the API response.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'Potentially Unwanted Applications is plural by design')]
     [CmdletBinding()]
     param (
+        [Parameter()]
+        [switch]$Force
     )
 
     begin {
@@ -28,8 +34,25 @@
     }
     
     process {
+        $currentCacheValue = Get-XdrCache -CacheKey "GetXdrEndpointConfigurationPotentiallyUnwantedApplications" -ErrorAction SilentlyContinue
+        if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
+            Write-Verbose "Using cached GetXdrEndpointConfigurationPotentiallyUnwantedApplications data"
+            return $currentCacheValue.Value
+        }
+        elseif ($Force) {
+            Write-Verbose "Force parameter specified, bypassing cache"
+            Clear-XdrCache -CacheKey "GetXdrEndpointConfigurationPotentiallyUnwantedApplications"
+        }
+        else {
+            Write-Verbose "GetXdrEndpointConfigurationPotentiallyUnwantedApplications cache is missing or expired"
+        }
+
+        $Uri = "https://security.microsoft.com/apiproxy/mtp/autoIr/ui/properties/"
         Write-Verbose "Retrieving XDR Potentially Unwanted Applications configuration"
-        Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/autoIr/ui/properties/" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+
+        Set-XdrCache -CacheKey "GetXdrEndpointConfigurationPotentiallyUnwantedApplications" -Value $result -TTLMinutes 30
+        return $result
     }
     
     end {

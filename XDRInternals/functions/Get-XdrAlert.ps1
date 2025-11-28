@@ -94,6 +94,7 @@
         - mitreAttackTechnique: MITRE ATT&CK technique IDs
         And many other properties depending on the alert type.
     #>
+    [OutputType([object[]])]
     [CmdletBinding(DefaultParameterSetName = 'Paged')]
     param (
         [Parameter()]
@@ -130,7 +131,7 @@
     }
 
     process {
-        if ($PSCmdlet.ParameterSetName -eq 'All') {
+        if ($PSCmdlet.ParameterSetName -eq 'All' -and $All) {
             # Automatic pagination mode
             Write-Verbose "Retrieving all alerts from the last $DaysAgo days with automatic pagination"
             

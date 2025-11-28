@@ -29,6 +29,7 @@
     .NOTES
         This is an internal helper function not exported from the module.
     #>
+    [OutputType([object[]])]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]

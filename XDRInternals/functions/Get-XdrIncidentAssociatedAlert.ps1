@@ -22,6 +22,7 @@
         Object[]
         Returns an array of alert objects associated with the incident.
     #>
+    [OutputType([object[]])]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]

@@ -104,6 +104,7 @@ Get-XdrTenantContext -Force
 | Invoke-XdrRestMethod                                        | Invoke REST API calls to XDR endpoints                        |
 | Invoke-XdrXspmHuntingQuery                                  | Execute hunting queries against XSPM attack surface API       |
 | Merge-XdrIncident                                           | Merge multiple incidents into a single incident               |
+| Move-XdrAlertToIncident                                     | Move alerts to a specific incident or create a new one        |
 | New-XdrAdvancedHuntingFunction                              | Create new Advanced Hunting functions                         |
 | New-XdrEndpointConfigurationCustomCollectionRule            | Create custom collection rules from YAML files                |
 | New-XdrIdentityConfigurationRemediationActionAccount        | Create new remediation action account configuration           |
@@ -186,6 +187,12 @@ Set-XdrEndpointConfigurationCustomCollectionRule -FilePath "C:\Rules\UpdatedRule
 $rule = Get-XdrEndpointConfigurationCustomCollectionRule | Where-Object { $_.ruleName -eq "My Rule" }
 $rule.isEnabled = $false
 Set-XdrEndpointConfigurationCustomCollectionRule -InputObject $rule
+
+# Move alerts to an existing incident
+Move-XdrAlertToIncident -AlertIds "alert1", "alert2" -TargetIncidentId 12345
+
+# Move alerts to a new incident
+Move-XdrAlertToIncident -AlertIds "alert1"
 
 # Get attack paths from XSPM
 Get-XdrXspmAttackPath -Top 50

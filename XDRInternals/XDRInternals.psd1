@@ -122,6 +122,7 @@
         "Invoke-XdrRestMethod",
         "Invoke-XdrXspmHuntingQuery",
         "Merge-XdrIncident",
+        "Move-XdrAlertToIncident",
         "New-XdrAdvancedHuntingFunction",
         "New-XdrEndpointConfigurationCustomCollectionRule",
         "New-XdrIdentityConfigurationRemediationActionAccount",

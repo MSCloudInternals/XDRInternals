@@ -105,6 +105,7 @@
         "Get-XdrIdentityServiceAccount",
         "Get-XdrIdentityStatistic",
         "Get-XdrIncident",
+        "Get-XdrIncidentAssociatedAlert",
         "Get-XdrServiceInfo",
         "Get-XdrStreamingApiConfiguration",
         "Get-XdrSuppressionRule",

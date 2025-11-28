@@ -95,7 +95,12 @@
             
             $Uri = "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions"
             Write-Verbose "Retrieving XDR Advanced Hunting functions"
-            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            try {
+                $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            } catch {
+                Write-Error "Failed to retrieve Advanced Hunting functions: $_"
+                $result = @()
+            }
 
             if ($null -eq $result) {
                 $result = @()

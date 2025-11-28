@@ -45,10 +45,14 @@
         }
         $Uri = "https://security.microsoft.com/apiproxy/securityplatform/lake/databases?api-version=2024-07-01"
         Write-Verbose "Retrieving XDR datalake databases"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        $XdrDatalakeDatabases = $result.value
-        Set-XdrCache -CacheKey "XdrDatalakeDatabases" -Value $XdrDatalakeDatabases -TTLMinutes 5
-        return $XdrDatalakeDatabases
+        try {
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            $XdrDatalakeDatabases = $result.value
+            Set-XdrCache -CacheKey "XdrDatalakeDatabases" -Value $XdrDatalakeDatabases -TTLMinutes 5
+            return $XdrDatalakeDatabases
+        } catch {
+            Write-Error "Failed to retrieve datalake databases: $_"
+        }
     }
     
     end {

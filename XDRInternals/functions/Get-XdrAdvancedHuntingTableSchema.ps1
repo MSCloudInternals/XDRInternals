@@ -45,9 +45,13 @@
         }
         $Uri = "https://security.microsoft.com/apiproxy/mtp/huntingService/schema"
         Write-Verbose "Retrieving XDR Advanced Hunting table schema"
-        $XdrAdvancedHuntingTableSchema = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers | Select-Object -ExpandProperty Tables
-        Set-XdrCache -CacheKey "XdrAdvancedHuntingTableSchema" -Value $XdrAdvancedHuntingTableSchema -TTLMinutes 30
-        return $XdrAdvancedHuntingTableSchema
+        try {
+            $XdrAdvancedHuntingTableSchema = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers | Select-Object -ExpandProperty Tables
+            Set-XdrCache -CacheKey "XdrAdvancedHuntingTableSchema" -Value $XdrAdvancedHuntingTableSchema -TTLMinutes 30
+            return $XdrAdvancedHuntingTableSchema
+        } catch {
+            Write-Error "Failed to retrieve Advanced Hunting table schema: $_"
+        }
     }
     
     end {

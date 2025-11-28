@@ -47,10 +47,13 @@
 
         $Uri = "https://security.microsoft.com/apiproxy/radius/api/radius/serviceaccounts/classificationrule/getall"
         Write-Verbose "Retrieving XDR service account classification rules"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-
-        Set-XdrCache -CacheKey "XdrConfigurationServiceAccountClassification" -Value $result -TTLMinutes 30
-        return $result
+        try {
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "XdrConfigurationServiceAccountClassification" -Value $result -TTLMinutes 30
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve service account classification rules: $_"
+        }
     }
 
     end {

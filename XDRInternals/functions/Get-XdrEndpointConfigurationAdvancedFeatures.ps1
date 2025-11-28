@@ -38,21 +38,22 @@
         if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
             Write-Verbose "Using cached GetXdrEndpointConfigurationAdvancedFeatures data"
             return $currentCacheValue.Value
-        }
-        elseif ($Force) {
+        } elseif ($Force) {
             Write-Verbose "Force parameter specified, bypassing cache"
             Clear-XdrCache -CacheKey "GetXdrEndpointConfigurationAdvancedFeatures"
-        }
-        else {
+        } else {
             Write-Verbose "GetXdrEndpointConfigurationAdvancedFeatures cache is missing or expired"
         }
 
         $Uri = "https://security.microsoft.com/apiproxy/mtp/settings/GetAdvancedFeaturesSetting"
         Write-Verbose "Retrieving GetXdrEndpointConfigurationAdvancedFeatures data"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-
-        Set-XdrCache -CacheKey "GetXdrEndpointConfigurationAdvancedFeatures" -Value $result -TTLMinutes 30
-        return $result
+        try {
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "GetXdrEndpointConfigurationAdvancedFeatures" -Value $result -TTLMinutes 30
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve endpoint advanced features configuration: $_"
+        }
     }
     
     end {

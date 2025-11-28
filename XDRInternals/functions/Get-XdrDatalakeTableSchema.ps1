@@ -46,9 +46,13 @@
         $Uri = "https://security.microsoft.com/apiproxy/securityplatform/lake/kql/v1/rest/mgmt"
         $Body = '{"csl":".show databases entities"}'
         Write-Verbose "Retrieving XDR datalake table schema"
-        $XdrDatalakeTableSchema = Invoke-RestMethod -Uri $Uri -Method Post -Body $Body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        Set-XdrCache -CacheKey "XdrDatalakeTableSchema" -Value $XdrDatalakeTableSchema -TTLMinutes 30
-        return $XdrDatalakeTableSchema
+        try {
+            $XdrDatalakeTableSchema = Invoke-RestMethod -Uri $Uri -Method Post -Body $Body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "XdrDatalakeTableSchema" -Value $XdrDatalakeTableSchema -TTLMinutes 30
+            return $XdrDatalakeTableSchema
+        } catch {
+            Write-Error "Failed to retrieve datalake table schema: $_"
+        }
     }
     
     end {

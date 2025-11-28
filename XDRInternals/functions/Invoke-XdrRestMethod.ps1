@@ -63,10 +63,14 @@
     }
 
     process {
-        if ($Body) {
-            Invoke-RestMethod -Uri $Uri -Method $Method -ContentType $ContentType -WebSession $WebSession -Headers $Headers -Body $Body
-        } else {
-            Invoke-RestMethod -Uri $Uri -Method $Method -ContentType $ContentType -WebSession $WebSession -Headers $Headers
+        try {
+            if ($Body) {
+                Invoke-RestMethod -Uri $Uri -Method $Method -ContentType $ContentType -WebSession $WebSession -Headers $Headers -Body $Body
+            } else {
+                Invoke-RestMethod -Uri $Uri -Method $Method -ContentType $ContentType -WebSession $WebSession -Headers $Headers
+            }
+        } catch {
+            Write-Error "Failed to invoke XDR REST method: $_"
         }
     }
 

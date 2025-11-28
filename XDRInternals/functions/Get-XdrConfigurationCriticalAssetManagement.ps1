@@ -69,12 +69,17 @@
 
         $Uri = "https://security.microsoft.com/apiproxy/mtp/xspmatlas/assetrules"
         Write-Verbose "Retrieving XDR critical asset management configuration"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
 
-        # Return only the rules property
-        $criticalAssetRules = $result.rules
+            # Return only the rules property
+            $criticalAssetRules = $result.rules
 
-        Set-XdrCache -CacheKey "XdrConfigurationCriticalAssetManagement" -Value $criticalAssetRules -TTLMinutes 30
+            Set-XdrCache -CacheKey "XdrConfigurationCriticalAssetManagement" -Value $criticalAssetRules -TTLMinutes 30
+        } catch {
+            Write-Error "Failed to retrieve critical asset management configuration: $_"
+            return
+        }
 
         # Filter by RuleType if specified
         if ($PSBoundParameters.ContainsKey('RuleType')) {

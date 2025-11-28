@@ -47,10 +47,13 @@
 
         $Uri = "https://security.microsoft.com/apiproxy/mtp/suppressionRulesService/suppressionRules"
         Write-Verbose "Retrieving XDR alert tuning configuration"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-
-        Set-XdrCache -CacheKey "XdrConfigurationAlertTuning" -Value $result -TTLMinutes 30
-        return $result
+        try {
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "XdrConfigurationAlertTuning" -Value $result -TTLMinutes 30
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve alert tuning configuration: $_"
+        }
     }
 
     end {

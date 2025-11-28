@@ -90,9 +90,12 @@
         $Uri = "https://security.microsoft.com/apiproxy/mtp/actionCenter/actioncenterui/pending-actions/?$($queryParams -join '&')"
 
         Write-Verbose "Retrieving XDR Action Center pending actions (Page: $PageIndex, Size: $PageSize, Sort: $SortByField $SortOrder)"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers | Select-Object -ExpandProperty Results
-
-        return $result
+        try {
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers | Select-Object -ExpandProperty Results
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve Action Center pending actions: $_"
+        }
     }
 
     end {

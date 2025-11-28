@@ -130,9 +130,12 @@
         $Uri = "https://security.microsoft.com/apiproxy/mtp/actionCenter/actioncenterui/history-actions/?$($queryParams -join '&')"
 
         Write-Verbose "Retrieving XDR Action Center history (From: $fromDateString, To: $toDateString, Page: $PageIndex, Size: $PageSize)"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers | Select-Object -ExpandProperty Results
-
-        return $result
+        try {
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers | Select-Object -ExpandProperty Results
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve Action Center history: $_"
+        }
     }
 
     end {

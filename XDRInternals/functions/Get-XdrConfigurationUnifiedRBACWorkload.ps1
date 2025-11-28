@@ -47,7 +47,12 @@
 
         $Uri = "https://security.microsoft.com/apiproxy/mtp/urbacConfiguration/gw/unifiedrbac/configuration/tenantinfo/"
         Write-Verbose "Retrieving XDR Unified RBAC workload configuration"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        } catch {
+            Write-Error "Failed to retrieve Unified RBAC workload configuration: $_"
+            return
+        }
 
         # Process the result to flatten workloads and add cloudScopingActivationStatus
         $processedResult = @()

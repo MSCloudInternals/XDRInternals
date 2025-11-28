@@ -70,8 +70,12 @@
         } | ConvertTo-Json
         
         Write-Verbose "Retrieving Advanced Hunting user history (StartTime: $startTimeString, MaxResults: $MaxResults)"
-        $AdvancedHuntingUserHistory = Invoke-RestMethod -Uri $Uri -Method Post -Body $Body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        return $AdvancedHuntingUserHistory
+        try {
+            $AdvancedHuntingUserHistory = Invoke-RestMethod -Uri $Uri -Method Post -Body $Body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            return $AdvancedHuntingUserHistory
+        } catch {
+            Write-Error "Failed to retrieve Advanced Hunting user history: $_"
+        }
     }
     
     end {

@@ -37,21 +37,22 @@
         if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
             Write-Verbose "Using cached GetXdrEndpointConfigurationAuthenticatedTelemetry data"
             return $currentCacheValue.Value
-        }
-        elseif ($Force) {
+        } elseif ($Force) {
             Write-Verbose "Force parameter specified, bypassing cache"
             Clear-XdrCache -CacheKey "GetXdrEndpointConfigurationAuthenticatedTelemetry"
-        }
-        else {
+        } else {
             Write-Verbose "GetXdrEndpointConfigurationAuthenticatedTelemetry cache is missing or expired"
         }
 
         $Uri = "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense"
         Write-Verbose "Retrieving Defender for Endpoint Authenticated Telemetry configuration"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-
-        Set-XdrCache -CacheKey "GetXdrEndpointConfigurationAuthenticatedTelemetry" -Value $result -TTLMinutes 30
-        return $result
+        try {
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "GetXdrEndpointConfigurationAuthenticatedTelemetry" -Value $result -TTLMinutes 30
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve authenticated telemetry configuration: $_"
+        }
     }
 
     end {

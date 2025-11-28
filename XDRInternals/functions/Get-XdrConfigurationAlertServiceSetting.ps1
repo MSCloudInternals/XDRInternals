@@ -47,7 +47,12 @@
 
         $Uri = "https://security.microsoft.com/apiproxy/mtp/alertsApiService/workloads/disabled?includeDetails=true"
         Write-Verbose "Retrieving XDR alert service settings"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        } catch {
+            Write-Error "Failed to retrieve alert service settings: $_"
+            return
+        }
 
         # Process the result to translate names and normalize reasons
         $processedResult = @()

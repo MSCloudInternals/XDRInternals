@@ -47,13 +47,17 @@
 
         $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/rulesengine/rules"
         Write-Verbose "Retrieving XDR asset rule management configuration"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
 
-        # Return only the rules property
-        $assetRules = $result.rules
+            # Return only the rules property
+            $assetRules = $result.rules
 
-        Set-XdrCache -CacheKey "XdrAssetRuleManagementConfiguration" -Value $assetRules -TTLMinutes 30
-        return $assetRules
+            Set-XdrCache -CacheKey "XdrAssetRuleManagementConfiguration" -Value $assetRules -TTLMinutes 30
+            return $assetRules
+        } catch {
+            Write-Error "Failed to retrieve asset rule management configuration: $_"
+        }
     }
 
     end {

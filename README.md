@@ -117,6 +117,18 @@ Get-XdrTenantContext -Force
 
 ## Installation
 
+### From the PowerShell Gallery
+
+```powershell
+# Install the module from the PowerShell Gallery
+Install-Module XDRInternals
+
+# Import the module
+Import-Module XDRInternals
+```
+
+### From GitHub
+
 ```powershell
 # Clone the repository
 git clone https://github.com/MSCloudInternals/XDRInternals.git

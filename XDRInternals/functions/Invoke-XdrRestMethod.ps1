@@ -71,6 +71,7 @@
             }
         } catch {
             Write-Error "Failed to invoke XDR REST method: $_"
+            throw
         }
     }
 

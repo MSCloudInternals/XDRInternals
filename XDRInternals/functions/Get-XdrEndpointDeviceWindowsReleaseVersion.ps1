@@ -43,11 +43,16 @@
         } else {
             Write-Verbose "XDR Endpoint device Windows release versions cache is missing or expired"
         }
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allWindowsReleaseVersions"
-        Write-Verbose "Retrieving XDR Endpoint device Windows release versions"
-        $XdrEndpointDeviceWindowsReleaseVersions = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        Set-XdrCache -CacheKey "XdrEndpointDeviceWindowsReleaseVersions" -Value $XdrEndpointDeviceWindowsReleaseVersions -TTLMinutes 30
-        return $XdrEndpointDeviceWindowsReleaseVersions
+
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allWindowsReleaseVersions"
+            Write-Verbose "Retrieving XDR Endpoint device Windows release versions"
+            $XdrEndpointDeviceWindowsReleaseVersions = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "XdrEndpointDeviceWindowsReleaseVersions" -Value $XdrEndpointDeviceWindowsReleaseVersions -TTLMinutes 30
+            return $XdrEndpointDeviceWindowsReleaseVersions
+        } catch {
+            Write-Error "Failed to retrieve endpoint device Windows release versions: $_"
+        }
     }
     
     end {

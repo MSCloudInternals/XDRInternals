@@ -51,12 +51,16 @@
             Write-Verbose "XDR Identity onboarding status cache is missing or expired"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/aatp/api/workspaces/isWorkspaceExists/"
-        Write-Verbose "Retrieving XDR Identity onboarding status"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/aatp/api/workspaces/isWorkspaceExists/"
+            Write-Verbose "Retrieving XDR Identity onboarding status"
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
 
-        Set-XdrCache -CacheKey "XdrIdentityOnboardingStatus" -Value $result -TTLMinutes 30
-        return $result
+            Set-XdrCache -CacheKey "XdrIdentityOnboardingStatus" -Value $result -TTLMinutes 30
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve Identity onboarding status: $_"
+        }
     }
 
     end {

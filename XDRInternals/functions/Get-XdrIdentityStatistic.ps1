@@ -45,15 +45,19 @@
             Write-Verbose "XDR identity statistics cache is missing or expired"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities/aggregatedData"
-        Write-Verbose "Retrieving XDR identity statistics"
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities/aggregatedData"
+            Write-Verbose "Retrieving XDR identity statistics"
         
-        # POST with empty body
-        $body = @{}
-        $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers
+            # POST with empty body
+            $body = @{}
+            $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers
 
-        Set-XdrCache -CacheKey "XdrIdentityStatistic" -Value $result -TTLMinutes 10
-        return $result
+            Set-XdrCache -CacheKey "XdrIdentityStatistic" -Value $result -TTLMinutes 10
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve identity statistics: $_"
+        }
     }
 
     end {

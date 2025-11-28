@@ -60,8 +60,13 @@
         } else {
             $uri = "https://security.microsoft.com/api/Auth/getToken?resource=$encodedResource&serviceType=$ServiceType"
         }
-        Write-Verbose "Request URI: $uri"
-        Invoke-RestMethod -Uri $uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            Write-Verbose "Request URI: $uri"
+            Invoke-RestMethod -Uri $uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        } catch {
+            Write-Error "Failed to retrieve XDR token: $_"
+            throw
+        }
     }
 
     end {

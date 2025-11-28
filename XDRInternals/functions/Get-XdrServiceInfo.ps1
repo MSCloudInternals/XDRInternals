@@ -56,12 +56,15 @@
             "Authorization" = "Bearer $($Token.Token)"
         }
 
-        $Uri = "https://api.security.microsoft.com/mtpserviceinfo"
+        try {
+            $Uri = "https://api.security.microsoft.com/mtpserviceinfo"
+            Write-Verbose "Retrieving XDR service information from $Uri"
+            $result = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -Headers $AuthorizationHeader
 
-        Write-Verbose "Retrieving XDR service information from $Uri"
-        $result = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -Headers $AuthorizationHeader
-
-        return $result
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve service information: $_"
+        }
     }
 
     end {

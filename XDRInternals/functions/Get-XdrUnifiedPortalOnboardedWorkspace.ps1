@@ -56,12 +56,16 @@
             "Authorization" = "Bearer $($Token.Token)"
         }
 
-        $Uri = "https://partnersgw.securitycenter.windows.com/api/mdgw/sentinel/workspaces"
+        try {
+            $Uri = "https://partnersgw.securitycenter.windows.com/api/mdgw/sentinel/workspaces"
 
-        Write-Verbose "Retrieving onboarded Sentinel workspaces from $Uri"
-        $result = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -Headers $AuthorizationHeader
+            Write-Verbose "Retrieving onboarded Sentinel workspaces from $Uri"
+            $result = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -Headers $AuthorizationHeader
 
-        return $result
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve onboarded Sentinel workspaces: $_"
+        }
     }
 
     end {

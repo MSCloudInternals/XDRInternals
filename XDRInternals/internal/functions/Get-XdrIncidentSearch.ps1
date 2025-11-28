@@ -61,7 +61,7 @@
             }
         } catch {
             Write-Error "Failed to search for incidents with term '$Term': $($_.Exception.Message)"
-            return @()
+            throw
         }
     }
 

@@ -82,9 +82,13 @@
         if ($PSBoundParameters.ContainsKey('MachineSearchPrefix')) {
             $Uri += "&machineSearchPrefix=$([System.Uri]::EscapeDataString($MachineSearchPrefix))"
         }
-
-        Write-Verbose "Retrieving XDR Endpoint devices (Page: $PageIndex, Size: $PageSize, Sort: $SortByField $SortOrder$(if ($MachineSearchPrefix) { ", Search: $MachineSearchPrefix" }))"
-        $result = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            Write-Verbose "Retrieving XDR Endpoint devices (Page: $PageIndex, Size: $PageSize, Sort: $SortByField $SortOrder$(if ($MachineSearchPrefix) { ", Search: $MachineSearchPrefix" }))"
+            $result = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        } catch {
+            Write-Error "Failed to retrieve endpoint devices: $_"
+            return
+        }
         
         # Add custom type name for formatting
         if ($result) {

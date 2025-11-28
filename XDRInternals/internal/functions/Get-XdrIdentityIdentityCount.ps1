@@ -40,11 +40,16 @@
             SearchText = $SearchText
         }
         
-        $Uri = "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities/count"
-        Write-Verbose "Retrieving XDR identity count (SearchText: '$SearchText')"
-        $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities/count"
+            Write-Verbose "Retrieving XDR identity count (SearchText: '$SearchText')"
+            $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers
         
-        return $result
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve XDR identity count: $_"
+            throw
+        }
     }
     
     end {

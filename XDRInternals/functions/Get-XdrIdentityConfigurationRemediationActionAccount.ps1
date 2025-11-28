@@ -70,9 +70,14 @@
 
         # If not using Local System, get the remediation account details
         if (-not $config.IsRemediationWithLocalSystemEnabled) {
-            Write-Verbose "Remediation is not using Local System, retrieving account details"
-            $credentialsUri = "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials"
-            $credentials = Invoke-RestMethod -Uri $credentialsUri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            try {
+                Write-Verbose "Remediation is not using Local System, retrieving account details"
+                $credentialsUri = "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials"
+                $credentials = Invoke-RestMethod -Uri $credentialsUri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            } catch {
+                Write-Error "Failed to retrieve remediation action account details: $_"
+                return
+            }
             
             # Extract only the value array
             if ($credentials.value) {

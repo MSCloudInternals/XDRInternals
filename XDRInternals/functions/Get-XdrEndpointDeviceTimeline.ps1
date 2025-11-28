@@ -141,10 +141,14 @@
         # Determine the device identifier to use in the URI
         $deviceIdentifier = if ($PSCmdlet.ParameterSetName -eq 'ByDeviceId') { $DeviceId } else { (Get-XdrEndpointDevice -MachineSearchPrefix $MachineDnsName).MachineId }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/mdeTimelineExperience/machines/$deviceIdentifier/events/?$($queryParams -join '&')"
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/mdeTimelineExperience/machines/$deviceIdentifier/events/?$($queryParams -join '&')"
 
-        Write-Verbose "Retrieving XDR Endpoint device timeline for device $deviceIdentifier (From: $FromDate, To: $ToDate, CorrelationId: $correlationId)"
-        Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Write-Verbose "Retrieving XDR Endpoint device timeline for device $deviceIdentifier (From: $FromDate, To: $ToDate, CorrelationId: $correlationId)"
+            Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        } catch {
+            Write-Error "Failed to retrieve endpoint device timeline: $_"
+        }
     }
 
     end {

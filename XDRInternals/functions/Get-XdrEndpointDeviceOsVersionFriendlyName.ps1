@@ -43,11 +43,16 @@
         } else {
             Write-Verbose "XDR Endpoint device OS version friendly names cache is missing or expired"
         }
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allOsVersionFriendlyNames"
-        Write-Verbose "Retrieving XDR Endpoint device OS version friendly names"
-        $XdrEndpointDeviceOsVersionFriendlyNames = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        Set-XdrCache -CacheKey "XdrEndpointDeviceOsVersionFriendlyNames" -Value $XdrEndpointDeviceOsVersionFriendlyNames -TTLMinutes 30
-        return $XdrEndpointDeviceOsVersionFriendlyNames
+
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allOsVersionFriendlyNames"
+            Write-Verbose "Retrieving XDR Endpoint device OS version friendly names"
+            $XdrEndpointDeviceOsVersionFriendlyNames = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "XdrEndpointDeviceOsVersionFriendlyNames" -Value $XdrEndpointDeviceOsVersionFriendlyNames -TTLMinutes 30
+            return $XdrEndpointDeviceOsVersionFriendlyNames
+        } catch {
+            Write-Error "Failed to retrieve endpoint device OS version friendly names: $_"
+        }
     }
     
     end {

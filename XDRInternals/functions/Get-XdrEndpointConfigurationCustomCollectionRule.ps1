@@ -123,9 +123,14 @@
             Write-Verbose "XDR Endpoint custom collection rules cache is missing or expired"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/mdeCustomCollection/rules"
-        Write-Verbose "Retrieving XDR Endpoint custom collection rules"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/mdeCustomCollection/rules"
+            Write-Verbose "Retrieving XDR Endpoint custom collection rules"
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        } catch {
+            Write-Error "Failed to retrieve custom collection rules: $_"
+            return
+        }
 
         if ($null -eq $result) {
             $result = @()

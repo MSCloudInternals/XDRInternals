@@ -226,9 +226,14 @@
                     SearchText = $SearchText
                 }
 
-                $Uri = "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities"
-                $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers
-                $pageData = $result | Select-Object -ExpandProperty data
+                try {
+                    $Uri = "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities"
+                    $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers
+                    $pageData = $result | Select-Object -ExpandProperty data
+                } catch {
+                    Write-Error "Failed to retrieve identities: $_"
+                    return
+                }
 
                 if ($null -ne $pageData -and $pageData.Count -gt 0) {
                     $allResults.AddRange([array]$pageData)
@@ -296,10 +301,15 @@
             SearchText = $SearchText
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities"
-        Write-Verbose "Retrieving XDR identities (SortBy: $SortByField $SortDirection, PageSize: $PageSize, Skip: $Skip, SearchText: '$SearchText', IdentityProvider: '$identityProviderKey', IdentityEnvironment: '$primaryIdentityProviderKey')"
-        $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers
-        $result = $result | Select-Object -ExpandProperty data
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities"
+            Write-Verbose "Retrieving XDR identities (SortBy: $SortByField $SortDirection, PageSize: $PageSize, Skip: $Skip, SearchText: '$SearchText', IdentityProvider: '$identityProviderKey', IdentityEnvironment: '$primaryIdentityProviderKey')"
+            $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers
+            $result = $result | Select-Object -ExpandProperty data
+        } catch {
+            Write-Error "Failed to retrieve identities: $_"
+            return
+        }
 
         if ($null -eq $result) {
             $result = @()

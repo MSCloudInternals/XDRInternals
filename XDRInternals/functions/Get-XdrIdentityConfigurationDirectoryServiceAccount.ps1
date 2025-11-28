@@ -87,8 +87,13 @@
             do {
                 Write-Verbose "Retrieving page: Skip=$currentSkip, PageSize=$pageSizeForAll"
 
-                $Uri = "https://security.microsoft.com/apiproxy/aatp/odata/directoryServices?`$count=true&`$top=$pageSizeForAll&`$skip=$currentSkip"
-                $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                try {
+                    $Uri = "https://security.microsoft.com/apiproxy/aatp/odata/directoryServices?`$count=true&`$top=$pageSizeForAll&`$skip=$currentSkip"
+                    $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                } catch {
+                    Write-Error "Failed to retrieve directory service accounts: $_"
+                    return
+                }
 
                 # Get total count from first request
                 if ($null -eq $totalCount) {
@@ -137,9 +142,14 @@
             Write-Verbose "XDR Identity directory service accounts cache is missing or expired"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/aatp/odata/directoryServices?`$count=true&`$top=$PageSize&`$skip=$Skip"
-        Write-Verbose "Retrieving XDR Identity directory service accounts (PageSize: $PageSize, Skip: $Skip)"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/aatp/odata/directoryServices?`$count=true&`$top=$PageSize&`$skip=$Skip"
+            Write-Verbose "Retrieving XDR Identity directory service accounts (PageSize: $PageSize, Skip: $Skip)"
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        } catch {
+            Write-Error "Failed to retrieve directory service accounts: $_"
+            return
+        }
 
         $accounts = $result.value
 

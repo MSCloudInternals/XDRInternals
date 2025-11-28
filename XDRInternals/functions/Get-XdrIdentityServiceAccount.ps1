@@ -114,15 +114,19 @@
             }
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/serviceAccounts"
-        Write-Verbose "Retrieving XDR identity service accounts"
-        $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/serviceAccounts"
+            Write-Verbose "Retrieving XDR identity service accounts"
+            $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers
 
-        # Return only the ServiceAccounts property
-        $serviceAccounts = $result.ServiceAccounts
+            # Return only the ServiceAccounts property
+            $serviceAccounts = $result.ServiceAccounts
 
-        Set-XdrCache -CacheKey $cacheKey -Value $serviceAccounts -TTLMinutes 10
-        return $serviceAccounts
+            Set-XdrCache -CacheKey $cacheKey -Value $serviceAccounts -TTLMinutes 10
+            return $serviceAccounts
+        } catch {
+            Write-Error "Failed to retrieve Identity service accounts: $_"
+        }
     }
 
     end {

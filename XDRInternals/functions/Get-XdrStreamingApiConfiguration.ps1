@@ -45,15 +45,19 @@
             Write-Verbose "XDR Streaming API configuration cache is missing or expired"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/wdatpApi/dataexportsettings"
-        Write-Verbose "Retrieving XDR Streaming API configuration"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/wdatpApi/dataexportsettings"
+            Write-Verbose "Retrieving XDR Streaming API configuration"
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
 
-        # Return only the value property
-        $streamingApiConfig = $result.value
+            # Return only the value property
+            $streamingApiConfig = $result.value
 
-        Set-XdrCache -CacheKey "XdrStreamingApiConfiguration" -Value $streamingApiConfig -TTLMinutes 30
-        return $streamingApiConfig
+            Set-XdrCache -CacheKey "XdrStreamingApiConfiguration" -Value $streamingApiConfig -TTLMinutes 30
+            return $streamingApiConfig
+        } catch {
+            Write-Error "Failed to retrieve Streaming API configuration: $_"
+        }
     }
 
     end {

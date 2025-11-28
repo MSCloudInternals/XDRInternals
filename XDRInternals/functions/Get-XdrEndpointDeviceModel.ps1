@@ -43,12 +43,16 @@
         } else {
             Write-Verbose "XDR Endpoint device models cache is missing or expired"
         }
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allModels"
-        Write-Verbose "Retrieving XDR Endpoint device models"
-        $XdrEndpointDeviceModels = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        Set-XdrCache -CacheKey "XdrEndpointDeviceModels" -Value $XdrEndpointDeviceModels -TTLMinutes 30
-        return $XdrEndpointDeviceModels
 
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allModels"
+            Write-Verbose "Retrieving XDR Endpoint device models"
+            $XdrEndpointDeviceModels = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "XdrEndpointDeviceModels" -Value $XdrEndpointDeviceModels -TTLMinutes 30
+            return $XdrEndpointDeviceModels
+        } catch {
+            Write-Error "Failed to retrieve endpoint device models: $_"
+        }
     }
 
     end {

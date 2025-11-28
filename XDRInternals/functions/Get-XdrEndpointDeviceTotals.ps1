@@ -56,11 +56,16 @@
         } else {
             Write-Verbose "XDR Endpoint device totals cache is missing or expired"
         }
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/deviceTotals/?hideLowFidelityDevices=$($HideLowFidelityDevices.ToString().ToLower())&lookingBackIndays=$LookingBackInDays"
-        Write-Verbose "Retrieving XDR Endpoint device totals (HideLowFidelity: $HideLowFidelityDevices, LookbackDays: $LookingBackInDays)"
-        $XdrEndpointDeviceTotals = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        Set-XdrCache -CacheKey $cacheKey -Value $XdrEndpointDeviceTotals -TTLMinutes 10
-        return $XdrEndpointDeviceTotals
+
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/deviceTotals/?hideLowFidelityDevices=$($HideLowFidelityDevices.ToString().ToLower())&lookingBackIndays=$LookingBackInDays"
+            Write-Verbose "Retrieving XDR Endpoint device totals (HideLowFidelity: $HideLowFidelityDevices, LookbackDays: $LookingBackInDays)"
+            $XdrEndpointDeviceTotals = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey $cacheKey -Value $XdrEndpointDeviceTotals -TTLMinutes 10
+            return $XdrEndpointDeviceTotals
+        } catch {
+            Write-Error "Failed to retrieve endpoint device totals: $_"
+        }
     }
     
     end {

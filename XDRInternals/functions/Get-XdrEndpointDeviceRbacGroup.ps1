@@ -43,11 +43,16 @@
         } else {
             Write-Verbose "XDR Endpoint device RBAC groups cache is missing or expired"
         }
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/userExposedRbacGroups/UserExposedRbacGroups"
-        Write-Verbose "Retrieving XDR Endpoint device RBAC groups"
-        $XdrEndpointDeviceRbacGroups = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        Set-XdrCache -CacheKey "XdrEndpointDeviceRbacGroups" -Value $XdrEndpointDeviceRbacGroups -TTLMinutes 30
-        return $XdrEndpointDeviceRbacGroups
+
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/userExposedRbacGroups/UserExposedRbacGroups"
+            Write-Verbose "Retrieving XDR Endpoint device RBAC groups"
+            $XdrEndpointDeviceRbacGroups = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "XdrEndpointDeviceRbacGroups" -Value $XdrEndpointDeviceRbacGroups -TTLMinutes 30
+            return $XdrEndpointDeviceRbacGroups
+        } catch {
+            Write-Error "Failed to retrieve endpoint device RBAC groups: $_"
+        }
     }
     
     end {

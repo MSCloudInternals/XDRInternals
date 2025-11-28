@@ -73,14 +73,18 @@
         $fullAccountName = "$AccountName@$DomainDnsName"
         
         if ($PSCmdlet.ShouldProcess($fullAccountName, "Register new remediation action account")) {
-            Write-Verbose "Registering remediation action account: $fullAccountName"
-            $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers -AllowInsecureRedirect
+            try {
+                Write-Verbose "Registering remediation action account: $fullAccountName"
+                $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers -AllowInsecureRedirect
             
-            # Clear the cache for the Get cmdlet
-            Clear-XdrCache -CacheKey "XdrIdentityConfigurationRemediationActionAccount" -ErrorAction SilentlyContinue
+                # Clear the cache for the Get cmdlet
+                Clear-XdrCache -CacheKey "XdrIdentityConfigurationRemediationActionAccount" -ErrorAction SilentlyContinue
             
-            Write-Verbose "Successfully registered remediation action account"
-            return $result
+                Write-Verbose "Successfully registered remediation action account"
+                return $result
+            } catch {
+                Write-Error "Failed to register remediation action account: $_"
+            }
         }
     }
 

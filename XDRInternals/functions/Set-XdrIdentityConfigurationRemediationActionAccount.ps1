@@ -54,14 +54,18 @@
         $accountType = if ($UseLocalSystem) { "Local System" } else { "dedicated account" }
 
         if ($PSCmdlet.ShouldProcess("MDI Remediation Action Configuration", "Set remediation account type to $accountType")) {
-            Write-Verbose "Configuring MDI remediation to use $accountType"
-            $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
+            try {
+                Write-Verbose "Configuring MDI remediation to use $accountType"
+                $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
 
-            # Clear the cache for the Get cmdlet
-            Clear-XdrCache -CacheKey "XdrIdentityConfigurationRemediationActionAccount" -ErrorAction SilentlyContinue
+                # Clear the cache for the Get cmdlet
+                Clear-XdrCache -CacheKey "XdrIdentityConfigurationRemediationActionAccount" -ErrorAction SilentlyContinue
 
-            Write-Verbose "Successfully configured remediation account type"
-            return $result
+                Write-Verbose "Successfully configured remediation account type"
+                return $result
+            } catch {
+                Write-Error "Failed to configure remediation account type: $_"
+            }
         }
     }
 

@@ -37,21 +37,22 @@
         if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
             Write-Verbose "Using cached GetXdrEndpointConfigurationIntuneConnection data"
             return $currentCacheValue.Value
-        }
-        elseif ($Force) {
+        } elseif ($Force) {
             Write-Verbose "Force parameter specified, bypassing cache"
             Clear-XdrCache -CacheKey "GetXdrEndpointConfigurationIntuneConnection"
-        }
-        else {
+        } else {
             Write-Verbose "GetXdrEndpointConfigurationIntuneConnection cache is missing or expired"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/status"
-        Write-Verbose "Retrieving XDR Intune Connection configuration"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-
-        Set-XdrCache -CacheKey "GetXdrEndpointConfigurationIntuneConnection" -Value $result -TTLMinutes 30
-        return $result
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/status"
+            Write-Verbose "Retrieving XDR Intune Connection configuration"
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "GetXdrEndpointConfigurationIntuneConnection" -Value $result -TTLMinutes 30
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve Intune connection configuration: $_"
+        }
     }
     
     end {

@@ -43,11 +43,16 @@
         } else {
             Write-Verbose "XDR Endpoint device vendors cache is missing or expired"
         }
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allVendors"
-        Write-Verbose "Retrieving XDR Endpoint device vendors"
-        $XdrEndpointDeviceVendors = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        Set-XdrCache -CacheKey "XdrEndpointDeviceVendors" -Value $XdrEndpointDeviceVendors -TTLMinutes 30
-        return $XdrEndpointDeviceVendors
+
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allVendors"
+            Write-Verbose "Retrieving XDR Endpoint device vendors"
+            $XdrEndpointDeviceVendors = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "XdrEndpointDeviceVendors" -Value $XdrEndpointDeviceVendors -TTLMinutes 30
+            return $XdrEndpointDeviceVendors
+        } catch {
+            Write-Error "Failed to retrieve endpoint device vendors: $_"
+        }
     }
     
     end {

@@ -75,9 +75,14 @@
             "SamrReconnaissanceSecurityAlert"                     = "User and Group membership reconnaissance (SAMR)"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/aatp/api/alertthresholds/withExpiry"
-        Write-Verbose "Retrieving XDR Identity alert threshold configuration"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/aatp/api/alertthresholds/withExpiry"
+            Write-Verbose "Retrieving XDR Identity alert threshold configuration"
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        } catch {
+            Write-Error "Failed to retrieve Identity alert threshold configuration: $_"
+            return
+        }
 
         # Output test mode status as verbose information
         if ($result.IsRecommendedTestModeEnabled) {

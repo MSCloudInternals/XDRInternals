@@ -37,21 +37,23 @@
         if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
             Write-Verbose "Using cached GetXdrEndpointConfigurationPreviewFeature data"
             return $currentCacheValue.Value
-        }
-        elseif ($Force) {
+        } elseif ($Force) {
             Write-Verbose "Force parameter specified, bypassing cache"
             Clear-XdrCache -CacheKey "GetXdrEndpointConfigurationPreviewFeature"
-        }
-        else {
+        } else {
             Write-Verbose "GetXdrEndpointConfigurationPreviewFeature cache is missing or expired"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/settings/GetPreviewExperienceSetting?context=MdatpContext"
-        Write-Verbose "Retrieving XDR Preview Features configuration"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/settings/GetPreviewExperienceSetting?context=MdatpContext"
+            Write-Verbose "Retrieving XDR Preview Features configuration"
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
 
-        Set-XdrCache -CacheKey "GetXdrEndpointConfigurationPreviewFeature" -Value $result -TTLMinutes 30
-        return $result
+            Set-XdrCache -CacheKey "GetXdrEndpointConfigurationPreviewFeature" -Value $result -TTLMinutes 30
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve Preview Features configuration: $_"
+        }
     }
     
     end {

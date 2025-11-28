@@ -50,11 +50,16 @@
         } else {
             Write-Verbose "XDR Identity domain controller coverage cache is missing or expired"
         }
-        $Uri = "https://security.microsoft.com/apiproxy/aatp/api/sensors/domainControllerCoverage"
-        Write-Verbose "Retrieving XDR Identity domain controller coverage"
-        $XdrIdentityDomainControllerCoverage = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-        Set-XdrCache -CacheKey "XdrIdentityDomainControllerCoverage" -Value $XdrIdentityDomainControllerCoverage -TTLMinutes 30
-        return $XdrIdentityDomainControllerCoverage
+
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/aatp/api/sensors/domainControllerCoverage"
+            Write-Verbose "Retrieving XDR Identity domain controller coverage"
+            $XdrIdentityDomainControllerCoverage = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            Set-XdrCache -CacheKey "XdrIdentityDomainControllerCoverage" -Value $XdrIdentityDomainControllerCoverage -TTLMinutes 30
+            return $XdrIdentityDomainControllerCoverage
+        } catch {
+            Write-Error "Failed to retrieve Identity domain controller coverage: $_"
+        }
     }
     
     end {

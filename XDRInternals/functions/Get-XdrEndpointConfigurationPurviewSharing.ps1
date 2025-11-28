@@ -37,21 +37,23 @@
         if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
             Write-Verbose "Using cached GetXdrEndpointConfigurationPurviewSharing data"
             return $currentCacheValue.Value
-        }
-        elseif ($Force) {
+        } elseif ($Force) {
             Write-Verbose "Force parameter specified, bypassing cache"
             Clear-XdrCache -CacheKey "GetXdrEndpointConfigurationPurviewSharing"
-        }
-        else {
+        } else {
             Write-Verbose "GetXdrEndpointConfigurationPurviewSharing cache is missing or expired"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/wdatpInternalApi/compliance/alertSharing/status"
-        Write-Verbose "Retrieving XDR Purview Sharing configuration"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/wdatpInternalApi/compliance/alertSharing/status"
+            Write-Verbose "Retrieving XDR Purview Sharing configuration"
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
 
-        Set-XdrCache -CacheKey "GetXdrEndpointConfigurationPurviewSharing" -Value $result -TTLMinutes 30
-        return $result
+            Set-XdrCache -CacheKey "GetXdrEndpointConfigurationPurviewSharing" -Value $result -TTLMinutes 30
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve Purview Sharing configuration: $_"
+        }
     }
     
     end {

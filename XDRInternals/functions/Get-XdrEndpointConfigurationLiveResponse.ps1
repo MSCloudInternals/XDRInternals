@@ -37,21 +37,23 @@
         if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
             Write-Verbose "Using cached GetXdrEndpointConfigurationLiveResponse data"
             return $currentCacheValue.Value
-        }
-        elseif ($Force) {
+        } elseif ($Force) {
             Write-Verbose "Force parameter specified, bypassing cache"
             Clear-XdrCache -CacheKey "GetXdrEndpointConfigurationLiveResponse"
-        }
-        else {
+        } else {
             Write-Verbose "GetXdrEndpointConfigurationLiveResponse cache is missing or expired"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/get_properties?useV2Api=true&useV3Api=true"
-        Write-Verbose "Retrieving XDR Live Response configuration"
-        $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/get_properties?useV2Api=true&useV3Api=true"
+            Write-Verbose "Retrieving XDR Live Response configuration"
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
 
-        Set-XdrCache -CacheKey "GetXdrEndpointConfigurationLiveResponse" -Value $result -TTLMinutes 30
-        return $result
+            Set-XdrCache -CacheKey "GetXdrEndpointConfigurationLiveResponse" -Value $result -TTLMinutes 30
+            return $result
+        } catch {
+            Write-Error "Failed to retrieve Live Response configuration: $_"
+        }
     }
     
     end {

@@ -57,12 +57,17 @@
             HuntingRule = $HuntingRule
         } | ConvertTo-Json -Depth 10
 
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/huntingService/rules/validateQuery"
+        try {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/huntingService/rules/validateQuery"
         
-        Write-Verbose "Validating Advanced Hunting query"
-        $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
+            Write-Verbose "Validating Advanced Hunting query"
+            $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
         
-        return $result
+            return $result
+        } catch {
+            Write-Error "Failed to validate Advanced Hunting query: $_"
+            throw
+        }
     }
 
     end {

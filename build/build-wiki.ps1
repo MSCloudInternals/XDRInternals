@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
+﻿# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 
 <#
@@ -37,18 +37,18 @@
     .EXAMPLE
         Build-Wiki -Path './' -ModuleName 'PowerShellForGitHub' -RemoveDeprecated
 #>
-[CmdletBinding(DefaultParameterSetName='ModuleName')]
+[CmdletBinding(DefaultParameterSetName = 'ModuleName')]
 param
 (
     [string] $Path = 'docs',
 
     [Parameter(
         Mandatory,
-        ParameterSetName='ModulePath')]
+        ParameterSetName = 'ModulePath')]
     [string] $ModulePath,
 
     [Parameter(
-        ParameterSetName='ModuleName')]
+        ParameterSetName = 'ModuleName')]
     [string] $ModuleName = 'PowerShellForGitHub',
 
     [string] $Description = 'PowerShellForGitHub is a PowerShell module that provides command-line interaction and automation for the [GitHub v3 API](https://developer.github.com/v3/).',
@@ -58,9 +58,8 @@ param
     [switch] $Force
 )
 
-function Out-Utf8File
-{
-<#
+function Out-Utf8File {
+    <#
     .DESCRIPTION
         Writes a file using UTF8 (no BOM) encoding.
 
@@ -96,16 +95,11 @@ function Out-Utf8File
         [switch] $Force
     )
 
-    begin
-    {
-        if (Test-Path -Path $Path -PathType Leaf)
-        {
-            if ($Force.IsPresent)
-            {
+    begin {
+        if (Test-Path -Path $Path -PathType Leaf) {
+            if ($Force.IsPresent) {
                 Remove-Item -Path $Path -Force | Out-Null
-            }
-            else
-            {
+            } else {
                 throw "[$Path] already exists and -Force was not specified."
             }
         }
@@ -113,21 +107,18 @@ function Out-Utf8File
         $stream = New-Object -TypeName System.IO.StreamWriter -ArgumentList ($Path, [System.Text.Encoding]::UTF8)
     }
 
-    process
-    {
+    process {
 
         $stream.WriteLine($Content)
     }
 
-    end
-    {
+    end {
         $stream.Close();
     }
 }
 
-function Build-SideBar
-{
-<#
+function Build-SideBar {
+    <#
     .DESCRIPTION
         Generate the sidebar content file.
 
@@ -146,7 +137,7 @@ function Build-SideBar
     .EXAMPLE
         Build-SideBar -Path ./docs -ModuleRootPageFileName 'root.md' -ModuleName 'PowerShellForGitHub' -ModulePages @('Foo', 'Bar')
 #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "", Justification="It's an approved verb in PS Core, just not Windows PowerShell.  Plus, this is an internal helper.")]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "", Justification = "It's an approved verb in PS Core, just not Windows PowerShell.  Plus, this is an internal helper.")]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -175,8 +166,7 @@ function Build-SideBar
     $moduleContent += ''
     $moduleContent += '#### Functions'
     $moduleContent += ''
-    foreach ($modulePage in $modulePages)
-    {
+    foreach ($modulePage in $modulePages) {
         $moduleContent += "- [$modulePage]($modulePage)"
     }
     $moduleContent += $moduleContentEndMarker
@@ -184,21 +174,15 @@ function Build-SideBar
 
     $content = ''
     $docsSideBarRegEx = "$moduleContentStartMarker[\r\n]+(?:[^<]+[\r\n]+)*$moduleContentEndMarker[\r\n]+"
-    if (Test-Path -Path $sideBarFilePath -PathType Leaf)
-    {
+    if (Test-Path -Path $sideBarFilePath -PathType Leaf) {
         $content = Get-Content -Path $sideBarFilePath -Raw -Encoding utf8
-        if ($content -match $docsSideBarRegEx)
-        {
-            $content = $content -replace $docsSideBarRegEx,($moduleContent -join [Environment]::NewLine)
-        }
-        else
-        {
+        if ($content -match $docsSideBarRegEx) {
+            $content = $content -replace $docsSideBarRegEx, ($moduleContent -join [Environment]::NewLine)
+        } else {
             $content += [Environment]::NewLine
             $content += ($moduleContent -join [Environment]::NewLine)
         }
-    }
-    else
-    {
+    } else {
         $newContent = @()
         $newContent += "## $ModuleName"
         $newContent += ''
@@ -209,9 +193,8 @@ function Build-SideBar
     $content | Out-Utf8File -Path $sideBarFilePath -Force
 }
 
-function Build-Footer
-{
-<#
+function Build-Footer {
+    <#
     .DESCRIPTION
         Generate the footer content file.
 
@@ -227,7 +210,7 @@ function Build-Footer
     .EXAMPLE
         Build-Footer -Path ./docs -ModuleRootPageFileName 'root.md' -ModuleName 'PowerShellForGitHub'
 #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "", Justification="It's an approved verb in PS Core, just not Windows PowerShell.  Plus, this is an internal helper.")]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "", Justification = "It's an approved verb in PS Core, just not Windows PowerShell.  Plus, this is an internal helper.")]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -256,30 +239,23 @@ function Build-Footer
 
     $content = ''
     $docsFooterRegEx = "$moduleContentStartMarker[\r\n]+(?:[^<]+[\r\n]+)*$moduleContentEndMarker[\r\n]+"
-    if (Test-Path -Path $footerFilePath -PathType Leaf)
-    {
+    if (Test-Path -Path $footerFilePath -PathType Leaf) {
         $content = Get-Content -Path $footerFilePath -Raw -Encoding utf8
-        if ($content -match $docsFooterRegEx)
-        {
-            $content = $content -replace $docsFooterRegEx,($moduleContent -join [Environment]::NewLine)
-        }
-        else
-        {
+        if ($content -match $docsFooterRegEx) {
+            $content = $content -replace $docsFooterRegEx, ($moduleContent -join [Environment]::NewLine)
+        } else {
             $content += [Environment]::NewLine
             $content += ($moduleContent -join [Environment]::NewLine)
         }
-    }
-    else
-    {
+    } else {
         $content = ($moduleContent -join [Environment]::NewLine)
     }
 
     $content | Out-Utf8File -Path $footerFilePath -Force
 }
 
-function Build-HomePage
-{
-<#
+function Build-HomePage {
+    <#
     .DESCRIPTION
         Generate the home page file for the Wiki.
 
@@ -292,7 +268,7 @@ function Build-HomePage
     .EXAMPLE
         Build-HomePage -Path ./docs -ModuleRootPageFileName 'root.md'
 #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "", Justification="It's an approved verb in PS Core, just not Windows PowerShell.  Plus, this is an internal helper.")]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseApprovedVerbs", "", Justification = "It's an approved verb in PS Core, just not Windows PowerShell.  Plus, this is an internal helper.")]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -318,21 +294,15 @@ function Build-HomePage
 
     $content = ''
     $docsFooterRegEx = "$moduleContentStartMarker[\r\n]+(?:[^<]+[\r\n]+)*$moduleContentEndMarker[\r\n]+"
-    if (Test-Path -Path $homePageFilePath -PathType Leaf)
-    {
+    if (Test-Path -Path $homePageFilePath -PathType Leaf) {
         $content = Get-Content -Path $homePageFilePath -Raw -Encoding utf8
-        if ($content -match $docsFooterRegEx)
-        {
-            $content = $content -replace $docsFooterRegEx,($moduleContent -join [Environment]::NewLine)
-        }
-        else
-        {
+        if ($content -match $docsFooterRegEx) {
+            $content = $content -replace $docsFooterRegEx, ($moduleContent -join [Environment]::NewLine)
+        } else {
             $content += [Environment]::NewLine
             $content += ($moduleContent -join [Environment]::NewLine)
         }
-    }
-    else
-    {
+    } else {
         $content = ($moduleContent -join [Environment]::NewLine)
     }
 
@@ -344,8 +314,7 @@ Set-StrictMode -Version 1.0
 
 $Path = Resolve-Path -Path $Path
 
-if ($PSVersionTable.PSVersion.Major -lt 7)
-{
+if ($PSVersionTable.PSVersion.Major -lt 7) {
     Write-Warning 'It is recommended to run this with PowerShell 7+, as platyPS has a bug which doesn''t properly handle multi-line examples when run on older vesrions of PowerShell.'
 }
 
@@ -353,14 +322,13 @@ $numSteps = 11
 $currentStep = 0
 $progressParams = @{
     'Activity' = 'Generating documentation for wiki'
-    'Id' = 1
+    'Id'       = 1
 }
 
 #######
 $currentStep++
 Write-Progress @progressParams -Status 'Ensuring PlatyPS installed' -PercentComplete (($currentStep / $numSteps) * 100)
-if ($null -eq (Get-Module -Name 'PlatyPS' -ListAvailable))
-{
+if ($null -eq (Get-Module -Name 'PlatyPS' -ListAvailable)) {
     Write-Verbose -Message 'Installing PlatyPS Module'
     Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force -Verbose:$false | Out-Null
     Install-Module PlatyPS -Scope CurrentUser -Force
@@ -369,8 +337,7 @@ if ($null -eq (Get-Module -Name 'PlatyPS' -ListAvailable))
 #######
 $currentStep++
 Write-Progress @progressParams -Status 'Ensuring source module is loaded' -PercentComplete (($currentStep / $numSteps) * 100)
-if (-not [String]::IsNullOrEmpty($ModulePath))
-{
+if (-not [String]::IsNullOrEmpty($ModulePath)) {
     Write-Verbose -Message "Importing [$ModulePath]"
     $module = Import-Module -Name $ModulePath -PassThru -Force -Verbose:$false
     $ModuleName = $module.Name
@@ -393,16 +360,16 @@ Write-Progress @progressParams -Status 'Creating the new module markdown help fi
 Push-Location -Path $tempFolder
 
 $params = @{
-    Module = $ModuleName
-    OutputFolder = $tempFolder
-    UseFullTypeName = $true
+    Module                = $ModuleName
+    OutputFolder          = $tempFolder
+    UseFullTypeName       = $true
     AlphabeticParamsOrder = $true
-    WithModulePage = $true
-    ModulePagePath = $moduleRootPageFileName
-    NoMetadata = $false # Otherwise was having issues with Update-MarkdownHelpModule
-    FwLink = 'N/A'
-    Encoding = ([System.Text.Encoding]::UTF8)
-    Force = $true
+    WithModulePage        = $true
+    ModulePagePath        = $moduleRootPageFileName
+    NoMetadata            = $false # Otherwise was having issues with Update-MarkdownHelpModule
+    FwLink                = 'N/A'
+    Encoding              = ([System.Text.Encoding]::UTF8)
+    Force                 = $true
 }
 New-MarkdownHelp @params | Out-Null
 
@@ -410,12 +377,12 @@ New-MarkdownHelp @params | Out-Null
 $currentStep++
 Write-Progress @progressParams -Status 'Updating the generated documentation' -PercentComplete (($currentStep / $numSteps) * 100)
 $params = @{
-    Path = $tempFolder
-    RefreshModulePage = $true
-    ModulePagePath = $moduleRootPageFileName
-    UseFullTypeName = $true
+    Path                  = $tempFolder
+    RefreshModulePage     = $true
+    ModulePagePath        = $moduleRootPageFileName
+    UseFullTypeName       = $true
     AlphabeticParamsOrder = $true
-    Encoding = ([System.Text.Encoding]::UTF8)
+    Encoding              = ([System.Text.Encoding]::UTF8)
 }
 Update-MarkdownHelpModule @params | Out-Null
 
@@ -441,16 +408,13 @@ $modulePages = @()
 $generatedFiles = Get-ChildItem -Path $tempFolder -Filter '*.md'
 $metadataRegEx = '^---[\r\n]+(?:[^-].+[\r\n]+){1,10}---[\r\n]{1,4}'
 $generatedMarker = '<!-- Generated -->' + [Environment]::NewLine
-foreach ($file in $generatedFiles)
-{
+foreach ($file in $generatedFiles) {
     $fileContent = Get-Content -Path $file.FullName -Raw -Encoding utf8
-    if ($fileContent -match $metadataRegEx)
-    {
-        $fileContent = $fileContent -replace $metadataRegEx,$generatedMarker
+    if ($fileContent -match $metadataRegEx) {
+        $fileContent = $fileContent -replace $metadataRegEx, $generatedMarker
         $fileContent | Out-Utf8File -Path $file.FullName -Force
 
-        if ($file.Name -ne $moduleRootPageFileName)
-        {
+        if ($file.Name -ne $moduleRootPageFileName) {
             $modulePages += $file.BaseName
         }
     }
@@ -476,33 +440,25 @@ $currentStep++
 Write-Progress @progressParams -Status "Detecting deprecated pages" -PercentComplete (($currentStep / $numSteps) * 100)
 $deprecatedFiles = @()
 $currentFiles = Get-ChildItem -Path $Path -Filter '*.md'
-foreach ($file in $currentFiles)
-{
+foreach ($file in $currentFiles) {
     $content = Get-Content -Path $file -Raw -Encoding utf8
     if (($content -match $generatedMarker) -and
         ($file.BaseName -notin $modulePages) -and
-        ($file.Name -notin ($moduleRootPageFileName, 'Home.md')))
-    {
+        ($file.Name -notin ($moduleRootPageFileName, 'Home.md'))) {
         $deprecatedFiles += $file
     }
 }
 
-if ($deprecatedFiles.Length -gt 0)
-{
-    if ($RemoveDeprecated.IsPresent)
-    {
+if ($deprecatedFiles.Length -gt 0) {
+    if ($RemoveDeprecated.IsPresent) {
         Write-Verbose "The following files have been deprecated and will be removed:"
-    }
-    else
-    {
+    } else {
         Write-Verbose "The following files have been deprecated.  They can be removed automatically by specifying the -RemoveDeprecated switch."
     }
 
-    foreach ($file in $deprecatedFiles)
-    {
+    foreach ($file in $deprecatedFiles) {
         Write-Verbose "* $($file.Name)"
-        if ($RemoveDeprecated.IsPresent)
-        {
+        if ($RemoveDeprecated.IsPresent) {
             Remove-Item -Path $file.FullName -Force
         }
     }
@@ -512,8 +468,7 @@ if ($deprecatedFiles.Length -gt 0)
 $currentStep++
 Write-Progress @progressParams -Status "Moving generated content to final destination" -PercentComplete (($currentStep / $numSteps) * 100)
 $files = Get-ChildItem -Path $tempFolder
-foreach ($file in $files)
-{
+foreach ($file in $files) {
     Move-Item -Path $file.FullName -Destination $Path -Force:$Force.IsPresent
 }
 

@@ -6,7 +6,7 @@
     .DESCRIPTION
         Sets advanced features configuration for Microsoft Defender for Endpoint.
         This function updates various advanced features across different configuration endpoints.
-        
+
         Note: AlwaysRemediatePUA and EnableAutomaticAttackDisruption cannot be changed through this function
         as they are part of PotentiallyUnwantedApplications which is read-only.
 
@@ -244,7 +244,7 @@
             'DefaultToStreamlinedConnectivityWhenOnboardingDevicesInDefenderPortal',
             'ApplyStreamlinedConnectivitySettingsToDevicesManagedByIntuneAndDefenderForCloud'
         )
-        
+
         $liveResponseParams = @('LiveResponse', 'LiveResponseForServers', 'LiveResponseUnsignedScriptExecution')
         $previewFeaturesParams = @('PreviewFeatures')
         $purviewSharingParams = @('PurviewSharing')
@@ -262,10 +262,10 @@
         # Update Advanced Features
         if ($hasAdvancedFeatures) {
             Write-Verbose "Updating Advanced Features configuration"
-            
+
             # Get current configuration
             $currentConfig = Get-XdrEndpointConfigurationAdvancedFeatures
-            
+
             # Update only the properties that were specified
             if ($PSBoundParameters.ContainsKey('EnableEDRInBlockMode')) {
                 $currentConfig.EnableWdavPassiveModeRemediation = $EnableEDRInBlockMode
@@ -352,8 +352,7 @@
                 try {
                     $null = Invoke-RestMethod -Uri $uri -Method $method -Body $body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                     Write-Host "Advanced Features configuration updated successfully"
-                }
-                catch {
+                } catch {
                     Write-Error "Failed to update Advanced Features configuration: $_"
                 }
             }
@@ -362,10 +361,10 @@
         # Update Live Response
         if ($hasLiveResponse) {
             Write-Verbose "Updating Live Response configuration"
-            
+
             # Get current configuration
             $currentConfig = Get-XdrEndpointConfigurationLiveResponse
-            
+
             # Update only the properties that were specified
             if ($PSBoundParameters.ContainsKey('LiveResponse')) {
                 $currentConfig.AutomatedIrLiveResponse = $LiveResponse
@@ -393,8 +392,7 @@
                 try {
                     $null = Invoke-RestMethod -Uri $uri -Method $method -Body $body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                     Write-Host "Live Response configuration updated successfully"
-                }
-                catch {
+                } catch {
                     Write-Error "Failed to update Live Response configuration: $_"
                 }
             }
@@ -403,7 +401,7 @@
         # Update Preview Features
         if ($hasPreviewFeatures) {
             Write-Verbose "Updating Preview Features configuration"
-            
+
             $uri = "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting?context=MdatpContext"
             $method = "POST"
             $body = @{"IsOptIn" = $PreviewFeatures } | ConvertTo-Json -Depth 10
@@ -419,8 +417,7 @@
                 try {
                     $null = Invoke-RestMethod -Uri $uri -Method $method -Body $body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                     Write-Host "Preview Features configuration updated successfully"
-                }
-                catch {
+                } catch {
                     Write-Error "Failed to update Preview Features configuration: $_"
                 }
             }
@@ -441,13 +438,11 @@
                     Write-Host "Method: $method" -ForegroundColor Yellow
                     Write-Host "Body:" -ForegroundColor Yellow
                     Write-Host $body -ForegroundColor Gray
-                }
-                else {
+                } else {
                     try {
                         $null = Invoke-RestMethod -Uri $uri -Method $method -Body $body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                         Write-Host "Purview Sharing configuration updated successfully"
-                    }
-                    catch {
+                    } catch {
                         Write-Error "Failed to update Purview Sharing configuration: $_"
                     }
                 }
@@ -460,8 +455,7 @@
             # Determine URI based on whether enabling or disabling the Intune connection
             if ($MicrosoftIntuneConnection -eq $true) {
                 $uri = "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/provision"
-            }
-            else {
+            } else {
                 $uri = "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/deprovision"
             }
             $method = "POST"
@@ -476,13 +470,11 @@
                     Write-Host "Method: $method" -ForegroundColor Yellow
                     Write-Host "Body:" -ForegroundColor Yellow
                     Write-Host $body -ForegroundColor Gray
-                }
-                else {
+                } else {
                     try {
                         $null = Invoke-RestMethod -Uri $uri -Method $method -Body ($body | ConvertTo-Json -Depth 10) -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                         Write-Host "Microsoft Intune Connection configuration updated successfully"
-                    }
-                    catch {
+                    } catch {
                         Write-Error "Failed to update Microsoft Intune Connection configuration: $_"
                     }
                 }
@@ -505,13 +497,11 @@
                     Write-Host "Method: $method" -ForegroundColor Yellow
                     Write-Host "Body:" -ForegroundColor Yellow
                     Write-Host $body -ForegroundColor Gray
-                }
-                else {
+                } else {
                     try {
                         $null = Invoke-RestMethod -Uri $uri -Method $method -Body ($body | ConvertTo-Json -Depth 10) -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                         Write-Host "Authenticated Telemetry configuration updated successfully"
-                    }
-                    catch {
+                    } catch {
                         Write-Error "Failed to update Authenticated Telemetry configuration: $_"
                     }
                 }

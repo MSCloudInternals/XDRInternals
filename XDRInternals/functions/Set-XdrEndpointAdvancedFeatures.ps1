@@ -85,6 +85,12 @@
     .PARAMETER PurviewSharing
         Enable Purview alert sharing.
 
+    .PARAMETER MicrosoftIntuneConnection
+        Enable Microsoft Intune connection to share onboarding information and threat levels.
+
+    .PARAMETER AuthenticatedTelemetry
+        Enable authenticated telemetry to prevent spoofing telemetry into your dashboard.
+
     .PARAMETER LiveResponse
         Enable Live Response.
 
@@ -111,97 +117,113 @@
     .EXAMPLE
         Set-XdrEndpointAdvancedFeatures -LiveResponse $true -LiveResponseForServers $true
         Enables Live Response for both workstations and servers.
+
+    .EXAMPLE
+        Set-XdrEndpointAdvancedFeatures -MicrosoftIntuneConnection $true
+        Enables the Microsoft Intune connection.
+
+    .EXAMPLE
+        Set-XdrEndpointAdvancedFeatures -AuthenticatedTelemetry $true
+        Enables authenticated telemetry.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '')]
     [CmdletBinding(SupportsShouldProcess)]
     param (
         # Advanced Features parameters
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$EnableEDRInBlockMode,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$EnableMicrosoftDefenderAntivirusInAuditMode,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$DeviceDiscovery,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$HidePotentialDuplicateDeviceRecords,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$AllowOrBlockFile,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$SkypeForBusinessIntegration,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$ShowUserDetails,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$MicrosoftDefenderForIdentityIntegration,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$AutomaticallyResolveAlerts,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$MicrosoftDefenderForCloudApps,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$AzureInformationProtection,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$TamperProtection,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$CustomNetworkIndicators,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$WebContentFiltering,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$MicrosoftEndpointDLP,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$DownloadQuarantinedFiles,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$RestrictCorrelationToWithinScopedDeviceGroups,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$ExcludeDevices,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$ActiveIncidentResponse,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$AggregatedReporting,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$IsolationExclusionRules,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$DefaultToStreamlinedConnectivityWhenOnboardingDevicesInDefenderPortal,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$ApplyStreamlinedConnectivitySettingsToDevicesManagedByIntuneAndDefenderForCloud,
 
         # Preview Features parameters
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$PreviewFeatures,
 
         # Purview Sharing parameter
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$PurviewSharing,
 
+        # Intune Connection parameter
+        [Parameter(ValueFromPipelineByPropertyName)]
+        [bool]$MicrosoftIntuneConnection,
+
+        # Authenticated Telemetry parameter
+        [Parameter(ValueFromPipelineByPropertyName)]
+        [bool]$AuthenticatedTelemetry,
+
         # Live Response parameters
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$LiveResponse,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$LiveResponseForServers,
 
-        [Parameter()]
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$LiveResponseUnsignedScriptExecution
     )
 
@@ -226,12 +248,16 @@
         $liveResponseParams = @('LiveResponse', 'LiveResponseForServers', 'LiveResponseUnsignedScriptExecution')
         $previewFeaturesParams = @('PreviewFeatures')
         $purviewSharingParams = @('PurviewSharing')
+        $intuneConnectionParams = @('MicrosoftIntuneConnection')
+        $authenticatedTelemetryParams = @('AuthenticatedTelemetry')
 
         # Check if any advanced features parameters were provided
         $hasAdvancedFeatures = $advancedFeaturesParams | Where-Object { $PSBoundParameters.ContainsKey($_) }
         $hasLiveResponse = $liveResponseParams | Where-Object { $PSBoundParameters.ContainsKey($_) }
         $hasPreviewFeatures = $previewFeaturesParams | Where-Object { $PSBoundParameters.ContainsKey($_) }
         $hasPurviewSharing = $purviewSharingParams | Where-Object { $PSBoundParameters.ContainsKey($_) }
+        $hasIntuneConnection = $intuneConnectionParams | Where-Object { $PSBoundParameters.ContainsKey($_) }
+        $hasAuthenticatedTelemetry = $authenticatedTelemetryParams | Where-Object { $PSBoundParameters.ContainsKey($_) }
 
         # Update Advanced Features
         if ($hasAdvancedFeatures) {
@@ -326,7 +352,8 @@
                 try {
                     $null = Invoke-RestMethod -Uri $uri -Method $method -Body $body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                     Write-Host "Advanced Features configuration updated successfully"
-                } catch {
+                }
+                catch {
                     Write-Error "Failed to update Advanced Features configuration: $_"
                 }
             }
@@ -366,7 +393,8 @@
                 try {
                     $null = Invoke-RestMethod -Uri $uri -Method $method -Body $body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                     Write-Host "Live Response configuration updated successfully"
-                } catch {
+                }
+                catch {
                     Write-Error "Failed to update Live Response configuration: $_"
                 }
             }
@@ -391,7 +419,8 @@
                 try {
                     $null = Invoke-RestMethod -Uri $uri -Method $method -Body $body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                     Write-Host "Preview Features configuration updated successfully"
-                } catch {
+                }
+                catch {
                     Write-Error "Failed to update Preview Features configuration: $_"
                 }
             }
@@ -412,12 +441,78 @@
                     Write-Host "Method: $method" -ForegroundColor Yellow
                     Write-Host "Body:" -ForegroundColor Yellow
                     Write-Host $body -ForegroundColor Gray
-                } else {
+                }
+                else {
                     try {
                         $null = Invoke-RestMethod -Uri $uri -Method $method -Body $body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                         Write-Host "Purview Sharing configuration updated successfully"
-                    } catch {
+                    }
+                    catch {
                         Write-Error "Failed to update Purview Sharing configuration: $_"
+                    }
+                }
+            }
+        }
+
+        # Update Microsoft Intune Connection
+        if ($hasIntuneConnection) {
+            Write-Verbose "Updating Microsoft Intune Connection configuration"
+            # Determine URI based on whether enabling or disabling the Intune connection
+            if ($MicrosoftIntuneConnection -eq $true) {
+                $uri = "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/provision"
+            }
+            else {
+                $uri = "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/deprovision"
+            }
+            $method = "POST"
+            $body = @{
+                "timeout" = 60000
+            }
+
+            if ($PSCmdlet.ShouldProcess("Microsoft Intune Connection Configuration", "Update")) {
+                if ($WhatIfPreference) {
+                    Write-Host "`nMicrosoft Intune Connection Update:" -ForegroundColor Cyan
+                    Write-Host "URI: $uri" -ForegroundColor Yellow
+                    Write-Host "Method: $method" -ForegroundColor Yellow
+                    Write-Host "Body:" -ForegroundColor Yellow
+                    Write-Host $body -ForegroundColor Gray
+                }
+                else {
+                    try {
+                        $null = Invoke-RestMethod -Uri $uri -Method $method -Body ($body | ConvertTo-Json -Depth 10) -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                        Write-Host "Microsoft Intune Connection configuration updated successfully"
+                    }
+                    catch {
+                        Write-Error "Failed to update Microsoft Intune Connection configuration: $_"
+                    }
+                }
+            }
+        }
+
+        # Update Authenticated Telemetry
+        if ($hasAuthenticatedTelemetry) {
+            Write-Verbose "Updating Authenticated Telemetry configuration"
+            $uri = "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense"
+            $method = "POST"
+            # Convert boolean to string (false = allow non-authenticated, true = disallow non-authenticated)
+            $body = @{
+                "allowNonAuthenticatedSense" = $AuthenticatedTelemetry.ToString().ToLower()
+            }
+            if ($PSCmdlet.ShouldProcess("Authenticated Telemetry Configuration", "Update")) {
+                if ($WhatIfPreference) {
+                    Write-Host "`nAuthenticated Telemetry Update:" -ForegroundColor Cyan
+                    Write-Host "URI: $uri" -ForegroundColor Yellow
+                    Write-Host "Method: $method" -ForegroundColor Yellow
+                    Write-Host "Body:" -ForegroundColor Yellow
+                    Write-Host $body -ForegroundColor Gray
+                }
+                else {
+                    try {
+                        $null = Invoke-RestMethod -Uri $uri -Method $method -Body ($body | ConvertTo-Json -Depth 10) -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                        Write-Host "Authenticated Telemetry configuration updated successfully"
+                    }
+                    catch {
+                        Write-Error "Failed to update Authenticated Telemetry configuration: $_"
                     }
                 }
             }

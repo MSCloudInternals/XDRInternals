@@ -44,6 +44,7 @@ Get-XdrTenantContext -Force
 | Cmdlet                                                      | Description                                                   |
 | ----------------------------------------------------------- | ------------------------------------------------------------- |
 | Connect-XdrByEstsCookie                                     | Authenticate to Microsoft Defender XDR using ESTS cookie      |
+| ConvertTo-XdrEncodedAdvancedHuntingQuery                    | Encode Advanced Hunting queries for URL/API usage             |
 | Get-XdrActionsCenterHistory                                 | Retrieve historical actions from the Action Center            |
 | Get-XdrActionsCenterPending                                 | Retrieve pending actions from the Action Center               |
 | Get-XdrAdvancedHuntingFunction                              | Get saved Advanced Hunting functions                          |

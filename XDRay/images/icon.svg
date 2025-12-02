@@ -1,0 +1,21 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+    <!-- Shield Background -->
+    <path d="M64 10 L114 30 V60 C114 90 64 118 64 118 C64 118 14 90 14 60 V30 Z" fill="#2b2b2b"
+        stroke="#0078d4" stroke-width="4" />
+
+    <!-- Inner Shield for X-Ray content -->
+    <path d="M64 18 L106 35 V60 C106 85 64 110 64 110 C64 110 22 85 22 60 V35 Z" fill="none"
+        stroke="#00ff00" stroke-width="2" opacity="0.5" />
+
+    <!-- "Bones" / Circuitry -->
+    <path d="M64 40 V90 M40 55 H88 M45 70 H83" stroke="#00ff00" stroke-width="3"
+        stroke-linecap="round" />
+
+    <!-- Scan Line Effect -->
+    <rect x="0" y="0" width="128" height="128" fill="none" />
+    <line x1="14" y1="50" x2="114" y2="50" stroke="#00ff00" stroke-width="2" opacity="0.7">
+        <animate attributeName="y1" from="30" to="110" dur="2s" repeatCount="indefinite" />
+        <animate attributeName="y2" from="30" to="110" dur="2s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.7;0.1;0.7" dur="2s" repeatCount="indefinite" />
+    </line>
+</svg>

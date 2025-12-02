@@ -1,0 +1,25 @@
+﻿{
+    "manifest_version": 3,
+    "name": "XDRay - XDR Network Analyzer",
+    "version": "1.0",
+    "description": "Analyzes network traffic on security.microsoft.com and maps it to XDRInternals cmdlets.",
+    "icons": {
+        "16": "images/icon16.png",
+        "32": "images/icon32.png",
+        "48": "images/icon48.png",
+        "128": "images/icon128.png"
+    },
+    "devtools_page": "devtools.html",
+    "background": {
+        "service_worker": "background.js"
+    },
+    "permissions": [
+        "cookies",
+        "storage",
+        "clipboardWrite",
+        "webRequest"
+    ],
+    "host_permissions": [
+        "https://security.microsoft.com/*"
+    ]
+}

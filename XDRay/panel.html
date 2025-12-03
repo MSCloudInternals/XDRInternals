@@ -149,8 +149,15 @@
         <h1>XDRay</h1>
         <button id="clear-btn" class="secondary">Clear</button>
         <button id="save-btn">Save Script (.ps1)</button>
-        <button id="copy-sccauth-btn" class="warning" title="Warning: Sensitive Data">Copy sccauth</button>
-        <button id="copy-xsrf-btn" class="warning" title="Warning: Sensitive Data">Copy XSRF-TOKEN</button>
+
+        <div id="danger-zone-wrapper" style="margin-left: auto; display: flex; gap: 10px; align-items: center;">
+            <button id="danger-zone-toggle" class="secondary" style="border: 1px solid #ce9178; color: #ce9178;">⚠
+                Danger Zone</button>
+            <div id="danger-zone-content" style="display: none; gap: 5px; align-items: center;">
+                <button id="copy-sccauth-btn" class="warning" title="Warning: Sensitive Data">Copy sccauth</button>
+                <button id="copy-xsrf-btn" class="warning" title="Warning: Sensitive Data">Copy XSRF-TOKEN</button>
+            </div>
+        </div>
     </header>
     <div id="request-list">
         <!-- Requests will be added here -->

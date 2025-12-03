@@ -9,6 +9,9 @@ fetch('CmdletApiMapping.json')
     })
     .catch(err => console.error('Failed to load mapping', err));
 
+// Add disclaimer on load
+addDisclaimerToUI();
+
 // Listen for network requests
 chrome.devtools.network.onRequestFinished.addListener(request => {
     const url = request.request.url;
@@ -22,8 +25,17 @@ function processRequest(request) {
     const method = request.request.method;
     const path = url.pathname + url.search;
 
+    // Extract headers
+    const headers = {};
+    if (request.request.headers) {
+        request.request.headers.forEach(h => {
+            headers[h.name.toLowerCase()] = h.value;
+        });
+    }
+
     // Find matching cmdlet
     let matchedCmdlet = null;
+    let matchedParams = null;
 
     for (const map of cmdletMapping) {
         const mappingPath = new URL(map.ApiUri).pathname;
@@ -32,11 +44,13 @@ function processRequest(request) {
 
         if (regex.test(url.pathname)) {
             matchedCmdlet = map.Cmdlet;
+            matchedParams = map.Parameters;
             break;
         }
 
         if (url.pathname.toLowerCase() === mappingPath.toLowerCase()) {
             matchedCmdlet = map.Cmdlet;
+            matchedParams = map.Parameters;
             break;
         }
     }
@@ -59,7 +73,9 @@ function processRequest(request) {
             const requestData = {
                 method: method,
                 url: request.request.url,
+                headers: headers,
                 cmdlet: matchedCmdlet || 'Invoke-XdrRestMethod',
+                parameters: matchedParams,
                 body: body,
                 timestamp: new Date().toISOString()
             };
@@ -157,30 +173,63 @@ function generatePowerShellCode(data) {
         return value;
     }
 
+    // Helper to resolve values from data based on path
+    function resolveValue(data, path) {
+        if (path.startsWith('fixed:')) {
+            return path.substring(6);
+        }
+        if (path.startsWith('header:')) {
+            const headerName = path.substring(7).toLowerCase();
+            return data.headers ? data.headers[headerName] : undefined;
+        }
+
+        const parts = path.split('.');
+        let current = data;
+
+        for (const part of parts) {
+            if (current === null || current === undefined) return undefined;
+            current = current[part];
+        }
+
+        return current;
+    }
+
     if (data.cmdlet !== 'Invoke-XdrRestMethod') {
         code += `# ${data.cmdlet}\n`;
         code += `${data.cmdlet}`;
 
-        // Try to map parameters from Query String
-        urlObj.searchParams.forEach((value, key) => {
-            // Simple heuristic: capitalize first letter
-            const paramName = key.charAt(0).toUpperCase() + key.slice(1);
-            const escapedValue = escapeForPowerShell(value);
-            code += ` -${paramName} "${escapedValue}"`;
-        });
-
-        // Try to map parameters from Body
-        if (data.body && typeof data.body === 'object') {
-            // If body is flat, map keys to parameters
-            // This is a best-effort guess
-            Object.keys(data.body).forEach(key => {
-                const paramName = key.charAt(0).toUpperCase() + key.slice(1);
-                const value = data.body[key];
-                if (typeof value !== 'object' && value !== null) {
+        if (data.parameters) {
+            // Use explicit mapping
+            for (const [paramName, sourcePath] of Object.entries(data.parameters)) {
+                const value = resolveValue(data, sourcePath);
+                if (value !== undefined && value !== null) {
                     const escapedValue = escapeForPowerShell(value);
                     code += ` -${paramName} "${escapedValue}"`;
                 }
+            }
+        } else {
+            // Fallback to heuristics
+            // Try to map parameters from Query String
+            urlObj.searchParams.forEach((value, key) => {
+                // Simple heuristic: capitalize first letter
+                const paramName = key.charAt(0).toUpperCase() + key.slice(1);
+                const escapedValue = escapeForPowerShell(value);
+                code += ` -${paramName} "${escapedValue}"`;
             });
+
+            // Try to map parameters from Body
+            if (data.body && typeof data.body === 'object') {
+                // If body is flat, map keys to parameters
+                // This is a best-effort guess
+                Object.keys(data.body).forEach(key => {
+                    const paramName = key.charAt(0).toUpperCase() + key.slice(1);
+                    const value = data.body[key];
+                    if (typeof value !== 'object' && value !== null) {
+                        const escapedValue = escapeForPowerShell(value);
+                        code += ` -${paramName} "${escapedValue}"`;
+                    }
+                });
+            }
         }
 
         // Don't show fallback when native cmdlet is available
@@ -204,10 +253,14 @@ function generatePowerShellCode(data) {
 document.getElementById('clear-btn').addEventListener('click', () => {
     capturedRequests = [];
     document.getElementById('request-list').innerHTML = '';
+    addDisclaimerToUI();
 });
 
 document.getElementById('save-btn').addEventListener('click', () => {
-    let scriptContent = '# XDRay Generated Script\n\n';
+    let scriptContent = '# XDRay Generated Script\n';
+    scriptContent += '# The mapping to cmdlets is based on best effort but might not reflect the actual parameters of the parameter in question.\n';
+    scriptContent += '# Do NOT run this code without verifying it yourself.\n\n';
+
     capturedRequests.forEach(req => {
         scriptContent += generatePowerShellCode(req) + '\n\n';
     });
@@ -220,6 +273,108 @@ document.getElementById('save-btn').addEventListener('click', () => {
     a.click();
     URL.revokeObjectURL(url);
 });
+
+document.getElementById('danger-zone-toggle').addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    if (btn.textContent.includes('Danger Zone')) {
+        btn.textContent = 'I understand the security risks';
+        btn.style.backgroundColor = '#ce9178';
+        btn.style.color = '#1e1e1e';
+    } else {
+        document.getElementById('danger-zone-content').style.display = 'flex';
+        addDangerZoneInfoToUI();
+        btn.style.display = 'none';
+    }
+});
+
+function addDangerZoneInfoToUI() {
+    const list = document.getElementById('request-list');
+    const item = document.createElement('div');
+    item.className = 'request-item';
+    item.style.borderColor = '#ce9178';
+
+    const summary = document.createElement('div');
+    summary.className = 'request-summary';
+    summary.style.backgroundColor = '#3e2d2d';
+
+    const iconSpan = document.createElement('span');
+    iconSpan.textContent = '⚠';
+    iconSpan.style.marginRight = '10px';
+    iconSpan.style.color = '#ce9178';
+    summary.appendChild(iconSpan);
+
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = 'Setup XDRInternals with captured tokens';
+    titleSpan.style.fontWeight = 'bold';
+    titleSpan.style.color = '#ce9178';
+    summary.appendChild(titleSpan);
+
+    const details = document.createElement('div');
+    details.className = 'details open'; // Open by default
+
+    const codeBlock = document.createElement('div');
+    codeBlock.style.color = '#dcdcaa';
+    codeBlock.style.whiteSpace = 'pre-wrap';
+    codeBlock.style.marginBottom = '10px';
+    codeBlock.textContent = `Import-Module XDRInternals.psd1
+$scc = Get-Clipboard
+$xsrf = Get-Clipboard
+Set-XdrConnectionSettings -SccAuth $scc -Xsrf $xsrf -Verbose`;
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.textContent = 'Copy Code';
+    copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyToClipboard(codeBlock.textContent, copyBtn);
+    });
+
+    details.appendChild(copyBtn);
+    details.appendChild(codeBlock);
+
+    summary.addEventListener('click', () => {
+        details.classList.toggle('open');
+    });
+
+    item.appendChild(summary);
+    item.appendChild(details);
+
+    // Prepend to list
+    list.insertBefore(item, list.firstChild);
+}
+
+function addDisclaimerToUI() {
+    const list = document.getElementById('request-list');
+    const item = document.createElement('div');
+    item.className = 'request-item';
+    item.style.borderColor = '#007acc';
+
+    const summary = document.createElement('div');
+    summary.className = 'request-summary';
+    summary.style.backgroundColor = '#1e2e3e';
+    summary.style.cursor = 'default';
+
+    const iconSpan = document.createElement('span');
+    iconSpan.textContent = 'ℹ';
+    iconSpan.style.marginRight = '10px';
+    iconSpan.style.color = '#007acc';
+    summary.appendChild(iconSpan);
+
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = 'The mapping to cmdlets is based on best effort but might not reflect the actual parameters of the parameter in question. Do NOT run this code without verifying it yourself.';
+    titleSpan.style.color = '#cccccc';
+    titleSpan.style.fontSize = '11px';
+    summary.appendChild(titleSpan);
+
+    item.appendChild(summary);
+
+    // Prepend to list
+    if (list.firstChild) {
+        list.insertBefore(item, list.firstChild);
+    } else {
+        list.appendChild(item);
+    }
+}
 
 document.getElementById('copy-sccauth-btn').addEventListener('click', (e) => {
     const btn = e.currentTarget;

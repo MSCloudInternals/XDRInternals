@@ -217,7 +217,13 @@
     },
     {
         "Cmdlet": "Invoke-XdrXspmHuntingQuery",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/xspmatlas/attacksurface/query"
+        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/xspmatlas/attacksurface/query",
+        "Parameters": {
+            "Query": "body.query",
+            "Top": "body.options.top",
+            "Skip": "body.options.skip",
+            "ScenarioName": "header:x-ms-scenario-name"
+        }
     },
     {
         "Cmdlet": "Merge-XdrIncident",

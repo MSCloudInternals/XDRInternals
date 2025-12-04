@@ -32,14 +32,36 @@
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, ParameterSetName = 'Manual')]
-        [string]$SccAuth,
+        $SccAuth,
 
         [Parameter(Mandatory, ParameterSetName = 'Manual')]
-        [string]$Xsrf,
+        $Xsrf,
 
         [Parameter(Mandatory, ParameterSetName = 'Websession')]
         [Microsoft.PowerShell.Commands.WebRequestSession]$WebSession
     )
+
+    # Convert secure strings to plain text
+    if ($SccAuth -is [System.Security.SecureString]) {
+        Write-Verbose "SccAuth is secure string, converting to plain text"
+        $ssPtr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SccAuth)
+        try {
+            Remove-Variable SccAuth
+            $SccAuth = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ssPtr)
+        } finally {
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ssPtr)
+        }
+    }
+    if ($Xsrf -is [System.Security.SecureString]) {
+         Write-Verbose "Xsrf is secure string, converting to plain text"
+        $ssPtr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Xsrf)
+        try {
+            Remove-Variable Xsrf
+            $Xsrf = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ssPtr)
+        } finally {
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ssPtr)
+        }
+    }
     
     Write-Verbose "Setting session cookies for XDR webpage requests"
     if ($PSBoundParameters.ContainsKey('WebSession')) {

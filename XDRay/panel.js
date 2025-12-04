@@ -317,9 +317,9 @@ function addDangerZoneInfoToUI() {
     codeBlock.style.whiteSpace = 'pre-wrap';
     codeBlock.style.marginBottom = '10px';
     codeBlock.textContent = `Import-Module XDRInternals.psd1
-$scc = Get-Clipboard
-$xsrf = Get-Clipboard
-Set-XdrConnectionSettings -SccAuth $scc -Xsrf $xsrf -Verbose`;
+$SccAuth = Read-Host -Prompt "Paste the sccauth cookie value" -AsSecureString
+$Xsrf = Read-Host -Prompt "Paste the XSRF-TOKEN cookie value" -AsSecureString
+Set-XdrConnectionSettings -SccAuth $SccAuth -Xsrf $Xsrf -Verbose`;
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'copy-btn';

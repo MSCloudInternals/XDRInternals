@@ -1,0 +1,21 @@
+﻿name: Build and Auto-Update Major Version
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Prerequisites
+        run: ./build/vsts-prerequisites.ps1
+        shell: powershell
+      - name: Validate
+        run: ./build/vsts-validate.ps1
+        shell: powershell
+      - name: Build
+        run: ./build/vsts-build.ps1 -ApiKey $env:APIKEY -AutoMajorVersion
+        shell: powershell
+        env:
+          APIKEY: ${{ secrets.ApiKey }}

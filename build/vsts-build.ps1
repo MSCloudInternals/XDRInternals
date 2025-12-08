@@ -87,7 +87,6 @@ if ($AutoVersion -or $AutoMinorVersion -or $AutoMajorVersion) {
 		$newBuildNumber = $remoteVersion.Build + 1
 	}
 
-	[version]$localVersion = (Import-PowerShellDataFile -Path "$($publishDir.FullName)\XDRInternals\XDRInternals.psd1").ModuleVersion
 	Update-ModuleManifest -Path "$($publishDir.FullName)\XDRInternals\XDRInternals.psd1" -ModuleVersion "$($newMajorNumber).$($newMinorNumber).$($newBuildNumber)"
 }
 #endregion Updating the Module Version

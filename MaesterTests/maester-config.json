@@ -1,0 +1,25 @@
+{
+  "GlobalSettings": {},
+  "TestSettings": [
+    {
+      "Id": "XDRInternal.101",
+      "Severity": "High",
+      "Title": "License Validation P1"
+    },
+    {
+      "Id": "XDRInternal.102",
+      "Severity": "High",
+      "Title": "License Validation P2"
+    },
+    {
+      "Id": "XDRInternal.103",
+      "Severity": "Medium",
+      "Title": "Pending Action Center Items"
+    },
+    {
+      "Id": "XDRInternal.104",
+      "Severity": "High",
+      "Title": "Configuration Best Practices"
+    }
+  ]
+}

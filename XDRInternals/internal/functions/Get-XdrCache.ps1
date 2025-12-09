@@ -35,7 +35,6 @@
             return $script:XdrCacheStore[$CacheKey]
         } else {
             Write-Verbose "Cache miss for key: $CacheKey"
-            throw "Cache key '$CacheKey' not found in cache store."
         }
     }
 }

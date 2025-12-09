@@ -33,7 +33,11 @@
     }
 
     process {
-        $currentCacheValue = Get-XdrCache -CacheKey "GetXdrEndpointLicenseReport" -ErrorAction SilentlyContinue
+        try {
+            $currentCacheValue = Get-XdrCache -CacheKey "GetXdrEndpointLicenseReport" -ErrorAction SilentlyContinue
+        } catch {
+            Write-Verbose "No cache found for GetXdrEndpointLicenseReport"
+        }
         if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
             Write-Verbose "Using cached GetXdrEndpointLicenseReport data"
             return $currentCacheValue.Value

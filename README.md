@@ -72,6 +72,7 @@ Get-XdrTenantContext -Force
 | Get-XdrEndpointDeviceModel                                  | Retrieve device models                                        |
 | Get-XdrEndpointDeviceOsVersionFriendlyName                  | Get friendly names for OS versions                            |
 | Get-XdrEndpointDeviceRbacGroup                              | Retrieve RBAC groups for devices                              |
+| Get-XdrEndpointDeviceRbacGroupScope                         | Retrieve RBAC groups scope for devices                        |
 | Get-XdrEndpointDeviceTag                                    | Get device tags                                               |
 | Get-XdrEndpointDeviceTimeline                               | Retrieve timeline events for a specific device                |
 | Get-XdrEndpointDeviceTotals                                 | Get total counts of endpoint devices                          |
@@ -104,6 +105,7 @@ Get-XdrTenantContext -Force
 | Move-XdrAlertToIncident                                     | Move alerts to a specific incident or create a new one        |
 | New-XdrAdvancedHuntingFunction                              | Create new Advanced Hunting functions                         |
 | New-XdrEndpointConfigurationCustomCollectionRule            | Create custom collection rules from YAML files                |
+| New-XdrEndpointDeviceRbacGroup                              | Create new endpoint device groups                             |
 | New-XdrIdentityConfigurationRemediationActionAccount        | Create new remediation action account configuration           |
 | Remove-XdrAdvancedHuntingFunction                           | Remove Advanced Hunting functions                             |
 | Remove-XdrIdentityConfigurationRemediationActionAccount     | Remove remediation action account configuration               |
@@ -111,6 +113,7 @@ Get-XdrTenantContext -Force
 | Set-XdrConnectionSettings                                   | Configure connection settings for XDR                         |
 | Set-XdrEndpointAdvancedFeatures                             | Set endpoint advanced features configuration                  |
 | Set-XdrEndpointConfigurationCustomCollectionRule            | Update existing custom collection rules                       |
+| Set-XdrEndpointDeviceRbacGroup                              | Update endpoint device groups                                 |
 | Set-XdrIdentityConfigurationRemediationActionAccount        | Update remediation action account configuration               |
 | Update-XdrConnectionSettings                                | Update and refresh connection settings                        |
 

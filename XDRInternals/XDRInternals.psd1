@@ -91,6 +91,7 @@
         "Get-XdrEndpointDeviceModel",
         "Get-XdrEndpointDeviceOsVersionFriendlyName",
         "Get-XdrEndpointDeviceRbacGroup",
+        "Get-XdrEndpointDeviceRbacGroupScope",
         "Get-XdrEndpointDeviceTag",
         "Get-XdrEndpointDeviceTimeline",
         "Get-XdrEndpointDeviceTotals",
@@ -123,6 +124,7 @@
         "Move-XdrAlertToIncident",
         "New-XdrAdvancedHuntingFunction",
         "New-XdrEndpointConfigurationCustomCollectionRule",
+        "New-XdrEndpointDeviceRbacGroup",
         "New-XdrIdentityConfigurationRemediationActionAccount",
         "Remove-XdrAdvancedHuntingFunction",
         "Remove-XdrIdentityConfigurationRemediationActionAccount",
@@ -130,6 +132,7 @@
         "Set-XdrConnectionSettings",
         "Set-XdrEndpointAdvancedFeatures",
         "Set-XdrEndpointConfigurationCustomCollectionRule",
+        "Set-XdrEndpointDeviceRbacGroup",
         "Set-XdrIdentityConfigurationRemediationActionAccount",
         "Update-XdrConnectionSettings"
     )

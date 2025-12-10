@@ -29,7 +29,7 @@
         Object
         Returns the API response.
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param (
         [Parameter()]
         [object]$GroupObject,
@@ -43,26 +43,17 @@
     }
 
     process {
-        $currentCacheValue = Get-XdrCache -CacheKey "SetXdrEndpointDeviceRbacGroup" -ErrorAction SilentlyContinue
-        if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
-            Write-Verbose "Using cached Set-XdrEndpointDeviceRbacGroup data"
-            return $currentCacheValue.Value
-        } elseif ($Force) {
-            Write-Verbose "Force parameter specified, bypassing cache"
-            Clear-XdrCache -CacheKey "SetXdrEndpointDeviceRbacGroup"
-        } else {
-            Write-Verbose "Set-XdrEndpointDeviceRbacGroup cache is missing or expired"
+
+        if ($PSCmdlet.ShouldProcess("DeviceRbacGroups", "Update")) {
+            try {
+                $Uri = "https://security.microsoft.com/apiproxy/mtp/rbacManagementApi/rbac/machine_groups"
+                Write-Verbose "Retrieving Set-XdrEndpointDeviceRbacGroup data"
+                $result = (Invoke-RestMethod -Uri $Uri -Method PUT -ContentType "application/json" -Body ($GroupObject | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers).items
+                return $result
+            } catch {
+                Write-Error "Failed to update DeviceRbacGroups: $_"
+            }
         }
-
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/rbacManagementApi/rbac/machine_groups"
-        Write-Verbose "Retrieving Set-XdrEndpointDeviceRbacGroup data"
-        $result = (Invoke-RestMethod -Uri $Uri -Method PUT -ContentType "application/json" -Body ($GroupObject | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers).items
-
-        Set-XdrCache -CacheKey "SetXdrEndpointDeviceRbacGroup" -Value $result -TTLMinutes 30
-        return $result
-
-        Write-Output "Updating Defender for Endpoint device groups..."
-        Start-Sleep -Seconds 5
     }
 
     end {

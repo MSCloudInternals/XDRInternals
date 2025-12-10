@@ -29,7 +29,7 @@
         Object
         Returns the API response.
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param (
         [Parameter()]
         [object]$GroupObject,
@@ -43,19 +43,7 @@
     }
 
     process {
-        $currentCacheValue = Get-XdrCache -CacheKey "NewXdrEndpointDeviceRbacGroup" -ErrorAction SilentlyContinue
-        if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
-            Write-Verbose "Using cached New-XdrEndpointDeviceRbacGroup data"
-            return $currentCacheValue.Value
-        } elseif ($Force) {
-            Write-Verbose "Force parameter specified, bypassing cache"
-            Clear-XdrCache -CacheKey "NewXdrEndpointDeviceRbacGroup"
-        } else {
-            Write-Verbose "New-XdrEndpointDeviceRbacGroup cache is missing or expired"
-        }
-
         Write-Verbose "Retrieving New-XdrEndpointDeviceRbacGroup data"
-
         $existingGroups = Get-XdrEndpointDeviceRbacGroup -Force
         if ($existingGroups.count -eq 1) {
             $GroupObject.Priority = 0
@@ -64,7 +52,13 @@
         }
         [array]$newGroups = $existingGroups
         $newGroups += $GroupObject
-        $result = Set-XdrEndpointDeviceRbacGroup -GroupObject $newGroups -Force
+        if ($PSCmdlet.ShouldProcess("DeviceRbacGroups", "Create")) {
+            try {
+                $result = Set-XdrEndpointDeviceRbacGroup -GroupObject $newGroups
+            } catch {
+                Write-Error "Failed to update DeviceRbacGroups: $_"
+            }
+        }
 
         Set-XdrCache -CacheKey "NewXdrEndpointDeviceRbacGroup" -Value $result -TTLMinutes 30
         return $result

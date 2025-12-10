@@ -1,5 +1,7 @@
 ﻿name: Build and Auto-Update Build Version
 on:
+  workflow_dispatch:
+
   push:
     branches:
       - main

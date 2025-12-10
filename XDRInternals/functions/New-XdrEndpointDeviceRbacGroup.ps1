@@ -7,8 +7,8 @@
         Creates a device group in Defender for Endpoint used for RBAC and policies.
         This function includes caching support with a 30-minute TTL to reduce API calls.
 
-    .PARAMETER Body
-        The request body to send. If not provided, uses a default structure.
+    .PARAMETER GroupObject
+        The GroupObject to send. If not provided, uses a default structure.
 
     .PARAMETER WhatIf
         Shows what would happen if the command runs. The command is not run.

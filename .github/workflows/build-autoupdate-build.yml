@@ -21,7 +21,7 @@ jobs:
         run: ./build/vsts-validate.ps1
         shell: pwsh
       - name: Build
-        run: ./build/vsts-build.ps1 -ApiKey $env:APIKEY -AutoVersion -SkipPublish
+        run: ./build/vsts-build.ps1 -ApiKey $env:APIKEY -AutoVersion
         shell: pwsh
         env:
           APIKEY: ${{ secrets.APIKEY }}

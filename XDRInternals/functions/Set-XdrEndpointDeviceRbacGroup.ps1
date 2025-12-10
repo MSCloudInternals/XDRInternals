@@ -10,8 +10,11 @@
     .PARAMETER Body
         The request body to send. If not provided, uses a default structure.
 
-    .PARAMETER Force
-        Bypasses the cache and forces a fresh retrieval from the API.
+    .PARAMETER WhatIf
+        Shows what would happen if the command runs. The command is not run.
+
+    .PARAMETER Confirm
+        Prompts for confirmation before making changes.
 
     .EXAMPLE
         Set-XdrEndpointDeviceRbacGroup
@@ -32,10 +35,7 @@
     [CmdletBinding(SupportsShouldProcess = $true)]
     param (
         [Parameter()]
-        [object]$GroupObject,
-
-        [Parameter()]
-        [switch]$Force
+        [object]$GroupObject
     )
 
     begin {

@@ -37,30 +37,9 @@ if (-not $WorkingDirectory) { $WorkingDirectory = Split-Path $PSScriptRoot }
 #endregion Handle Working Directory Defaults
 
 # Prepare publish folder
-Write-Host "Creating and populating publishing directory"
+Write-Host "Creating and populating publishing directory $($publishDir.FullName)"
 $publishDir = New-Item -Path $WorkingDirectory -Name publish -ItemType Directory -Force
 Copy-Item -Path "$($WorkingDirectory)\XDRInternals" -Destination $publishDir.FullName -Recurse -Force
-
-#region Gather text data to compile
-$text = @()
-
-# Gather commands
-Get-ChildItem -Path "$($publishDir.FullName)\XDRInternals\internal\functions\" -Recurse -File -Filter "*.ps1" | ForEach-Object {
-	$text += [System.IO.File]::ReadAllText($_.FullName)
-}
-Get-ChildItem -Path "$($publishDir.FullName)\XDRInternals\functions\" -Recurse -File -Filter "*.ps1" | ForEach-Object {
-	$text += [System.IO.File]::ReadAllText($_.FullName)
-}
-
-# Gather scripts
-Get-ChildItem -Path "$($publishDir.FullName)\XDRInternals\internal\scripts\" -Recurse -File -Filter "*.ps1" | ForEach-Object {
-	$text += [System.IO.File]::ReadAllText($_.FullName)
-}
-
-#region Update the psm1 file & Cleanup
-[System.IO.File]::WriteAllText("$($publishDir.FullName)\XDRInternals\XDRInternals.psm1", ($text -join "`n`n"), [System.Text.Encoding]::UTF8)
-Remove-Item -Path "$($publishDir.FullName)\XDRInternals\internal" -Recurse -Force
-Remove-Item -Path "$($publishDir.FullName)\XDRInternals\functions" -Recurse -Force
 #endregion Update the psm1 file & Cleanup
 
 #region Updating the Module Version

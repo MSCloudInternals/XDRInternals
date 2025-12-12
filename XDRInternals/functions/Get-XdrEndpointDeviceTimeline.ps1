@@ -76,6 +76,23 @@
 
         [Parameter(ParameterSetName = 'ByDeviceId')]
         [Parameter(ParameterSetName = 'ByMachineDnsName')]
+        [datetime]$FromDate = ((Get-Date).AddHours(-1)),
+
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
+        [datetime]$ToDate = (Get-Date),
+
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
+        [int]$LastNDays,
+
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
+        [ValidateRange(1, 1000)]
+        [int]$PageSize = 200,
+
+        [Parameter(ParameterSetName = 'ByDeviceId')]
+        [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [switch]$MarkedEventsOnly,
 
         [Parameter(ParameterSetName = 'ByDeviceId')]
@@ -96,27 +113,11 @@
 
         [Parameter(ParameterSetName = 'ByDeviceId')]
         [Parameter(ParameterSetName = 'ByMachineDnsName')]
-        [datetime]$FromDate = ((Get-Date).AddHours(-1)),
-
-        [Parameter(ParameterSetName = 'ByDeviceId')]
-        [Parameter(ParameterSetName = 'ByMachineDnsName')]
-        [datetime]$ToDate = (Get-Date),
-
-        [Parameter(ParameterSetName = 'ByDeviceId')]
-        [Parameter(ParameterSetName = 'ByMachineDnsName')]
-        [int]$LastNDays,
-
-        [Parameter(ParameterSetName = 'ByDeviceId')]
-        [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [bool]$DoNotUseCache = $false,
 
         [Parameter(ParameterSetName = 'ByDeviceId')]
         [Parameter(ParameterSetName = 'ByMachineDnsName')]
         [bool]$ForceUseCache = $false,
-
-        [Parameter(ParameterSetName = 'ByDeviceId')]
-        [Parameter(ParameterSetName = 'ByMachineDnsName')]
-        [int]$PageSize = 200,
 
         [Parameter(ParameterSetName = 'ByDeviceId')]
         [Parameter(ParameterSetName = 'ByMachineDnsName')]
@@ -170,17 +171,55 @@
         $deviceIdentifier = if ($PSCmdlet.ParameterSetName -eq 'ByDeviceId') { $DeviceId } else { (Get-XdrEndpointDevice -MachineSearchPrefix $MachineDnsName).MachineId }
 
         try {
+            $TimelineEvents = [System.Collections.Generic.List[object]]::new()
             $Uri = "https://security.microsoft.com/apiproxy/mtp/mdeTimelineExperience/machines/$deviceIdentifier/events/?$($queryParams -join '&')"
+            do {
+                # Parse Uri to extract fromDate, toDate, correlationId, and other parameters
+                Write-Debug "URI: $Uri"
+                $parsedUri = [System.Uri]::new($Uri)
+                $query = [System.Web.HttpUtility]::ParseQueryString($parsedUri.Query)
+                $fromDate = [datetime]$query["fromDate"]
+                $toDate = [datetime]$query["toDate"]
+                $correlationId = $query["correlationId"]
+                Write-Verbose "Retrieving XDR Endpoint device timeline for device $deviceIdentifier (From: $fromDate, To: $toDate, CorrelationId: $correlationId)"
+                # Try three times before giving up
+                $attempt = 0
+                do {
+                    try {
+                        $attempt++
+                        $response = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                        break
+                    } catch {
+                        if ($attempt -lt 3) {
+                            Write-Warning "Attempt $($attempt + 1) failed. Retrying..."
+                            Start-Sleep -Seconds (Get-Random -Minimum 5 -Maximum 10)
+                        } else {
+                            throw "Failed to retrieve endpoint device timeline after 3 attempts."
+                        }
+                    }
+                } while ($attempt -lt 3)
 
-            Write-Verbose "Retrieving XDR Endpoint device timeline for device $deviceIdentifier (From: $FromDate, To: $ToDate, CorrelationId: $correlationId)"
-            $response = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                if ($response -and $response.Items) {
+                    Write-Verbose "Retrieved $($response.Items.Count) timeline events for device $deviceIdentifier."
+                    $TimelineEvents.AddRange($response.Items)
+                } else {
+                    Write-Verbose "No more timeline events found for device $deviceIdentifier."
+                    return $TimelineEvents
+                }
 
-            if ($response -and $response.Items) {
-                return $response.Items
-            } else {
-                Write-Verbose "No timeline events found for device $deviceIdentifier."
-                return @()
-            }
+                if ([string]::IsNullOrWhiteSpace($response.Prev)) {
+                    Write-Verbose "No more timeline events to retrieve for device $deviceIdentifier."
+                    return $TimelineEvents
+                } else {
+                    Write-Debug "Previous page $($response.Prev)"
+                    $Uri = "https://security.microsoft.com/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
+                }
+
+                # Add a random delay between 3 and 10 seconds to avoid hitting rate limits
+                $SleepTime = Get-Random -Minimum 3 -Maximum 10
+                Write-Debug "Sleeping for $SleepTime seconds to avoid rate limits."
+                Start-Sleep -Seconds $SleepTime
+            } while ($true)
         } catch {
             Write-Error "Failed to retrieve endpoint device timeline: $_"
         }

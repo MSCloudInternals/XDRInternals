@@ -72,7 +72,7 @@
         } elseif ($TenantId) {
             # Clear all cache entries for the specified tenant
             $tenantPrefix = "${TenantId}_"
-            $keysToRemove = $script:XdrCacheStore.Keys | Where-Object { $_ -like "${tenantPrefix}*" }
+            $keysToRemove = @($script:XdrCacheStore.Keys | Where-Object { $_ -like "${tenantPrefix}*" })
             foreach ($key in $keysToRemove) {
                 $script:XdrCacheStore.Remove($key)
                 Write-Verbose "Cleared cache key: $key"

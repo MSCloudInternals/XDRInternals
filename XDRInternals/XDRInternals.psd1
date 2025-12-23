@@ -68,6 +68,7 @@
         "Get-XdrActionsCenterPending",
         "Get-XdrAdvancedHuntingFunction",
         "Get-XdrAdvancedHuntingTableSchema",
+        "Get-XdrAdvancedHuntingUnifiedDetectionRules",
         "Get-XdrAdvancedHuntingUserHistory",
         "Get-XdrAlert",
         "Get-XdrConfigurationAlertServiceSetting",

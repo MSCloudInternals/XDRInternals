@@ -14,6 +14,10 @@
     .PARAMETER xsrf
         The XSRF-TOKEN cookie value from an authenticated session to security.microsoft.com.
 
+    .PARAMETER TenantId
+        The Tenant ID to use for XDR API requests. If not provided, the Tenant ID will be
+        determined automatically from the XDR portal.
+
     .PARAMETER WebSession
         An optional WebRequestSession object to use for the requests. If not provided,
         a new session will be created.

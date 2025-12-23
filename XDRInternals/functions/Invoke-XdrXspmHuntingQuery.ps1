@@ -101,7 +101,7 @@
         Write-Verbose "Query: $Query"
 
         # Get tenant context for X-Tid header
-        $XdrTenantId = Get-XdrCache -CacheKey "XdrTenantId" -ErrorAction SilentlyContinue
+        $XdrTenantId = Get-XdrCache -CacheKey "XdrTenantId" -TenantId "" -ErrorAction SilentlyContinue
         $tenantId = $XdrTenantId.Value
 
         # Build custom headers

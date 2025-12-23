@@ -87,24 +87,25 @@
         $script:session = $WebSession
     }
 
-    # Set the headers to include the xsrf token
-    Write-Verbose "Setting headers for XDR API proxy requests"
-    [Hashtable]$script:headers = @{}
-    $script:headers["X-XSRF-TOKEN"] = [System.Net.WebUtility]::UrlDecode($session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value)
-    
-    # Cache the XSRF token with 5 minute TTL
-    Write-Verbose "Caching XSRF token with 5 minute TTL"
-    Set-XdrCache -CacheKey "XsrfToken" -Value $script:headers["X-XSRF-TOKEN"] -TTLMinutes 5
-
     # Set TenantId in cache and headers
     Write-Verbose "Caching TenantId with 1 day TTL"
     if ($PSBoundParameters.ContainsKey('TenantId')) {
+        Clear-XdrCache
         Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 1440
     } else {
         $TenantId = (Get-XdrTenantContext).AuthInfo.TenantId
         Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 1440
     }
+    [Hashtable]$script:headers = @{}
     $script:headers["X-Tid"] = $TenantId
+
+    # Set the headers to include the xsrf token
+    Write-Verbose "Setting headers for XDR API proxy requests"
+    $script:headers["X-XSRF-TOKEN"] = [System.Net.WebUtility]::UrlDecode($session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value)
+
+    # Cache the XSRF token with 5 minute TTL
+    Write-Verbose "Caching XSRF token with 5 minute TTL"
+    Set-XdrCache -CacheKey "XsrfToken" -Value $script:headers["X-XSRF-TOKEN"] -TTLMinutes 5
     
     Write-Host "XDR Connection Settings created"
     Write-Host "You can now run other XDRInternals cmdlets to interact with the XDR portal."

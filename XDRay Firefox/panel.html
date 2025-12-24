@@ -1,0 +1,166 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #1e1e1e;
+            color: #cccccc;
+            font-size: 12px;
+        }
+
+        header {
+            background-color: #252526;
+            padding: 10px;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 14px;
+            color: #007acc;
+            margin-right: auto;
+        }
+
+        button {
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        button:hover {
+            background-color: #1177bb;
+        }
+
+        button.secondary {
+            background-color: #3e3e42;
+        }
+
+        button.secondary:hover {
+            background-color: #4e4e52;
+        }
+
+        button.warning {
+            background-color: #ce9178;
+            color: #1e1e1e;
+        }
+
+        button.warning:hover {
+            background-color: #d16969;
+        }
+
+        #request-list {
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .request-item {
+            background-color: #2d2d2d;
+            border: 1px solid #3e3e42;
+            border-radius: 3px;
+        }
+
+        .request-summary {
+            padding: 8px;
+            display: flex;
+            gap: 10px;
+            cursor: pointer;
+            align-items: center;
+        }
+
+        .request-summary:hover {
+            background-color: #3e3e42;
+        }
+
+        .method {
+            font-weight: bold;
+            width: 50px;
+        }
+
+        .method.GET {
+            color: #61afef;
+        }
+
+        .method.POST {
+            color: #98c379;
+        }
+
+        .method.PUT {
+            color: #e5c07b;
+        }
+
+        .method.DELETE {
+            color: #e06c75;
+        }
+
+        .cmdlet {
+            color: #dcdcaa;
+            font-family: 'Consolas', 'Courier New', monospace;
+            flex-grow: 1;
+        }
+
+        .url {
+            color: #808080;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 300px;
+        }
+
+        .details {
+            padding: 10px;
+            border-top: 1px solid #3e3e42;
+            background-color: #1e1e1e;
+            display: none;
+            font-family: 'Consolas', 'Courier New', monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .details.open {
+            display: block;
+        }
+
+        .copy-btn {
+            float: right;
+            background-color: transparent;
+            border: 1px solid #3e3e42;
+            color: #cccccc;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>XDRay</h1>
+        <button id="clear-btn" class="secondary">Clear</button>
+        <button id="save-btn">Save Script (.ps1)</button>
+        <div id="danger-zone-wrapper" style="margin-left: auto; display: flex; gap: 10px; align-items: center;">
+            <button id="danger-zone-toggle" class="secondary" style="border: 1px solid #ce9178; color: #ce9178;">⚠
+                Danger Zone</button>
+            <div id="danger-zone-content" style="display: none; gap: 5px; align-items: center;">
+                <button id="copy-sccauth-btn" class="warning" title="Warning: Sensitive Data">Copy sccauth</button>
+                <button id="copy-xsrf-btn" class="warning" title="Warning: Sensitive Data">Copy XSRF-TOKEN</button>
+            </div>
+        </div>
+    </header>
+    <div id="request-list"></div>
+    <script src="browserShim.js"></script>
+    <script src="panel.js"></script>
+</body>
+
+</html>

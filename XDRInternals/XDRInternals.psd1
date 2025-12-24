@@ -109,6 +109,11 @@
         "Get-XdrIdentityStatistic",
         "Get-XdrIncident",
         "Get-XdrIncidentAssociatedAlert",
+        "Get-XdrMcasGeneralSetting",
+        "Get-XdrMcasAppControlEnabled",
+        "Get-XdrMcasMdatpGlobalSeverityLevel",
+        "Get-XdrMcasBlockAppsUrl",
+        "Get-XdrMcasCustomWarnUrl",
         "Get-XdrStreamingApiConfiguration",
         "Get-XdrSuppressionRule",
         "Get-XdrTenantContext",
@@ -134,6 +139,11 @@
         "Set-XdrEndpointAdvancedFeatures",
         "Set-XdrEndpointConfigurationCustomCollectionRule",
         "Set-XdrEndpointDeviceRbacGroup",
+        "Set-XdrMcasGeneralSetting",
+        "Set-XdrMcasAppControlEnabled",
+        "Set-XdrMcasMdatpGlobalSeverityLevel",
+        "Set-XdrMcasBlockAppsUrl",
+        "Set-XdrMcasCustomWarnUrl",
         "Set-XdrIdentityConfigurationRemediationActionAccount",
         "Update-XdrConnectionSettings"
     )

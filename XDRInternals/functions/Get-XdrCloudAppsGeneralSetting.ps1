@@ -1,7 +1,7 @@
-﻿function Get-XdrMcasGeneralSetting {
+function Get-XdrCloudAppsGeneralSetting {
     <#
     .SYNOPSIS
-        Retrieves general settings from Microsoft Defender for Cloud Apps (MCAS).
+        Retrieves general settings from Microsoft Defender for Cloud Apps (Cloud Apps).
 
     .DESCRIPTION
         Gets the general configuration settings from Microsoft Defender for Cloud Apps,
@@ -13,16 +13,16 @@
         Bypasses the cache and forces a fresh retrieval from the API.
 
     .EXAMPLE
-        Get-XdrMcasGeneralSetting
-        Retrieves the MCAS general settings using cached data if available.
+        Get-XdrCloudAppsGeneralSetting
+        Retrieves the Cloud Apps general settings using cached data if available.
 
     .EXAMPLE
-        Get-XdrMcasGeneralSetting -Force
-        Forces a fresh retrieval of the MCAS general settings, bypassing the cache.
+        Get-XdrCloudAppsGeneralSetting -Force
+        Forces a fresh retrieval of the Cloud Apps general settings, bypassing the cache.
 
     .OUTPUTS
         Object
-        Returns the MCAS general settings configuration object containing:
+        Returns the Cloud Apps general settings configuration object containing:
         - environmentName: Environment name
         - orgDisplayName: Organization display name
         - domains: List of configured domains
@@ -45,25 +45,25 @@
     }
 
     process {
-        $currentCacheValue = Get-XdrCache -CacheKey "XdrMcasGeneralSettings" -ErrorAction SilentlyContinue
+        $currentCacheValue = Get-XdrCache -CacheKey "XdrCloudAppsGeneralSettings" -ErrorAction SilentlyContinue
         if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
-            Write-Verbose "Using cached MCAS general settings"
+            Write-Verbose "Using cached Cloud Apps general settings"
             return $currentCacheValue.Value
         } elseif ($Force) {
             Write-Verbose "Force parameter specified, bypassing cache"
-            Clear-XdrCache -CacheKey "XdrMcasGeneralSettings"
+            Clear-XdrCache -CacheKey "XdrCloudAppsGeneralSettings"
         } else {
-            Write-Verbose "MCAS general settings cache is missing or expired"
+            Write-Verbose "Cloud Apps general settings cache is missing or expired"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/settings/"
-        Write-Verbose "Retrieving MCAS general settings"
+        $Uri = "https://security.microsoft.com/apiproxy/Cloud Apps/cas/api/v1/settings/"
+        Write-Verbose "Retrieving Cloud Apps general settings"
         try {
             $result = Invoke-XdrRestMethod -Uri $Uri -Method Get
-            Set-XdrCache -CacheKey "XdrMcasGeneralSettings" -Value $result -TTLMinutes 30
+            Set-XdrCache -CacheKey "XdrCloudAppsGeneralSettings" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve MCAS general settings: $_"
+            Write-Error "Failed to retrieve Cloud Apps general settings: $_"
         }
     }
 

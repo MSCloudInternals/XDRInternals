@@ -1,12 +1,12 @@
-﻿function Set-XdrMcasGeneralSetting {
+function Set-XdrCloudAppsGeneralSetting {
     <#
     .SYNOPSIS
-        Updates Microsoft Defender for Cloud Apps (MCAS) general settings.
+        Updates Microsoft Defender for Cloud Apps (Cloud Apps) general settings.
 
     .DESCRIPTION
-        Sends a POST request to the MCAS general settings endpoint to update one or more settings.
+        Sends a POST request to the Cloud Apps general settings endpoint to update one or more settings.
         Only parameters provided will be included in the request body. On success, clears the
-        cached value used by Get-XdrMcasGeneralSetting so subsequent reads return fresh data.
+        cached value used by Get-XdrCloudAppsGeneralSetting so subsequent reads return fresh data.
 
     .PARAMETER BlockAppsUrl
         One or more URLs to block (mapped to API key "blockAppsURL").
@@ -22,21 +22,21 @@
         Enables or disables app control (mapped to API key "appControlEnabled").
 
     .PARAMETER DeleteConfiguredDomains
-        Required by MCAS when disabling app control. Indicates whether to delete configured domains
+        Required by Cloud Apps when disabling app control. Indicates whether to delete configured domains
         during the operation (mapped to API key "deleteConfiguredDomains").
 
     .PARAMETER PassThru
         When set, returns the API response.
 
     .EXAMPLE
-        Set-XdrMcasGeneralSetting -BlockAppsUrl "" -CustomWarnUrl "" -MdatpGlobalSeverityLevel 3 -AppControlEnabled $true -Verbose
+        Set-XdrCloudAppsGeneralSetting -BlockAppsUrl "" -CustomWarnUrl "" -MdatpGlobalSeverityLevel 3 -AppControlEnabled $true -Verbose
 
     .EXAMPLE
         # Update only app control
-        Set-XdrMcasGeneralSetting -AppControlEnabled $false
+        Set-XdrCloudAppsGeneralSetting -AppControlEnabled $false
 
     .NOTES
-        The MCAS API expects values as arrays of strings. This function converts types accordingly.
+        The Cloud Apps API expects values as arrays of strings. This function converts types accordingly.
 
     .PARAMETER Confirm
         Prompts for confirmation before performing each update.
@@ -74,32 +74,32 @@
         $results = @()
 
         if ($PSBoundParameters.ContainsKey('BlockAppsUrl')) {
-            Write-Verbose "Updating MCAS blockAppsURL via Set-XdrMcasBlockAppsUrl"
-            $r = Set-XdrMcasBlockAppsUrl -Url $BlockAppsUrl -PassThru:$PassThru
+            Write-Verbose "Updating Cloud Apps blockAppsURL via Set-XdrCloudAppsBlockAppsUrl"
+            $r = Set-XdrCloudAppsBlockAppsUrl -Url $BlockAppsUrl -PassThru:$PassThru
             if ($PassThru -and $null -ne $r) { $results += [pscustomobject]@{ Setting = 'blockAppsURL'; Result = $r } }
         }
 
         if ($PSBoundParameters.ContainsKey('CustomWarnUrl')) {
-            Write-Verbose "Updating MCAS customWarnURL via Set-XdrMcasCustomWarnUrl"
-            $r = Set-XdrMcasCustomWarnUrl -Url $CustomWarnUrl -PassThru:$PassThru
+            Write-Verbose "Updating Cloud Apps customWarnURL via Set-XdrCloudAppsCustomWarnUrl"
+            $r = Set-XdrCloudAppsCustomWarnUrl -Url $CustomWarnUrl -PassThru:$PassThru
             if ($PassThru -and $null -ne $r) { $results += [pscustomobject]@{ Setting = 'customWarnURL'; Result = $r } }
         }
 
         if ($PSBoundParameters.ContainsKey('MdatpGlobalSeverityLevel')) {
-            Write-Verbose "Updating MCAS mdatpGlobalSeverityLevel via Set-XdrMcasMdatpGlobalSeverityLevel"
-            $r = Set-XdrMcasMdatpGlobalSeverityLevel -Level $MdatpGlobalSeverityLevel -PassThru:$PassThru
+            Write-Verbose "Updating Cloud Apps mdatpGlobalSeverityLevel via Set-XdrCloudAppsMdatpGlobalSeverityLevel"
+            $r = Set-XdrCloudAppsMdatpGlobalSeverityLevel -Level $MdatpGlobalSeverityLevel -PassThru:$PassThru
             if ($PassThru -and $null -ne $r) { $results += [pscustomobject]@{ Setting = 'mdatpGlobalSeverityLevel'; Result = $r } }
         }
 
         if ($PSBoundParameters.ContainsKey('AppControlEnabled') -or $PSBoundParameters.ContainsKey('DeleteConfiguredDomains')) {
-            Write-Verbose "Updating MCAS appControlEnabled via Set-XdrMcasAppControlEnabled"
+            Write-Verbose "Updating Cloud Apps appControlEnabled via Set-XdrCloudAppsAppControlEnabled"
             if (-not $PSBoundParameters.ContainsKey('AppControlEnabled')) {
                 throw "-DeleteConfiguredDomains was specified without -AppControlEnabled. Provide -AppControlEnabled to change app control state."
             }
             $params = @{ Enabled = $AppControlEnabled }
             if ($PSBoundParameters.ContainsKey('DeleteConfiguredDomains')) { $params.DeleteConfiguredDomains = $DeleteConfiguredDomains }
             if ($PassThru) { $params.PassThru = $true }
-            $r = Set-XdrMcasAppControlEnabled @params
+            $r = Set-XdrCloudAppsAppControlEnabled @params
             if ($PassThru -and $null -ne $r) { $results += [pscustomobject]@{ Setting = 'appControlEnabled'; Result = $r } }
         }
 

@@ -1,10 +1,10 @@
-﻿function Set-XdrMcasAppControlEnabled {
+function Set-XdrCloudAppsAppControlEnabled {
     <#
     .SYNOPSIS
-        Enables or disables MCAS App Control.
+        Enables or disables Cloud Apps App Control.
 
     .DESCRIPTION
-        Sends a POST request to update appControlEnabled. When disabling, MCAS requires
+        Sends a POST request to update appControlEnabled. When disabling, Cloud Apps requires
         the deleteConfiguredDomains flag to be included.
 
     .PARAMETER Enabled
@@ -17,7 +17,7 @@
         Returns the API response if specified.
 
     .EXAMPLE
-        Set-XdrMcasAppControlEnabled -Enabled $false -DeleteConfiguredDomains $false
+        Set-XdrCloudAppsAppControlEnabled -Enabled $false -DeleteConfiguredDomains $false
 
     .PARAMETER Confirm
         Prompts for confirmation before performing the update.
@@ -40,7 +40,7 @@
     begin { Update-XdrConnectionSettings }
 
     process {
-        $Uri = "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/settings/"
+        $Uri = "https://security.microsoft.com/apiproxy/Cloud Apps/cas/api/v1/settings/"
         $body = @{ appControlEnabled = @([string]$Enabled.ToString().ToLower()) }
 
         if (-not $Enabled) {
@@ -54,12 +54,12 @@
         }
 
         $json = $body | ConvertTo-Json -Depth 10
-        if ($PSCmdlet.ShouldProcess($Uri, 'POST MCAS app control setting')) {
+        if ($PSCmdlet.ShouldProcess($Uri, 'POST Cloud Apps app control setting')) {
             try {
                 $result = Invoke-XdrRestMethod -Uri $Uri -Method Post -ContentType 'application/json' -Body $json
-                Clear-XdrCache -CacheKey "XdrMcasGeneralSettings" -ErrorAction SilentlyContinue
+                Clear-XdrCache -CacheKey "XdrCloudAppsGeneralSettings" -ErrorAction SilentlyContinue
                 if ($PassThru) { return $result }
-            } catch { Write-Error "Failed to set MCAS app control: $_" }
+            } catch { Write-Error "Failed to set Cloud Apps app control: $_" }
         }
     }
 }

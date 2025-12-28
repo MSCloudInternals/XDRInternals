@@ -1,10 +1,10 @@
-﻿function Set-XdrMcasCustomWarnUrl {
+function Set-XdrCloudAppsCustomWarnUrl {
     <#
     .SYNOPSIS
-        Sets the MCAS customWarnURL list.
+        Sets the Cloud Apps customWarnURL list.
 
     .DESCRIPTION
-        Updates the MCAS setting "customWarnURL" with one or more URLs used for
+        Updates the Cloud Apps setting "customWarnURL" with one or more URLs used for
         custom warning pages. Values are posted as an array of strings. Supports
         -WhatIf/-Confirm.
 
@@ -21,7 +21,7 @@
         Shows what would happen if the cmdlet runs. The cmdlet is not run.
 
     .EXAMPLE
-        Set-XdrMcasCustomWarnUrl -Url @('https://warn.example') -WhatIf -Verbose
+        Set-XdrCloudAppsCustomWarnUrl -Url @('https://warn.example') -WhatIf -Verbose
         Demonstrates a dry run updating customWarnURL.
     #>
     [CmdletBinding(SupportsShouldProcess)]
@@ -36,15 +36,15 @@
     begin { Update-XdrConnectionSettings }
 
     process {
-        $Uri = "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/settings/"
+        $Uri = "https://security.microsoft.com/apiproxy/Cloud Apps/cas/api/v1/settings/"
         $body = @{ customWarnURL = @($Url | ForEach-Object { [string]$_ }) }
         $json = $body | ConvertTo-Json -Depth 10
-        if ($PSCmdlet.ShouldProcess($Uri, 'POST MCAS customWarnURL')) {
+        if ($PSCmdlet.ShouldProcess($Uri, 'POST Cloud Apps customWarnURL')) {
             try {
                 $result = Invoke-XdrRestMethod -Uri $Uri -Method Post -ContentType 'application/json' -Body $json
-                Clear-XdrCache -CacheKey "XdrMcasGeneralSettings" -ErrorAction SilentlyContinue
+                Clear-XdrCache -CacheKey "XdrCloudAppsGeneralSettings" -ErrorAction SilentlyContinue
                 if ($PassThru) { return $result }
-            } catch { Write-Error "Failed to set MCAS customWarnURL: $_" }
+            } catch { Write-Error "Failed to set Cloud Apps customWarnURL: $_" }
         }
     }
 }

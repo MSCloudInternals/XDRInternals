@@ -1,10 +1,10 @@
-﻿function Set-XdrMcasBlockAppsUrl {
+function Set-XdrCloudAppsBlockAppsUrl {
     <#
     .SYNOPSIS
-        Sets the MCAS blockAppsURL list.
+        Sets the Cloud Apps blockAppsURL list.
 
     .DESCRIPTION
-        Updates the MCAS setting "blockAppsURL" with one or more URLs. Values are
+        Updates the Cloud Apps setting "blockAppsURL" with one or more URLs. Values are
         posted as an array of strings per API requirements. Supports -WhatIf/-Confirm.
 
     .PARAMETER Url
@@ -20,7 +20,7 @@
         Shows what would happen if the cmdlet runs. The cmdlet is not run.
 
     .EXAMPLE
-        Set-XdrMcasBlockAppsUrl -Url @('https://bad.example') -WhatIf -Verbose
+        Set-XdrCloudAppsBlockAppsUrl -Url @('https://bad.example') -WhatIf -Verbose
         Demonstrates a dry run updating blockAppsURL.
     #>
     [CmdletBinding(SupportsShouldProcess)]
@@ -35,15 +35,15 @@
     begin { Update-XdrConnectionSettings }
 
     process {
-        $Uri = "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/settings/"
+        $Uri = "https://security.microsoft.com/apiproxy/Cloud Apps/cas/api/v1/settings/"
         $body = @{ blockAppsURL = @($Url | ForEach-Object { [string]$_ }) }
         $json = $body | ConvertTo-Json -Depth 10
-        if ($PSCmdlet.ShouldProcess($Uri, 'POST MCAS blockAppsURL')) {
+        if ($PSCmdlet.ShouldProcess($Uri, 'POST Cloud Apps blockAppsURL')) {
             try {
                 $result = Invoke-XdrRestMethod -Uri $Uri -Method Post -ContentType 'application/json' -Body $json
-                Clear-XdrCache -CacheKey "XdrMcasGeneralSettings" -ErrorAction SilentlyContinue
+                Clear-XdrCache -CacheKey "XdrCloudAppsGeneralSettings" -ErrorAction SilentlyContinue
                 if ($PassThru) { return $result }
-            } catch { Write-Error "Failed to set MCAS blockAppsURL: $_" }
+            } catch { Write-Error "Failed to set Cloud Apps blockAppsURL: $_" }
         }
     }
 }

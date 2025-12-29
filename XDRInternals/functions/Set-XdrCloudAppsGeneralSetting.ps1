@@ -53,7 +53,7 @@ function Set-XdrCloudAppsGeneralSetting {
         [string[]]$CustomWarnUrl,
 
         [Parameter()]
-        [ValidateRange(0, 10)]
+        [ValidateRange(0, 3)]
         [int]$MdatpGlobalSeverityLevel,
 
         [Parameter()]

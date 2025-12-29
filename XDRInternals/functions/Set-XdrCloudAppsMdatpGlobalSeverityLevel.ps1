@@ -27,7 +27,7 @@ function Set-XdrCloudAppsMdatpGlobalSeverityLevel {
     [CmdletBinding(SupportsShouldProcess)]
     param (
         [Parameter(Mandatory)]
-        [ValidateRange(0, 10)]
+        [ValidateRange(0, 3)]
         [int]$Level,
 
         [Parameter()]

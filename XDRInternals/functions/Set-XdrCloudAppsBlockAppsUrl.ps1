@@ -35,7 +35,7 @@ function Set-XdrCloudAppsBlockAppsUrl {
     begin { Update-XdrConnectionSettings }
 
     process {
-        $Uri = "https://security.microsoft.com/apiproxy/Cloud Apps/cas/api/v1/settings/"
+        $Uri = "https://security.microsoft.com/apiproxy/CloudApps/cas/api/v1/settings/"
         $body = @{ blockAppsURL = @($Url | ForEach-Object { [string]$_ }) }
         $json = $body | ConvertTo-Json -Depth 10
         if ($PSCmdlet.ShouldProcess($Uri, 'POST Cloud Apps blockAppsURL')) {

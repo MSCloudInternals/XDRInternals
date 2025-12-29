@@ -37,7 +37,7 @@ function Set-XdrCloudAppsMdatpGlobalSeverityLevel {
     begin { Update-XdrConnectionSettings }
 
     process {
-        $Uri = "https://security.microsoft.com/apiproxy/Cloud Apps/cas/api/v1/settings/"
+        $Uri = "https://security.microsoft.com/apiproxy/CloudApps/cas/api/v1/settings/"
         $body = @{ mdatpGlobalSeverityLevel = @([string]$Level) }
         $json = $body | ConvertTo-Json -Depth 10
         if ($PSCmdlet.ShouldProcess($Uri, 'POST Cloud Apps mdatpGlobalSeverityLevel')) {

@@ -19,10 +19,11 @@
         Forces a fresh retrieval, bypassing the cache.
 
     .OUTPUTS
-        Object
+        System.Collections.Specialized.OrderedDictionary
         Returns the API response.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '')]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
     [CmdletBinding()]
     param (
         [Parameter()]
@@ -62,10 +63,10 @@
         $MdcResult = Invoke-RestMethod -Uri $Mdc -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
 
         $result = [ordered]@{
-            "XDR+MDI" = if ($XdrAndMdiResult.IsOptIn -eq $true) { "Enabled" } else { "Disabled" }
-            "MDE"     = if ($MdeResult.IsOptIn -eq $true) { "Enabled" } else { "Disabled" }
-            "MDA"     = if ($MdaResult.previewFeaturesEnabled -eq $true) { "Enabled" } else { "Disabled" }
-            "MDC"     = if ($MdcResult.isOptIn -eq $true) { "Enabled" } else { "Disabled" }
+            "XDR+MDI" = if ($XdrAndMdiResult.IsOptIn -eq $true) { "Enabled" } elseif ($XdrAndMdiResult.IsOptIn -eq $false) { "Disabled" } else { "Unknown" }
+            "MDE"     = if ($MdeResult.IsOptIn -eq $true) { "Enabled" } elseif ($MdeResult.IsOptIn -eq $false) { "Disabled" } else { "Unknown" }
+            "MDA"     = if ($MdaResult.previewFeaturesEnabled -eq $true) { "Enabled" } elseif ($MdaResult.previewFeaturesEnabled -eq $false) { "Disabled" } else { "Unknown" }
+            "MDC"     = if ($MdcResult.isOptIn -eq $true) { "Enabled" } elseif ($MdcResult.isOptIn -eq $false) { "Disabled" } else { "Unknown" }
         }
 
         Set-XdrCache -CacheKey "GetXdrConfigurationPreviewFeatures" -Value $result -TTLMinutes 30

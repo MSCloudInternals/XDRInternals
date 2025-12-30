@@ -16,6 +16,12 @@
     .PARAMETER EnableMda
         Boolean to enable or disable preview features for Microsoft Defender for Cloud Apps.
 
+    .PARAMETER Confirm
+    Prompts for confirmation before creating each rule.
+
+    .PARAMETER WhatIf
+    Shows what would happen if the cmdlet runs. The cmdlet is not run.
+    
     .EXAMPLE
         Set-XdrConfigurationPreviewFeatures
         Sets the configuration for Defender XDR Preview features.

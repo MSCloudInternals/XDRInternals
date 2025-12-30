@@ -73,7 +73,7 @@
                 try {
                     Write-Verbose "Setting preview features for $target"
                     $XdrAndMdiBody = @{ "IsOptIn" = $EnableXdrAndMdi } | ConvertTo-Json
-                    Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting?context=MtpContext" -Method POST -Body $XdrAndMdiBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                    $null = Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting?context=MtpContext" -Method POST -Body $XdrAndMdiBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                 } catch {
                     Write-Error "Failed to update preview features for ${target}: $_"
                 }
@@ -88,7 +88,7 @@
                 try {
                     Write-Verbose "Setting preview features for $target"
                     $MdeBody = @{ "IsOptIn" = $EnableMde } | ConvertTo-Json
-                    Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting?context=MdatpContext" -Method POST -Body $MdeBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                    $null = Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting?context=MdatpContext" -Method POST -Body $MdeBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                 } catch {
                     Write-Error "Failed to update preview features for ${target}: $_"
                 }
@@ -103,7 +103,7 @@
                 try {
                     Write-Verbose "Setting preview features for $target"
                     $MdaBody = @{ "previewFeaturesEnabled" = $EnableMda } | ConvertTo-Json
-                    Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/preview_features/update/" -Method POST -Body $MdaBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                    $null = Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/preview_features/update/" -Method POST -Body $MdaBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                 } catch {
                     Write-Error "Failed to update preview features for ${target}: $_"
                 }

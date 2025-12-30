@@ -70,9 +70,13 @@
             $target = "Microsoft Defender XDR + Microsoft Defender for Identity"
             $action = if ($EnableXdrAndMdi) { "Enable" } else { "Disable" }
             if ($PSCmdlet.ShouldProcess($target, "$action preview features")) {
-                Write-Verbose "Setting preview features for $target"
-                $XdrAndMdiBody = @{ "IsOptIn" = $EnableXdrAndMdi } | ConvertTo-Json
-                Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting?context=MtpContext" -Method POST -Body $XdrAndMdiBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                try {
+                    Write-Verbose "Setting preview features for $target"
+                    $XdrAndMdiBody = @{ "IsOptIn" = $EnableXdrAndMdi } | ConvertTo-Json
+                    Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting?context=MtpContext" -Method POST -Body $XdrAndMdiBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                } catch {
+                    Write-Error "Failed to update preview features for ${target}: $_"
+                }
             }
         }
 
@@ -81,9 +85,13 @@
             $target = "Microsoft Defender for Endpoint"
             $action = if ($EnableMde) { "Enable" } else { "Disable" }
             if ($PSCmdlet.ShouldProcess($target, "$action preview features")) {
-                Write-Verbose "Setting preview features for $target"
-                $MdeBody = @{ "IsOptIn" = $EnableMde } | ConvertTo-Json
-                Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting?context=MdatpContext" -Method POST -Body $MdeBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                try {
+                    Write-Verbose "Setting preview features for $target"
+                    $MdeBody = @{ "IsOptIn" = $EnableMde } | ConvertTo-Json
+                    Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting?context=MdatpContext" -Method POST -Body $MdeBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                } catch {
+                    Write-Error "Failed to update preview features for ${target}: $_"
+                }
             }
         }
     
@@ -92,9 +100,13 @@
             $target = "Microsoft Defender for Cloud Apps"
             $action = if ($EnableMda) { "Enable" } else { "Disable" }
             if ($PSCmdlet.ShouldProcess($target, "$action preview features")) {
-                Write-Verbose "Setting preview features for $target"
-                $MdaBody = @{ "previewFeaturesEnabled" = $EnableMda } | ConvertTo-Json
-                Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/preview_features/update/" -Method POST -Body $MdaBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                try {
+                    Write-Verbose "Setting preview features for $target"
+                    $MdaBody = @{ "previewFeaturesEnabled" = $EnableMda } | ConvertTo-Json
+                    Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/preview_features/update/" -Method POST -Body $MdaBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                } catch {
+                    Write-Error "Failed to update preview features for ${target}: $_"
+                }
             }
         }
 

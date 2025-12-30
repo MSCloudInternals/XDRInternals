@@ -98,10 +98,11 @@
             }
         }
 
-        # Check current values after changes
-        $result = Get-XdrConfigurationPreviewFeatures -Force
-
-        return $result
+        # Check current values after changes (skip when running with -WhatIf)
+        if (-not $WhatIfPreference) {
+            $result = Get-XdrConfigurationPreviewFeatures -Force
+            return $result
+        }
     }
 
     end {

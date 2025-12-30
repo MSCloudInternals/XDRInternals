@@ -2,7 +2,9 @@
 
 # XDRInternals
 
-The unofficial API cmdlet to interact with the Microsoft Defender XDR portal
+Welcome to XDRInternals, the unofficial PowerShell module to interact with the Microsoft Defender XDR portal. For a short introduction on how to install the module and authenticate to the portal, please watch the video below :)
+
+https://github.com/user-attachments/assets/e5ccd2fa-4af1-4b0f-b1ff-8870cb077a79
 
 ## Description
 

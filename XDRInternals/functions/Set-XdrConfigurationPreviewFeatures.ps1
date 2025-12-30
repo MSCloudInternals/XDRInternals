@@ -98,6 +98,8 @@
             }
         }
 
+        # Clear cache for preview features configuration before re-reading values
+        Clear-XdrCache -CacheKey "GetXdrConfigurationPreviewFeatures" -ErrorAction SilentlyContinue
         # Check current values after changes (skip when running with -WhatIf)
         if (-not $WhatIfPreference) {
             $result = Get-XdrConfigurationPreviewFeatures -Force

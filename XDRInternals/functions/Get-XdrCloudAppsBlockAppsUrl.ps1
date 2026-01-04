@@ -1,4 +1,4 @@
-function Get-XdrCloudAppsBlockAppsUrl {
+﻿function Get-XdrCloudAppsBlockAppsUrl {
     <#
     .SYNOPSIS
         Gets the Cloud Apps blockAppsURL list.
@@ -22,3 +22,4 @@ function Get-XdrCloudAppsBlockAppsUrl {
     $settings = Get-XdrCloudAppsGeneralSetting -Force:$Force
     return $settings.blockAppsURL
 }
+

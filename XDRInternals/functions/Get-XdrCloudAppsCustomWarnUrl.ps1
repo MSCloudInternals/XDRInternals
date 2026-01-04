@@ -1,4 +1,4 @@
-function Get-XdrCloudAppsCustomWarnUrl {
+﻿function Get-XdrCloudAppsCustomWarnUrl {
     <#
     .SYNOPSIS
         Gets the Cloud Apps customWarnURL list.
@@ -22,3 +22,4 @@ function Get-XdrCloudAppsCustomWarnUrl {
     $settings = Get-XdrCloudAppsGeneralSetting -Force:$Force
     return $settings.customWarnURL
 }
+

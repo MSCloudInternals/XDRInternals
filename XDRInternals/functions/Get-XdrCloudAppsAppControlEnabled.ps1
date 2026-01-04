@@ -1,4 +1,4 @@
-function Get-XdrCloudAppsAppControlEnabled {
+﻿function Get-XdrCloudAppsAppControlEnabled {
     <#
     .SYNOPSIS
         Gets the Cloud Apps App Control enabled state.
@@ -25,3 +25,4 @@ function Get-XdrCloudAppsAppControlEnabled {
     $settings = Get-XdrCloudAppsGeneralSetting -Force:$Force
     return $settings.appControlEnabled
 }
+

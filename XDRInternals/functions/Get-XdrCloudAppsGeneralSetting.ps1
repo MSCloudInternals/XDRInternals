@@ -1,4 +1,4 @@
-function Get-XdrCloudAppsGeneralSetting {
+﻿function Get-XdrCloudAppsGeneralSetting {
     <#
     .SYNOPSIS
         Retrieves general settings from Microsoft Defender for Cloud Apps (Cloud Apps).
@@ -56,7 +56,7 @@ function Get-XdrCloudAppsGeneralSetting {
             Write-Verbose "Cloud Apps general settings cache is missing or expired"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/CloudApps/cas/api/v1/settings/"
+        $Uri = "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/settings/"
         Write-Verbose "Retrieving Cloud Apps general settings"
         try {
             $result = Invoke-XdrRestMethod -Uri $Uri -Method Get
@@ -70,3 +70,4 @@ function Get-XdrCloudAppsGeneralSetting {
     end {
     }
 }
+

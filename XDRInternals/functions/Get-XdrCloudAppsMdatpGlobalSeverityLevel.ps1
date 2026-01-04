@@ -1,4 +1,4 @@
-function Get-XdrCloudAppsMdatpGlobalSeverityLevel {
+﻿function Get-XdrCloudAppsMdatpGlobalSeverityLevel {
     <#
     .SYNOPSIS
         Gets the Cloud Apps global severity level for Defender integration.
@@ -22,3 +22,4 @@ function Get-XdrCloudAppsMdatpGlobalSeverityLevel {
     $settings = Get-XdrCloudAppsGeneralSetting -Force:$Force
     return $settings.mdatpGlobalSeverityLevel
 }
+

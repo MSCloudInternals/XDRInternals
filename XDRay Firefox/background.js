@@ -50,6 +50,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         return true;
     }
+
+    if (message.type === 'GET_COOKIE') {
+        const cookieApi = typeof browser !== 'undefined' ? browser.cookies : chrome.cookies;
+
+        cookieApi.getAll({
+            url: "https://security.microsoft.com",
+            name: message.cookieName
+        }).then(cookies => {
+            const cookie = cookies.find(c => c.name === message.cookieName) || cookies[0];
+            if (cookie) {
+                sendResponse({ success: true, value: cookie.value });
+            } else {
+                sendResponse({ success: false, error: 'Cookie not found' });
+            }
+        }).catch(error => {
+            sendResponse({ success: false, error: error.message });
+        });
+        return true;
+    }
 });
 
 console.log('XDRay Firefox background initialized');

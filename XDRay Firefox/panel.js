@@ -304,34 +304,54 @@ Set-XdrConnectionSettings -SccAuth $SccAuth -Xsrf $Xsrf -Verbose`;
 
 document.getElementById('copy-sccauth-btn').addEventListener('click', (e) => {
     const btn = e.currentTarget;
-    chrome.cookies.getAll({ domain: "security.microsoft.com" }, (cookies) => {
-        const sccauthCookie = cookies.find(cookie => cookie.name === "sccauth");
-        if (sccauthCookie) {
-            copyToClipboard(sccauthCookie.value, btn, true);
-            console.warn("WARNING: Sensitive sccauth value copied to clipboard! Do not share this value.");
-        } else {
-            console.warn("sccauth cookie not found.");
-            const originalText = btn.textContent;
-            btn.textContent = 'Not Found';
-            setTimeout(() => btn.textContent = originalText, 2000);
+
+    // Request cookie from background script
+    chrome.runtime.sendMessage(
+        { type: 'GET_COOKIE', cookieName: 'sccauth' },
+        (response) => {
+            if (chrome.runtime.lastError) {
+                console.error("Runtime error:", chrome.runtime.lastError);
+                btn.textContent = 'Error';
+                setTimeout(() => btn.textContent = 'Copy sccauth', 3000);
+                return;
+            }
+
+            if (response && response.success) {
+                copyToClipboard(response.value, btn, true);
+                console.warn("WARNING: Sensitive sccauth value copied to clipboard! Do not share this value.");
+            } else {
+                console.warn("sccauth cookie not found:", response?.error);
+                btn.textContent = 'Not Found';
+                setTimeout(() => btn.textContent = 'Copy sccauth', 2000);
+            }
         }
-    });
+    );
 });
 
 document.getElementById('copy-xsrf-btn').addEventListener('click', (e) => {
     const btn = e.currentTarget;
-    chrome.cookies.getAll({ domain: "security.microsoft.com" }, (cookies) => {
-        const xsrfCookie = cookies.find(cookie => cookie.name === "XSRF-TOKEN");
-        if (xsrfCookie) {
-            copyToClipboard(xsrfCookie.value, btn, true);
-            console.warn("WARNING: Sensitive XSRF-TOKEN value copied to clipboard! Do not share this value.");
-        } else {
-            console.warn("XSRF-TOKEN cookie not found.");
-            const originalText = btn.textContent;
-            btn.textContent = 'Not Found';
-            setTimeout(() => btn.textContent = originalText, 2000);
+
+    // Request cookie from background script
+    chrome.runtime.sendMessage(
+        { type: 'GET_COOKIE', cookieName: 'XSRF-TOKEN' },
+        (response) => {
+            if (chrome.runtime.lastError) {
+                console.error("Runtime error:", chrome.runtime.lastError);
+                btn.textContent = 'Error';
+                setTimeout(() => btn.textContent = 'Copy XSRF-TOKEN', 3000);
+                return;
+            }
+
+            if (response && response.success) {
+                copyToClipboard(response.value, btn, true);
+                console.warn("WARNING: Sensitive XSRF-TOKEN value copied to clipboard! Do not share this value.");
+            } else {
+                console.warn("XSRF-TOKEN cookie not found:", response?.error);
+                btn.textContent = 'Not Found';
+                setTimeout(() => btn.textContent = 'Copy XSRF-TOKEN', 2000);
+            }
         }
-    });
+    );
 });
 
 function copyToClipboard(text, button, isSensitive = false) {

@@ -90,7 +90,6 @@
     # Set TenantId in cache and headers
     Write-Verbose "Caching TenantId with 1 day TTL"
     if ($PSBoundParameters.ContainsKey('TenantId')) {
-        Clear-XdrCache
         Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 1440
     } else {
         $TenantId = (Get-XdrTenantContext).AuthInfo.TenantId

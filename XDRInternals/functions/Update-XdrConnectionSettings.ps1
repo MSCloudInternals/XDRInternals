@@ -24,7 +24,7 @@
 
     Write-Verbose "Checking cached XSRF token validity"
     # Check if cached XSRF token is still valid
-    $cachedXsrfToken = Get-XdrCache -CacheKey "XsrfToken" -TenantId "" -ErrorAction SilentlyContinue
+    $cachedXsrfToken = Get-XdrCache -CacheKey "XsrfToken" -ErrorAction SilentlyContinue
     if ($cachedXsrfToken -and $cachedXsrfToken.NotValidAfter -gt (Get-Date)) {
         Write-Verbose "Cached XSRF token is still valid. Skipping session update."
         return
@@ -32,7 +32,7 @@
 
     Write-Verbose "Cached XSRF token expired or not found. Updating session cookies for XDR webpage requests"
 
-    $TenantId = Get-XdrCache -CacheKey "XdrTenantId" -TenantId "" -ErrorAction SilentlyContinue
+    $TenantId = Get-XdrCache -CacheKey "XdrTenantId" -ErrorAction SilentlyContinue
     # Check if script variables exist
     if (Test-Path variable:script:session) {
         # Update session and headers in script scope
@@ -55,7 +55,7 @@
 
         # Cache the updated XSRF token with 5 minute TTL
         Write-Verbose "Caching updated XSRF token with 5 minute TTL"
-        Set-XdrCache -CacheKey "XsrfToken" -Value $script:headers["X-XSRF-TOKEN"] -TTLMinutes 5 -TenantId ""
+        Set-XdrCache -CacheKey "XsrfToken" -Value $script:headers["X-XSRF-TOKEN"] -TTLMinutes 5
     } else {
         Write-Verbose "XSRF token remains unchanged."
     }

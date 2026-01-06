@@ -104,7 +104,7 @@
 
     # Cache the XSRF token with 5 minute TTL
     Write-Verbose "Caching XSRF token with 5 minute TTL"
-    Set-XdrCache -CacheKey "XsrfToken" -Value $script:headers["X-XSRF-TOKEN"] -TTLMinutes 5 -TenantId ""
+    Set-XdrCache -CacheKey "XsrfToken" -Value $script:headers["X-XSRF-TOKEN"] -TTLMinutes 5
     
     Write-Host "XDR Connection Settings created"
     Write-Host "You can now run other XDRInternals cmdlets to interact with the XDR portal."

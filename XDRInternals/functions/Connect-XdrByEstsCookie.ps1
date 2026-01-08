@@ -90,7 +90,7 @@
         # Invoke a GET request to security.microsoft.com to initiate the authentication flow
         if ($TenantId) {
             $SecurityPortalUri = "https://security.microsoft.com/" + "?tid=$TenantId"
-            Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 3660 -TenantId ""
+            Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 3660
         }
         else {
             $SecurityPortalUri = "https://security.microsoft.com/"

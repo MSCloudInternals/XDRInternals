@@ -1,11 +1,11 @@
-﻿on: [pull_request]
+on: [pull_request]
 
 jobs:
   validate:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install Prerequisites
         run: ./build/vsts-prerequisites.ps1
         shell: pwsh

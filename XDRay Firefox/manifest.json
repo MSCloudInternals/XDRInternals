@@ -15,8 +15,7 @@
         "storage",
         "clipboardWrite",
         "webRequest",
-        "https://security.microsoft.com/*",
-        "<all_urls>"
+        "https://security.microsoft.com/*"
     ],
     "browser_specific_settings": {
         "gecko": {

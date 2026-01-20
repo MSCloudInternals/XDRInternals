@@ -1,4 +1,4 @@
-﻿name: Build and Auto-Update Minor Version
+name: Build and Auto-Update Minor Version
 on:
   workflow_dispatch:
 
@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install Prerequisites
         run: ./build/vsts-prerequisites.ps1
         shell: pwsh

@@ -110,6 +110,7 @@
         "Get-XdrIdentityStatistic",
         "Get-XdrIncident",
         "Get-XdrIncidentAssociatedAlert",
+        "Get-XdrCloudAppsGeneralSetting",
         "Get-XdrStreamingApiConfiguration",
         "Get-XdrSuppressionRule",
         "Get-XdrTenantContext",

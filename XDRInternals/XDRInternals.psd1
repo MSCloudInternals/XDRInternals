@@ -111,10 +111,6 @@
         "Get-XdrIncident",
         "Get-XdrIncidentAssociatedAlert",
         "Get-XdrCloudAppsGeneralSetting",
-        "Get-XdrCloudAppsAppControlEnabled",
-        "Get-XdrCloudAppsMdatpGlobalSeverityLevel",
-        "Get-XdrCloudAppsBlockAppsUrl",
-        "Get-XdrCloudAppsCustomWarnUrl",
         "Get-XdrStreamingApiConfiguration",
         "Get-XdrSuppressionRule",
         "Get-XdrTenantContext",
@@ -141,11 +137,6 @@
         "Set-XdrEndpointAdvancedFeatures",
         "Set-XdrEndpointConfigurationCustomCollectionRule",
         "Set-XdrEndpointDeviceRbacGroup",
-        "Set-XdrCloudAppsGeneralSetting",
-        "Set-XdrCloudAppsAppControlEnabled",
-        "Set-XdrCloudAppsMdatpGlobalSeverityLevel",
-        "Set-XdrCloudAppsBlockAppsUrl",
-        "Set-XdrCloudAppsCustomWarnUrl",
         "Set-XdrIdentityConfigurationRemediationActionAccount",
         "Update-XdrConnectionSettings"
     )

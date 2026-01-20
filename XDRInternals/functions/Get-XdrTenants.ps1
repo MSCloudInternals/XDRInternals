@@ -65,8 +65,10 @@
             $customHeaders = $script:headers.Clone()
             $customHeaders['mtoproxyurl'] = "MTO"
             Write-Verbose "Added mtoproxyurl header: MTO"
-            $XdrTenants = Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtoapi/tenants/TenantPicker" -ContentType "application/json" -WebSession $script:session -Headers $customHeaders | Select-Object -ExpandProperty tenantInfoList
+            $XdrTenants = Invoke-XdrRestMethod -Uri "https://security.microsoft.com/apiproxy/mtoapi/tenants/TenantPicker" -Method Get -Headers $customHeaders -WebSession $script:session | Select-Object -ExpandProperty tenantInfoList
             Set-XdrCache -CacheKey "XdrTenants" -Value $XdrTenants -TTLMinutes 30
+            # Reset web session to avoid issues with custom headers in subsequent calls
+            Set-XdrConnectionSettings -ResetWebSession
             return $XdrTenants
         } catch {
             throw "Failed to retrieve XDR Tenants: $($_.Exception.Message)"

@@ -41,12 +41,15 @@
         [Parameter(Mandatory, ParameterSetName = 'Manual')]
         $Xsrf,
 
-        [Parameter(ParameterSetName = 'Manual')]
-        [Parameter(ParameterSetName = 'TenantId')]
+        [Parameter(Mandatory, ParameterSetName = 'Manual')]
+        [Parameter(Mandatory, ParameterSetName = 'TenantId')]
         $TenantId,
 
         [Parameter(Mandatory, ParameterSetName = 'Websession')]
-        [Microsoft.PowerShell.Commands.WebRequestSession]$WebSession
+        [Microsoft.PowerShell.Commands.WebRequestSession]$WebSession,
+
+        [Parameter(Mandatory, ParameterSetName = 'ResetWebSession')]
+        [switch]$ResetWebSession
     )
 
     # Determine sccauth and xsrf format, then create session and cookies
@@ -87,25 +90,44 @@
         $script:session = $WebSession
     }
 
+    if ($PSBoundParameters.ContainsKey('ResetWebSession')) {
+        # Set tenant id
+        $TenantId = $script:headers["x-tid"]
+        # Reset the existing WebSession by creating a new one
+        Write-Verbose "Resetting existing WebSession to remove old headers and cookies"
+        $SccAuthValue = $script:session.cookies.GetCookies("https://security.microsoft.com")['sccauth'].Value
+        $XsrfValue = $script:session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value
+        # Create session and cookies
+        $script:session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+        $script:session.Cookies.Add((New-Object System.Net.Cookie("sccauth", $SccAuthValue, "/", "security.microsoft.com")))
+        $script:session.Cookies.Add((New-Object System.Net.Cookie("XSRF-TOKEN", $XsrfValue, "/", "security.microsoft.com")))
+    }
+
+    # Set the headers to include the xsrf token
+    [Hashtable]$script:headers = @{}
+    Write-Verbose "Setting headers for XDR API proxy requests"
+    $script:headers["X-XSRF-TOKEN"] = [System.Net.WebUtility]::UrlDecode($session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value)
+
     # Set TenantId in cache and headers
     Write-Verbose "Caching TenantId with 1 day TTL"
-    if ($PSBoundParameters.ContainsKey('TenantId')) {
+    if ($PSBoundParameters.ContainsKey('TenantId') -or $TenantId) {
         Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 1440
     } else {
         $TenantId = (Get-XdrTenantContext).AuthInfo.TenantId
         Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 1440
     }
-    [Hashtable]$script:headers = @{}
-    $script:headers["X-Tid"] = $TenantId
-
-    # Set the headers to include the xsrf token
-    Write-Verbose "Setting headers for XDR API proxy requests"
-    $script:headers["X-XSRF-TOKEN"] = [System.Net.WebUtility]::UrlDecode($session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value)
+    if ( -not [string]::IsNullOrWhiteSpace($TenantId)) {
+        $script:headers["x-tid"] = $TenantId
+        $script:headers["tenant-id"] = $TenantId        
+    }
 
     # Cache the XSRF token with 5 minute TTL
     Write-Verbose "Caching XSRF token with 5 minute TTL"
-    Set-XdrCache -CacheKey "XsrfToken" -Value $script:headers["X-XSRF-TOKEN"] -TTLMinutes 5
-    
-    Write-Host "XDR Connection Settings created"
-    Write-Host "You can now run other XDRInternals cmdlets to interact with the XDR portal."
+    Set-XdrCache -CacheKey "XsrfToken" -Value $script:headers["X-XSRF-TOKEN"] -TTLMinutes 5 -TenantId $TenantId
+    if ($PSBoundParameters.ContainsKey('ResetWebSession')) {
+        # Keep silent
+    } else {
+        Write-Host "XDR Connection Settings created"
+        Write-Host "You can now run other XDRInternals cmdlets to interact with the XDR portal."
+    }
 }

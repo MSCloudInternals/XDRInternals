@@ -121,6 +121,7 @@
         "Get-XdrXspmTopEntryPoint",
         "Get-XdrXspmTopTarget",
         "Invoke-XdrHuntingQueryValidation",
+        "Invoke-XdrMtoAdvancedHunting",
         "Invoke-XdrRestMethod",
         "Invoke-XdrXspmHuntingQuery",
         "Merge-XdrIncident",

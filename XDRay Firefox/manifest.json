@@ -1,0 +1,26 @@
+﻿{
+    "manifest_version": 2,
+    "name": "XDRay - XDR Network Analyzer (Firefox)",
+    "version": "1.0",
+    "description": "Analyzes network traffic on security.microsoft.com and maps it to XDRInternals cmdlets.",
+    "devtools_page": "devtools.html",
+    "background": {
+        "scripts": [
+            "browserShim.js",
+            "background.js"
+        ]
+    },
+    "permissions": [
+        "cookies",
+        "storage",
+        "clipboardWrite",
+        "webRequest",
+        "https://security.microsoft.com/*"
+    ],
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "xdray-firefox@local",
+            "strict_min_version": "109.0"
+        }
+    }
+}

@@ -84,12 +84,6 @@
     .PARAMETER ExportPath
         Optional. Export results directly to a JSON file at the specified path.
 
-    .PARAMETER WhatIf
-        Shows what would happen if the cmdlet runs. The cmdlet is not run and no API calls are made.
-
-    .PARAMETER Confirm
-        Prompts you for confirmation before running the cmdlet and making API calls.
-
     .EXAMPLE
         Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2"
         Retrieves the last hour of timeline events for the specified device.
@@ -122,7 +116,7 @@
     # Suppress false positive: $chunks and $throttle ARE declared via param() in Start-ThreadJob scriptblock
     # and passed via -ArgumentList, but PSScriptAnalyzer incorrectly flags them as needing $using: scope
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseUsingScopeModifierInNewRunspaces', '')]
-    [CmdletBinding(DefaultParameterSetName = 'ByDeviceId', SupportsShouldProcess)]
+    [CmdletBinding(DefaultParameterSetName = 'ByDeviceId')]
     param (
         [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, ParameterSetName = 'ByDeviceId')]
         [Alias('MachineId')]
@@ -224,9 +218,17 @@
             throw "The time range between FromDate and ToDate cannot exceed 180 days."
         }
 
+        # Validate cache parameters are not both specified
+        if ($DoNotUseCache -and $ForceUseCache) {
+            throw "DoNotUseCache and ForceUseCache cannot both be specified. Use DoNotUseCache to bypass the cache, or ForceUseCache to force using cached data."
+        }
+
         # Determine the device identifier with proper error handling
+        $deviceLookup = $null
         if ($PSCmdlet.ParameterSetName -eq 'ByDeviceId') {
             $deviceIdentifier = $DeviceId
+            # Note: Get-XdrEndpointDevice only supports MachineSearchPrefix (name prefix search),
+            # not lookup by MachineId, so we skip device lookup when using -DeviceId
         } else {
             Write-Verbose "Looking up device by DNS name: $MachineDnsName"
             $deviceLookup = Get-XdrEndpointDevice -MachineSearchPrefix $MachineDnsName
@@ -240,27 +242,34 @@
             Write-Verbose "Resolved '$MachineDnsName' to device ID: $deviceIdentifier"
         }
 
-        # Get the ComputerDnsName for folder naming - handle null/multiple results gracefully
-        $device = Get-XdrEndpointDevice -MachineSearchPrefix $deviceIdentifier | Select-Object -First 1
-        $computerDnsName = if ($device -and $device.ComputerDnsName) { $device.ComputerDnsName } else { $deviceIdentifier }
+        # Get the ComputerDnsName for folder naming
+        # Reuse $deviceLookup from DNS name resolution if available, otherwise use DeviceId as folder name
+        # (Get-XdrEndpointDevice doesn't support lookup by MachineId)
+        $computerDnsName = if ($deviceLookup) {
+            ($deviceLookup | Select-Object -First 1).ComputerDnsName
+        } else {
+            $deviceIdentifier
+        }
         # Sanitize folder name - ensure we have a valid value
         if ([string]::IsNullOrWhiteSpace($computerDnsName)) {
             $computerDnsName = $deviceIdentifier
         }
-        # Remove invalid Windows path characters: \ / : * ? " < > |
+        # Remove invalid path characters (covers Windows and Unix)
         $safeFolderName = $computerDnsName -replace '[\\/:*?"<>|]', '_'
 
-        # Set up output directory
-        $baseTempPath = if ($OutputPath) { $OutputPath } else { "$env:TEMP\XdrTimeline" }
-        $deviceTempPath = "$baseTempPath\$safeFolderName"
+        # Set up output directory using cross-platform temp path
+        $baseTempPath = if ($OutputPath) { 
+            $OutputPath 
+        } else { 
+            Join-Path ([System.IO.Path]::GetTempPath()) 'XdrTimeline'
+        }
+        $deviceTempPath = Join-Path $baseTempPath $safeFolderName
         $runId = [guid]::NewGuid().ToString('N').Substring(0, 8)
-        $runTempPath = "$deviceTempPath\$runId"
+        $runTempPath = Join-Path $deviceTempPath $runId
 
-        # SupportsShouldProcess check for file operations
-        if ($PSCmdlet.ShouldProcess($runTempPath, "Create temporary directory for timeline data")) {
-            if (-not (Test-Path $runTempPath)) {
-                New-Item -Path $runTempPath -ItemType Directory -Force | Out-Null
-            }
+        # Create temporary directory for chunk files
+        if (-not (Test-Path $runTempPath)) {
+            New-Item -Path $runTempPath -ItemType Directory -Force | Out-Null
         }
         Write-Verbose "Temporary files will be stored in: $runTempPath"
 
@@ -325,14 +334,6 @@
         }
 
         try {
-            # Check ShouldProcess before making API calls
-            $actionDescription = "Retrieve $($dateChunks.Count) chunk(s) of timeline data for device '$deviceIdentifier'"
-            $actionTarget = "Device Timeline API ($($dateChunks.Count) API requests over $([math]::Round(($ToDate - $FromDate).TotalHours, 1)) hours)"
-            if (-not $PSCmdlet.ShouldProcess($actionTarget, $actionDescription)) {
-                Write-Verbose "Operation cancelled by user or -WhatIf specified"
-                return
-            }
-
             Write-Verbose "Starting parallel retrieval of $($dateChunks.Count) chunk(s) with throttle limit of $ThrottleLimit"
 
             # Initialize progress tracking
@@ -738,8 +739,18 @@
                     }
                 }
 
-                $jobs = @()
-                foreach ($chunk in $dateChunks) {
+                # Use a queued approach to avoid creating all invocations upfront
+                # This prevents memory/handle exhaustion for large date ranges (e.g., 180 days = 4320 chunks)
+                $chunkQueue = [System.Collections.Generic.Queue[object]]::new($dateChunks)
+                $activeJobs = [System.Collections.Generic.List[object]]::new()
+                $results = @()
+                $totalJobs = $dateChunks.Count
+                $lastCompletedCount = 0
+                $completedChunks = @{}
+
+                # Helper function to create and start a job for a chunk
+                $createJob = {
+                    param($chunk)
                     $powershell = [powershell]::Create()
                     $powershell.RunspacePool = $runspacePool
                     [void]$powershell.AddScript($chunkProcessingScript)
@@ -750,28 +761,63 @@
                     [void]$powershell.AddParameter('cookieInfo', $cookieData)
                     [void]$powershell.AddParameter('headerInfo', $headersData)
                     [void]$powershell.AddParameter('baseUrl', $script:XdrBaseUrl)
-
-                    $jobs += @{
+                    
+                    @{
                         PowerShell = $powershell
                         Handle     = $powershell.BeginInvoke()
                         Chunk      = $chunk
                     }
                 }
 
-                # Wait for all jobs with timeout support and progress updates
-                $results = @()
-                $totalJobs = $jobs.Count
-                $lastCompletedCount = 0
-                $completedChunks = @{}
+                # Seed the initial batch of jobs up to ThrottleLimit
+                while ($chunkQueue.Count -gt 0 -and $activeJobs.Count -lt $ThrottleLimit) {
+                    $chunk = $chunkQueue.Dequeue()
+                    $job = & $createJob $chunk
+                    $activeJobs.Add($job)
+                }
 
-                while ($jobs | Where-Object { -not $_.Handle.IsCompleted }) {
+                # Process jobs: collect completed ones and queue new ones
+                while ($activeJobs.Count -gt 0) {
                     # Check timeout
                     if ($operationStartTime.Elapsed.TotalSeconds -gt $TimeoutSeconds) {
                         Write-Warning "Operation timed out after $TimeoutSeconds seconds. Cancelling remaining jobs..."
-                        foreach ($job in $jobs | Where-Object { -not $_.Handle.IsCompleted }) {
+                        foreach ($job in $activeJobs) {
                             $job.PowerShell.Stop()
+                            $results += @{
+                                ChunkIndex = $job.Chunk.Index
+                                Success    = $false
+                                Error      = "Job was cancelled due to timeout"
+                            }
+                            $job.PowerShell.Dispose()
                         }
+                        $activeJobs.Clear()
                         break
+                    }
+
+                    # Check for completed jobs
+                    $completedJobs = $activeJobs | Where-Object { $_.Handle.IsCompleted }
+                    foreach ($job in $completedJobs) {
+                        try {
+                            $result = $job.PowerShell.EndInvoke($job.Handle)
+                            $results += $result
+                        } catch {
+                            Write-Warning "Chunk $($job.Chunk.Index) failed: $_"
+                            $results += @{
+                                ChunkIndex = $job.Chunk.Index
+                                Success    = $false
+                                Error      = $_.ToString()
+                            }
+                        } finally {
+                            $job.PowerShell.Dispose()
+                        }
+                        $activeJobs.Remove($job) | Out-Null
+                        
+                        # Queue next chunk if available
+                        if ($chunkQueue.Count -gt 0) {
+                            $nextChunk = $chunkQueue.Dequeue()
+                            $newJob = & $createJob $nextChunk
+                            $activeJobs.Add($newJob)
+                        }
                     }
 
                     # Update progress by counting completed chunk files
@@ -791,34 +837,9 @@
                     }
                     
                     $percentComplete = [math]::Min(99, [math]::Round(($completedFiles / [math]::Max(1, $totalJobs)) * 100))
-                    Write-Progress -Activity "Retrieving Device Timeline" -Status "Downloaded $completedFiles of $totalJobs chunks" -PercentComplete $percentComplete -Id 1
+                    Write-Progress -Activity "Retrieving Device Timeline" -Status "Downloaded $completedFiles of $totalJobs chunks (Active: $($activeJobs.Count), Queued: $($chunkQueue.Count))" -PercentComplete $percentComplete -Id 1
 
                     Start-Sleep -Milliseconds 250
-                }
-
-                # Collect results
-                foreach ($job in $jobs) {
-                    try {
-                        if ($job.Handle.IsCompleted) {
-                            $result = $job.PowerShell.EndInvoke($job.Handle)
-                            $results += $result
-                        } else {
-                            $results += @{
-                                ChunkIndex = $job.Chunk.Index
-                                Success    = $false
-                                Error      = "Job was cancelled due to timeout"
-                            }
-                        }
-                    } catch {
-                        Write-Warning "Chunk $($job.Chunk.Index) failed: $_"
-                        $results += @{
-                            ChunkIndex = $job.Chunk.Index
-                            Success    = $false
-                            Error      = $_.ToString()
-                        }
-                    } finally {
-                        $job.PowerShell.Dispose()
-                    }
                 }
 
                 $runspacePool.Close()
@@ -907,7 +928,7 @@
             }
 
             # Clean up temp files unless KeepTempFiles is specified
-            if (-not $KeepTempFiles -and $PSCmdlet.ShouldProcess($runTempPath, "Remove temporary directory")) {
+            if (-not $KeepTempFiles) {
                 Write-Verbose "Cleaning up temporary files..."
                 Remove-Item -Path $runTempPath -Recurse -Force -ErrorAction SilentlyContinue
             } else {
@@ -922,15 +943,13 @@
 
             # Export to file if ExportPath specified
             if ($PSBoundParameters.ContainsKey('ExportPath')) {
-                if ($PSCmdlet.ShouldProcess($ExportPath, "Export timeline data to JSON file")) {
-                    Write-Verbose "Exporting $($sortedEvents.Count) events to: $ExportPath"
-                    $exportDir = Split-Path -Parent $ExportPath
-                    if ($exportDir -and -not (Test-Path $exportDir)) {
-                        New-Item -Path $exportDir -ItemType Directory -Force | Out-Null
-                    }
-                    $sortedEvents | ConvertTo-Json -Depth 100 | Out-File -FilePath $ExportPath -Encoding utf8
-                    Write-Information "Exported $($sortedEvents.Count) events to: $ExportPath" -InformationAction Continue
+                Write-Verbose "Exporting $($sortedEvents.Count) events to: $ExportPath"
+                $exportDir = Split-Path -Parent $ExportPath
+                if ($exportDir -and -not (Test-Path $exportDir)) {
+                    New-Item -Path $exportDir -ItemType Directory -Force | Out-Null
                 }
+                $sortedEvents | ConvertTo-Json -Depth 100 | Out-File -FilePath $ExportPath -Encoding utf8
+                Write-Information "Exported $($sortedEvents.Count) events to: $ExportPath" -InformationAction Continue
             }
 
             return $sortedEvents

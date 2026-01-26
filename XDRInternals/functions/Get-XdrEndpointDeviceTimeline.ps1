@@ -84,6 +84,12 @@
     .PARAMETER ExportPath
         Optional. Export results directly to a JSON file at the specified path.
 
+    .PARAMETER WhatIf
+        Shows what would happen if the cmdlet runs. The cmdlet is not run and no API calls are made.
+
+    .PARAMETER Confirm
+        Prompts you for confirmation before running the cmdlet and making API calls.
+
     .EXAMPLE
         Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2"
         Retrieves the last hour of timeline events for the specified device.
@@ -319,6 +325,14 @@
         }
 
         try {
+            # Check ShouldProcess before making API calls
+            $actionDescription = "Retrieve $($dateChunks.Count) chunk(s) of timeline data for device '$deviceIdentifier'"
+            $actionTarget = "Device Timeline API ($($dateChunks.Count) API requests over $([math]::Round(($ToDate - $FromDate).TotalHours, 1)) hours)"
+            if (-not $PSCmdlet.ShouldProcess($actionTarget, $actionDescription)) {
+                Write-Verbose "Operation cancelled by user or -WhatIf specified"
+                return
+            }
+
             Write-Verbose "Starting parallel retrieval of $($dateChunks.Count) chunk(s) with throttle limit of $ThrottleLimit"
 
             # Initialize progress tracking

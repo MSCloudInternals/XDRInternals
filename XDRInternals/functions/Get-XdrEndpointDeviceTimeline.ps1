@@ -69,6 +69,12 @@
     .PARAMETER TimeoutSeconds
         Maximum time in seconds to wait for all requests to complete. Defaults to 3600 (1 hour).
 
+    .PARAMETER MaxRetries
+        Maximum number of retry attempts for failed API requests. Defaults to 10.
+
+    .PARAMETER RetryDelaySeconds
+        Base delay in seconds between retry attempts (uses exponential backoff). Defaults to 30.
+
     .PARAMETER OutputPath
         Optional. The path to store temporary JSON files. Defaults to a temp folder.
 
@@ -174,6 +180,14 @@
         [int]$TimeoutSeconds = 3600,
 
         [Parameter()]
+        [ValidateRange(1, 50)]
+        [int]$MaxRetries = 10,
+
+        [Parameter()]
+        [ValidateRange(1, 300)]
+        [int]$RetryDelaySeconds = 30,
+
+        [Parameter()]
         [string]$OutputPath,
 
         [Parameter()]
@@ -188,159 +202,6 @@
 
         # Module-level base URL for consistency
         $script:XdrBaseUrl = "https://security.microsoft.com"
-
-        # Define the chunk processing scriptblock once - used by both PS7 and PS5
-        $script:chunkProcessingScript = {
-            param($chunk, $deviceId, $baseParams, $tempPath, $cookieInfo, $headerInfo, $baseUrl)
-
-            $chunkFromDate = $chunk.FromDate
-            $chunkToDate = $chunk.ToDate
-            $chunkIndex = $chunk.Index
-
-            # Recreate web session with cookies
-            $webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
-            foreach ($c in $cookieInfo) {
-                $cookie = [System.Net.Cookie]::new($c.Name, $c.Value, $c.Path, $c.Domain)
-                $webSession.Cookies.Add($cookie)
-            }
-
-            # Build query parameters for this chunk
-            $correlationId = [guid]::NewGuid().ToString()
-            $queryParams = @(
-                "generateIdentityEvents=$($baseParams.GenerateIdentityEvents.ToString().ToLower())"
-                "includeIdentityEvents=$($baseParams.IncludeIdentityEvents.ToString().ToLower())"
-                "supportMdiOnlyEvents=$($baseParams.SupportMdiOnlyEvents.ToString().ToLower())"
-                "fromDate=$([System.Uri]::EscapeDataString($chunkFromDate.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')))"
-                "toDate=$([System.Uri]::EscapeDataString($chunkToDate.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')))"
-                "correlationId=$correlationId"
-                "doNotUseCache=$($baseParams.DoNotUseCache.ToString().ToLower())"
-                "forceUseCache=$($baseParams.ForceUseCache.ToString().ToLower())"
-                "pageSize=$($baseParams.PageSize)"
-                "includeSentinelEvents=$($baseParams.IncludeSentinelEvents.ToString().ToLower())"
-            )
-
-            if ($baseParams.MachineDnsName) {
-                $queryParams = @("machineDnsName=$([System.Uri]::EscapeDataString($baseParams.MachineDnsName))") + $queryParams
-            }
-
-            if ($baseParams.SenseClientVersion) {
-                $queryParams = @("SenseClientVersion=$([System.Uri]::EscapeDataString($baseParams.SenseClientVersion))") + $queryParams
-            }
-
-            if ($baseParams.MarkedEventsOnly) {
-                $queryParams = @("markedEventsOnly=true") + $queryParams
-            }
-
-            if ($baseParams.EventsGroups -and $baseParams.EventsGroups.Count -gt 0) {
-                $eventsGroupsParams = $baseParams.EventsGroups | ForEach-Object { "eventsGroups=$_" }
-                $queryParams = $queryParams + $eventsGroupsParams
-            }
-
-            if ($baseParams.DataTypes -and $baseParams.DataTypes.Count -gt 0) {
-                $dataTypesParams = $baseParams.DataTypes | ForEach-Object { "dataTypes=$_" }
-                $queryParams = $queryParams + $dataTypesParams
-            }
-
-            if ($baseParams.SourceProviders -and $baseParams.SourceProviders.Count -gt 0) {
-                $sourceProvidersParams = $baseParams.SourceProviders | ForEach-Object { "sourceProviders=$_" }
-                $queryParams = $queryParams + $sourceProvidersParams
-            }
-
-            $chunkEvents = [System.Collections.Generic.List[object]]::new()
-            $Uri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience/machines/$deviceId/events/?$($queryParams -join '&')"
-            $maxRetries = 10
-            $baseDelay = 30
-
-            try {
-                # Start timing this chunk
-                $chunkStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-                $pagesRetrieved = 0
-
-                do {
-                    $attempt = 0
-                    $success = $false
-
-                    while (-not $success -and $attempt -lt $maxRetries) {
-                        try {
-                            $attempt++
-                            $response = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $webSession -Headers $headerInfo -ErrorAction Stop
-                            $success = $true
-                            $pagesRetrieved++
-                        } catch {
-                            $statusCode = $null
-                            if ($_.Exception.Response) {
-                                $statusCode = [int]$_.Exception.Response.StatusCode
-                            }
-
-                            if ($statusCode -eq 429 -or $statusCode -eq 403) {
-                                # Rate limited - use exponential backoff
-                                $delay = $baseDelay * [Math]::Pow(2, $attempt - 1) + (Get-Random -Minimum 1 -Maximum 10)
-                                $delay = [Math]::Min($delay, 300) # Cap at 5 minutes
-                                Start-Sleep -Seconds $delay
-                            } elseif ($attempt -lt $maxRetries) {
-                                $delay = Get-Random -Minimum 5 -Maximum 15
-                                Start-Sleep -Seconds $delay
-                            } else {
-                                throw "Chunk $chunkIndex : Failed after $maxRetries attempts. Last error: $_"
-                            }
-                        }
-                    }
-
-                    if ($response -and $response.Items) {
-                        $chunkEvents.AddRange($response.Items)
-                    }
-
-                    if ([string]::IsNullOrWhiteSpace($response.Prev)) {
-                        break
-                    } else {
-                        $Uri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
-                        # Small delay between pagination requests
-                        Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
-                    }
-                } while ($true)
-
-                # Stop timing
-                $chunkStopwatch.Stop()
-                $elapsedSeconds = $chunkStopwatch.Elapsed.TotalSeconds
-
-                # Write results to JSON file
-                $fileName = "chunk_{0:D4}_{1:yyyyMMdd_HHmmss}_{2:yyyyMMdd_HHmmss}.json" -f $chunkIndex, $chunkFromDate, $chunkToDate
-                $filePath = Join-Path $tempPath $fileName
-
-                $jsonContent = @{
-                    ChunkIndex = $chunkIndex
-                    FromDate   = $chunkFromDate.ToString('o')
-                    ToDate     = $chunkToDate.ToString('o')
-                    EventCount = $chunkEvents.Count
-                    Events     = $chunkEvents
-                } | ConvertTo-Json -Depth 100 -Compress
-
-                $jsonContent | Out-File -FilePath $filePath -Encoding utf8
-                $fileSizeKB = [math]::Round((Get-Item $filePath).Length / 1KB, 2)
-
-                @{
-                    ChunkIndex     = $chunkIndex
-                    FilePath       = $filePath
-                    EventCount     = $chunkEvents.Count
-                    FromDate       = $chunkFromDate
-                    ToDate         = $chunkToDate
-                    Success        = $true
-                    ElapsedSeconds = [math]::Round($elapsedSeconds, 2)
-                    PagesRetrieved = $pagesRetrieved
-                    FileSizeKB     = $fileSizeKB
-                }
-            } catch {
-                if ($chunkStopwatch) { $chunkStopwatch.Stop() }
-                @{
-                    ChunkIndex     = $chunkIndex
-                    Success        = $false
-                    Error          = $_.ToString()
-                    FromDate       = $chunkFromDate
-                    ToDate         = $chunkToDate
-                    ElapsedSeconds = if ($chunkStopwatch) { [math]::Round($chunkStopwatch.Elapsed.TotalSeconds, 2) } else { 0 }
-                }
-            }
-        }
     }
 
     process {
@@ -377,6 +238,7 @@
         if ([string]::IsNullOrWhiteSpace($computerDnsName)) {
             $computerDnsName = $deviceIdentifier
         }
+        # Remove invalid Windows path characters: \ / : * ? " < > |
         $safeFolderName = $computerDnsName -replace '[\\/:*?"<>|]', '_'
 
         # Set up output directory
@@ -409,6 +271,8 @@
             EventsGroups           = if ($PSBoundParameters.ContainsKey('EventsGroups')) { $EventsGroups } else { $null }
             DataTypes              = if ($PSBoundParameters.ContainsKey('DataTypes')) { $DataTypes } else { $null }
             SourceProviders        = if ($PSBoundParameters.ContainsKey('SourceProviders')) { $SourceProviders } else { $null }
+            MaxRetries             = $MaxRetries
+            RetryDelaySeconds      = $RetryDelaySeconds
         }
 
         # Generate date chunks - always use 1-hour chunks for optimal parallelism
@@ -466,6 +330,10 @@
             $operationStartTime = [System.Diagnostics.Stopwatch]::StartNew()
 
             # Process chunks in parallel using ForEach-Object -Parallel (PowerShell 7+)
+            # NOTE: The chunk processing logic is duplicated between PS7 (-Parallel below) and PS5 (scriptblock
+            # in the else branch). This is necessary because PS7's -Parallel runs in isolated runspaces that
+            # cannot access external scriptblocks via $using:. Any changes to the chunk processing logic must
+            # be made in BOTH locations.
             if ($PSVersionTable.PSVersion.Major -ge 7) {
                 # Run parallel processing as a job so we can poll for progress
                 $totalChunks = $dateChunks.Count
@@ -534,8 +402,8 @@
 
                         $chunkEvents = [System.Collections.Generic.List[object]]::new()
                         $Uri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience/machines/$deviceId/events/?$($queryParams -join '&')"
-                        $maxRetries = 10
-                        $baseDelay = 30
+                        $maxRetries = $baseParams.MaxRetries
+                        $baseDelay = $baseParams.RetryDelaySeconds
 
                         try {
                             # Start timing this chunk
@@ -664,6 +532,20 @@
                     Start-Sleep -Milliseconds 250
                 }
                 
+                # Handle job terminal states (Failed, Stopped, Blocked, etc.)
+                $jobState = $parallelJob.State
+                if ($jobState -eq 'Failed') {
+                    $jobError = $parallelJob.ChildJobs | ForEach-Object { $_.JobStateInfo.Reason } | Where-Object { $_ }
+                    Write-Warning "Parallel job failed: $($jobError -join '; ')"
+                } elseif ($jobState -eq 'Stopped') {
+                    Write-Warning "Parallel job was stopped (likely due to timeout or cancellation)"
+                } elseif ($jobState -eq 'Blocked') {
+                    Write-Warning "Parallel job is blocked - this may indicate a resource contention issue"
+                    Stop-Job -Job $parallelJob -ErrorAction SilentlyContinue
+                } elseif ($jobState -notin @('Completed', 'Running', 'NotStarted')) {
+                    Write-Warning "Parallel job ended in unexpected state: $jobState"
+                }
+
                 # Final check for any chunks completed after loop exit
                 $chunkFiles = Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue
                 foreach ($file in $chunkFiles) {
@@ -679,14 +561,171 @@
                 Remove-Job -Job $parallelJob -Force
             } else {
                 # Fallback for PowerShell 5.1 using runspace pool
+                # NOTE: The chunk processing logic is duplicated between PS7 (ForEach-Object -Parallel above)
+                # and PS5 (scriptblock below). This is necessary because PS7's -Parallel runs in isolated
+                # runspaces that cannot access external scriptblocks via $using:. Any changes to the chunk
+                # processing logic must be made in BOTH locations.
                 $runspacePool = [runspacefactory]::CreateRunspacePool(1, $ThrottleLimit)
                 $runspacePool.Open()
+
+                # Define chunk processing scriptblock for PS5 runspace pool
+                $chunkProcessingScript = {
+                    param($chunk, $deviceId, $baseParams, $tempPath, $cookieInfo, $headerInfo, $baseUrl)
+
+                    $chunkFromDate = $chunk.FromDate
+                    $chunkToDate = $chunk.ToDate
+                    $chunkIndex = $chunk.Index
+
+                    # Recreate web session with cookies
+                    $webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+                    foreach ($c in $cookieInfo) {
+                        $cookie = [System.Net.Cookie]::new($c.Name, $c.Value, $c.Path, $c.Domain)
+                        $webSession.Cookies.Add($cookie)
+                    }
+
+                    # Build query parameters for this chunk
+                    $correlationId = [guid]::NewGuid().ToString()
+                    $queryParams = @(
+                        "generateIdentityEvents=$($baseParams.GenerateIdentityEvents.ToString().ToLower())"
+                        "includeIdentityEvents=$($baseParams.IncludeIdentityEvents.ToString().ToLower())"
+                        "supportMdiOnlyEvents=$($baseParams.SupportMdiOnlyEvents.ToString().ToLower())"
+                        "fromDate=$([System.Uri]::EscapeDataString($chunkFromDate.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')))"
+                        "toDate=$([System.Uri]::EscapeDataString($chunkToDate.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')))"
+                        "correlationId=$correlationId"
+                        "doNotUseCache=$($baseParams.DoNotUseCache.ToString().ToLower())"
+                        "forceUseCache=$($baseParams.ForceUseCache.ToString().ToLower())"
+                        "pageSize=$($baseParams.PageSize)"
+                        "includeSentinelEvents=$($baseParams.IncludeSentinelEvents.ToString().ToLower())"
+                    )
+
+                    if ($baseParams.MachineDnsName) {
+                        $queryParams = @("machineDnsName=$([System.Uri]::EscapeDataString($baseParams.MachineDnsName))") + $queryParams
+                    }
+
+                    if ($baseParams.SenseClientVersion) {
+                        $queryParams = @("SenseClientVersion=$([System.Uri]::EscapeDataString($baseParams.SenseClientVersion))") + $queryParams
+                    }
+
+                    if ($baseParams.MarkedEventsOnly) {
+                        $queryParams = @("markedEventsOnly=true") + $queryParams
+                    }
+
+                    if ($baseParams.EventsGroups -and $baseParams.EventsGroups.Count -gt 0) {
+                        $eventsGroupsParams = $baseParams.EventsGroups | ForEach-Object { "eventsGroups=$_" }
+                        $queryParams = $queryParams + $eventsGroupsParams
+                    }
+
+                    if ($baseParams.DataTypes -and $baseParams.DataTypes.Count -gt 0) {
+                        $dataTypesParams = $baseParams.DataTypes | ForEach-Object { "dataTypes=$_" }
+                        $queryParams = $queryParams + $dataTypesParams
+                    }
+
+                    if ($baseParams.SourceProviders -and $baseParams.SourceProviders.Count -gt 0) {
+                        $sourceProvidersParams = $baseParams.SourceProviders | ForEach-Object { "sourceProviders=$_" }
+                        $queryParams = $queryParams + $sourceProvidersParams
+                    }
+
+                    $chunkEvents = [System.Collections.Generic.List[object]]::new()
+                    $Uri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience/machines/$deviceId/events/?$($queryParams -join '&')"
+                    $maxRetries = $baseParams.MaxRetries
+                    $baseDelay = $baseParams.RetryDelaySeconds
+
+                    try {
+                        # Start timing this chunk
+                        $chunkStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                        $pagesRetrieved = 0
+
+                        do {
+                            $attempt = 0
+                            $success = $false
+
+                            while (-not $success -and $attempt -lt $maxRetries) {
+                                try {
+                                    $attempt++
+                                    $response = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $webSession -Headers $headerInfo -ErrorAction Stop
+                                    $success = $true
+                                    $pagesRetrieved++
+                                } catch {
+                                    $statusCode = $null
+                                    if ($_.Exception.Response) {
+                                        $statusCode = [int]$_.Exception.Response.StatusCode
+                                    }
+
+                                    if ($statusCode -eq 429 -or $statusCode -eq 403) {
+                                        # Rate limited - use exponential backoff
+                                        $delay = $baseDelay * [Math]::Pow(2, $attempt - 1) + (Get-Random -Minimum 1 -Maximum 10)
+                                        $delay = [Math]::Min($delay, 300) # Cap at 5 minutes
+                                        Start-Sleep -Seconds $delay
+                                    } elseif ($attempt -lt $maxRetries) {
+                                        $delay = Get-Random -Minimum 5 -Maximum 15
+                                        Start-Sleep -Seconds $delay
+                                    } else {
+                                        throw "Chunk $chunkIndex : Failed after $maxRetries attempts. Last error: $_"
+                                    }
+                                }
+                            }
+
+                            if ($response -and $response.Items) {
+                                $chunkEvents.AddRange($response.Items)
+                            }
+
+                            if ([string]::IsNullOrWhiteSpace($response.Prev)) {
+                                break
+                            } else {
+                                $Uri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
+                                # Small delay between pagination requests
+                                Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
+                            }
+                        } while ($true)
+
+                        # Stop timing
+                        $chunkStopwatch.Stop()
+                        $elapsedSeconds = $chunkStopwatch.Elapsed.TotalSeconds
+
+                        # Write results to JSON file
+                        $fileName = "chunk_{0:D4}_{1:yyyyMMdd_HHmmss}_{2:yyyyMMdd_HHmmss}.json" -f $chunkIndex, $chunkFromDate, $chunkToDate
+                        $filePath = Join-Path $tempPath $fileName
+
+                        $jsonContent = @{
+                            ChunkIndex = $chunkIndex
+                            FromDate   = $chunkFromDate.ToString('o')
+                            ToDate     = $chunkToDate.ToString('o')
+                            EventCount = $chunkEvents.Count
+                            Events     = $chunkEvents
+                        } | ConvertTo-Json -Depth 100 -Compress
+
+                        $jsonContent | Out-File -FilePath $filePath -Encoding utf8
+                        $fileSizeKB = [math]::Round((Get-Item $filePath).Length / 1KB, 2)
+
+                        @{
+                            ChunkIndex     = $chunkIndex
+                            FilePath       = $filePath
+                            EventCount     = $chunkEvents.Count
+                            FromDate       = $chunkFromDate
+                            ToDate         = $chunkToDate
+                            Success        = $true
+                            ElapsedSeconds = [math]::Round($elapsedSeconds, 2)
+                            PagesRetrieved = $pagesRetrieved
+                            FileSizeKB     = $fileSizeKB
+                        }
+                    } catch {
+                        if ($chunkStopwatch) { $chunkStopwatch.Stop() }
+                        @{
+                            ChunkIndex     = $chunkIndex
+                            Success        = $false
+                            Error          = $_.ToString()
+                            FromDate       = $chunkFromDate
+                            ToDate         = $chunkToDate
+                            ElapsedSeconds = if ($chunkStopwatch) { [math]::Round($chunkStopwatch.Elapsed.TotalSeconds, 2) } else { 0 }
+                        }
+                    }
+                }
 
                 $jobs = @()
                 foreach ($chunk in $dateChunks) {
                     $powershell = [powershell]::Create()
                     $powershell.RunspacePool = $runspacePool
-                    [void]$powershell.AddScript($script:chunkProcessingScript)
+                    [void]$powershell.AddScript($chunkProcessingScript)
                     [void]$powershell.AddParameter('chunk', $chunk)
                     [void]$powershell.AddParameter('deviceId', $deviceIdentifier)
                     [void]$powershell.AddParameter('baseParams', $baseQueryParams)
@@ -802,10 +841,11 @@
                     Write-Warning "Chunk $($result.ChunkIndex): $dateRange | FAILED after $($result.ElapsedSeconds)s - $($result.Error)"
                 }
             }
-            $overallEventsPerSec = if ($maxElapsed -gt 0) { [math]::Round($totalEvents / $maxElapsed, 1) } else { 0 }
+            $wallClockSeconds = $operationStartTime.Elapsed.TotalSeconds
+            $overallEventsPerSec = if ($wallClockSeconds -gt 0) { [math]::Round($totalEvents / $wallClockSeconds, 1) } else { 0 }
             Write-Information "=== Summary ===" -InformationAction Continue
             Write-Information "Total chunks: $($results.Count) | Total events: $totalEvents | Total size: $([math]::Round($totalSizeKB / 1024, 2)) MB" -InformationAction Continue
-            Write-Information "Cumulative download time: $([math]::Round($totalElapsed, 2))s | Wall-clock time: $([math]::Round($maxElapsed, 2))s | Effective rate: $overallEventsPerSec events/sec" -InformationAction Continue
+            Write-Information "Cumulative download time: $([math]::Round($totalElapsed, 2))s | Wall-clock time: $([math]::Round($wallClockSeconds, 2))s | Effective rate: $overallEventsPerSec events/sec" -InformationAction Continue
 
             # Merge all JSON files with progress
             Write-Progress -Activity "Processing Results" -Status "Merging chunk files..." -PercentComplete 0 -Id 2

@@ -113,6 +113,9 @@
         Retrieves timeline events using pipeline input.
     #>
     [OutputType([System.Object[]])]
+    # Suppress false positive: $chunks and $throttle ARE declared via param() in Start-ThreadJob scriptblock
+    # and passed via -ArgumentList, but PSScriptAnalyzer incorrectly flags them as needing $using: scope
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseUsingScopeModifierInNewRunspaces', '')]
     [CmdletBinding(DefaultParameterSetName = 'ByDeviceId', SupportsShouldProcess)]
     param (
         [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, ParameterSetName = 'ByDeviceId')]
@@ -520,7 +523,7 @@
                             if (-not $completedChunks.ContainsKey($file.Name)) {
                                 $completedChunks[$file.Name] = $true
                                 $sizeKB = [math]::Round($file.Length / 1KB, 1)
-                                Write-Host "  Downloaded chunk $($completedChunks.Count)/${totalChunks}: $($file.BaseName) ($sizeKB KB)" -ForegroundColor Cyan
+                                Write-Verbose "  Downloaded chunk $($completedChunks.Count)/${totalChunks}: $($file.BaseName) ($sizeKB KB)"
                             }
                         }
                         $lastCompletedCount = $completedFiles
@@ -552,7 +555,7 @@
                     if (-not $completedChunks.ContainsKey($file.Name)) {
                         $completedChunks[$file.Name] = $true
                         $sizeKB = [math]::Round($file.Length / 1KB, 1)
-                        Write-Host "  Downloaded chunk $($completedChunks.Count)/${totalChunks}: $($file.BaseName) ($sizeKB KB)" -ForegroundColor Cyan
+                        Write-Verbose "  Downloaded chunk $($completedChunks.Count)/${totalChunks}: $($file.BaseName) ($sizeKB KB)"
                     }
                 }
 
@@ -767,7 +770,7 @@
                             if (-not $completedChunks.ContainsKey($file.Name)) {
                                 $completedChunks[$file.Name] = $true
                                 $sizeKB = [math]::Round($file.Length / 1KB, 1)
-                                Write-Host "  Downloaded chunk $($completedChunks.Count)/${totalJobs}: $($file.BaseName) ($sizeKB KB)" -ForegroundColor Cyan
+                                Write-Verbose "  Downloaded chunk $($completedChunks.Count)/${totalJobs}: $($file.BaseName) ($sizeKB KB)"
                             }
                         }
                         $lastCompletedCount = $completedFiles

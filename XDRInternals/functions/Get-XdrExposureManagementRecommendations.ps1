@@ -1,4 +1,4 @@
-function Get-XdrExposureManagementRecommendations {
+﻿function Get-XdrExposureManagementRecommendations {
     <#
     .SYNOPSIS
         Retrieves recommendations from Exposure Management.
@@ -87,6 +87,9 @@ function Get-XdrExposureManagementRecommendations {
         System.Int64
         When -CountOnly is specified, returns the total count as an integer.
     #>
+    # Suppress false positive: Switch parameters are used via $PSCmdlet.ParameterSetName, not direct reference
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '')]
     [CmdletBinding(DefaultParameterSetName = 'Default')]
     [OutputType([System.Object[]])]
     [OutputType([System.Int64], ParameterSetName = 'Default')]
@@ -126,7 +129,7 @@ function Get-XdrExposureManagementRecommendations {
 
     begin {
         Update-XdrConnectionSettings
-        
+
         # Helper function for paginated requests
         function Invoke-PaginatedRequest {
             param (
@@ -136,34 +139,34 @@ function Get-XdrExposureManagementRecommendations {
                 [string]$DisplayName,
                 [int]$MaxResults = 0
             )
-            
+
             $maxPages = 1000
             $pageNum = 1
-            
+
             try {
                 # Get first page
                 $uri = & $BuildUri $pageNum
                 Write-Verbose "Fetching $DisplayName page 1"
                 $response = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $Headers
-                
+
                 $totalResults = $response.$CountProperty
                 $targetResults = if ($MaxResults -gt 0 -and $MaxResults -lt $totalResults) { $MaxResults } else { $totalResults }
-                Write-Host "Total $DisplayName`: $totalResults$(if ($MaxResults -gt 0) { " (fetching $targetResults)" })" -ForegroundColor Cyan
-                
+                Write-Information "Total $DisplayName`: $totalResults$(if ($MaxResults -gt 0) { " (fetching $targetResults)" })" -InformationAction Continue
+
                 # Collect results with pagination
                 $allResults = [System.Collections.Generic.List[object]]::new()
                 if ($response.results) { $allResults.AddRange($response.results) }
                 $pageNum = 2
-                
+
                 # Show progress for larger result sets (more than one page)
                 $showProgress = $targetResults -gt 25
-                
+
                 while ($allResults.Count -lt $targetResults -and $pageNum -le $maxPages) {
                     if ($showProgress) {
                         $percentComplete = [math]::Min(100, [math]::Round(($allResults.Count / $targetResults) * 100))
                         Write-Progress -Activity "Retrieving $DisplayName" -Status "$($allResults.Count) of $targetResults" -PercentComplete $percentComplete
                     }
-                    
+
                     $uri = & $BuildUri $pageNum
                     Write-Verbose "Fetching $DisplayName page $pageNum"
                     $response = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $Headers
@@ -171,18 +174,18 @@ function Get-XdrExposureManagementRecommendations {
                     Write-Verbose "Retrieved $($allResults.Count) of $targetResults $DisplayName"
                     $pageNum++
                 }
-                
+
                 if ($showProgress) {
                     Write-Progress -Activity "Retrieving $DisplayName" -Completed
                 }
-                
+
                 # Trim to MaxResults if specified
                 $finalResults = if ($MaxResults -gt 0 -and $allResults.Count -gt $MaxResults) {
                     $allResults.GetRange(0, $MaxResults).ToArray()
                 } else {
                     $allResults.ToArray()
                 }
-                
+
                 return [PSCustomObject]@{
                     Count   = $totalResults
                     Results = $finalResults
@@ -262,20 +265,20 @@ function Get-XdrExposureManagementRecommendations {
         $currentCacheValue = Get-XdrCache -CacheKey $config.CacheKey -ErrorAction SilentlyContinue
         if ($useCache -and -not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
             Write-Verbose "Using cached data for $($config.CacheKey)"
-            
+
             if ($config.Simple) {
                 return $currentCacheValue.Value
             }
-            
+
             $countProp = if ($config.CountProperty) { $config.CountProperty } else { 'numOfResults' }
-            Write-Host "Total $($config.DisplayName): $($currentCacheValue.Value.$countProp)" -ForegroundColor Cyan
-            
+            Write-Information "Total $($config.DisplayName): $($currentCacheValue.Value.$countProp)" -InformationAction Continue
+
             if ($CountOnly) {
                 return $currentCacheValue.Value.$countProp
             }
             return $currentCacheValue.Value.results
         }
-        
+
         if ($Force) {
             Write-Verbose "Force parameter specified, bypassing cache"
             Clear-XdrCache -CacheKey $config.CacheKey
@@ -300,12 +303,12 @@ function Get-XdrExposureManagementRecommendations {
                 $uri = "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/recommendations" + $config.Endpoint
                 Write-Verbose "Retrieving from: $uri"
                 $result = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $requestHeaders
-                
+
                 $valueToCache = if ($config.Extract) { $result.$($config.Extract) } else { $result }
                 # Handle null/empty results gracefully
                 if ($null -eq $valueToCache) { $valueToCache = @() }
                 Set-XdrCache -CacheKey $config.CacheKey -Value $valueToCache -TTLMinutes 30
-                
+
                 # Apply -Top if specified
                 if ($Top -gt 0 -and $valueToCache.Count -gt $Top) {
                     return $valueToCache | Select-Object -First $Top

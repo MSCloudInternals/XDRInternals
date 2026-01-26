@@ -92,12 +92,12 @@
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '')]
     [CmdletBinding(DefaultParameterSetName = 'Default')]
     [OutputType([System.Object[]])]
-    [OutputType([System.Int64], ParameterSetName = 'Default')]
+    [OutputType([System.Int64], ParameterSetName = 'CountOnly')]
     param (
         [Parameter()]
         [switch]$Force,
 
-        [Parameter(ParameterSetName = 'Default')]
+        [Parameter(ParameterSetName = 'CountOnly')]
         [switch]$CountOnly,
 
         [Parameter()]
@@ -250,7 +250,7 @@
                     BuildUri      = { param($p) "https://security.microsoft.com/apiproxy/mtp/posture/oversight/recommendations?calculationId=undefined&sort.sortDirection=desc&sort.sortByField=domainScoreImpact&pagination.pageNumber=$p&pagination.numberOfPageRecords=25&$miscFilter&highlights=false" }.GetNewClosure()
                 }
             }
-            default {
+            { $_ -in 'Default', 'CountOnly' } {
                 @{
                     CacheKey      = "XdrExposureManagementRecommendations"
                     UseTvmHeaders = $true
@@ -273,7 +273,7 @@
             $countProp = if ($config.CountProperty) { $config.CountProperty } else { 'numOfResults' }
             Write-Information "Total $($config.DisplayName): $($currentCacheValue.Value.$countProp)" -InformationAction Continue
 
-            if ($CountOnly) {
+            if ($PSCmdlet.ParameterSetName -eq 'CountOnly') {
                 return $currentCacheValue.Value.$countProp
             }
             return $currentCacheValue.Value.results
@@ -330,7 +330,7 @@
             }
 
             # Return based on parameters
-            if ($CountOnly -and $PSCmdlet.ParameterSetName -eq 'Default') {
+            if ($PSCmdlet.ParameterSetName -eq 'CountOnly') {
                 return $paginatedResult.Count
             }
             return $paginatedResult.Results

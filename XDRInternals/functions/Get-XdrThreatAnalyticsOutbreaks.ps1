@@ -6,7 +6,7 @@
     .DESCRIPTION
         Gets threat analytics outbreaks data from the Microsoft Defender XDR portal.
         This function includes caching support with a 30-minute TTL to reduce API calls.
-        
+
         By default, retrieves the full outbreaks list. Use -ChangeCount or -TopThreats
         switches to retrieve specific outbreak metrics from dedicated endpoints.
 
@@ -45,15 +45,16 @@
         Object
         Returns the threat analytics outbreaks data, change count, or top threats depending on parameters.
     #>
-    [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '')]
+    [CmdletBinding(DefaultParameterSetName = 'Default')]
     param (
         [Parameter()]
         [switch]$Force,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ChangeCount')]
         [switch]$ChangeCount,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'TopThreats')]
         [switch]$TopThreats
     )
 
@@ -66,7 +67,7 @@
         if ($ChangeCount) {
             $cacheKey = "XdrThreatAnalyticsOutbreaksChangeCount"
             $currentCacheValue = Get-XdrCache -CacheKey $cacheKey -ErrorAction SilentlyContinue
-            
+
             if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
                 Write-Verbose "Using cached outbreak change count"
                 return $currentCacheValue.Value
@@ -77,7 +78,7 @@
                 Write-Verbose "Outbreak change count cache is missing or expired"
             }
 
-            $Uri = "https://security.microsoft.com/apiproxy/mtp/ThreatAnalytics/outbreaks/changeCount"
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks/changeCount"
             Write-Verbose "Retrieving outbreak change count"
             try {
                 $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
@@ -93,7 +94,7 @@
         if ($TopThreats) {
             $cacheKey = "XdrThreatAnalyticsOutbreaksTopThreats"
             $currentCacheValue = Get-XdrCache -CacheKey $cacheKey -ErrorAction SilentlyContinue
-            
+
             if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
                 Write-Verbose "Using cached threat analytics top threats"
                 return $currentCacheValue.Value
@@ -104,7 +105,7 @@
                 Write-Verbose "Threat analytics top threats cache is missing or expired"
             }
 
-            $Uri = "https://security.microsoft.com/apiproxy/mtp/ThreatAnalytics/outbreaks/topThreats"
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks/topThreats"
             Write-Verbose "Retrieving threat analytics top threats"
             try {
                 $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers

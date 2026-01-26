@@ -258,9 +258,9 @@
         $safeFolderName = $computerDnsName -replace '[\\/:*?"<>|]', '_'
 
         # Set up output directory using cross-platform temp path
-        $baseTempPath = if ($OutputPath) { 
-            $OutputPath 
-        } else { 
+        $baseTempPath = if ($OutputPath) {
+            $OutputPath
+        } else {
             Join-Path ([System.IO.Path]::GetTempPath()) 'XdrTimeline'
         }
         $deviceTempPath = Join-Path $baseTempPath $safeFolderName

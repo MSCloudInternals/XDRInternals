@@ -33,9 +33,12 @@
     Write-Verbose "Cached XSRF token expired or not found. Updating session cookies for XDR webpage requests"
 
     $TenantId = Get-XdrCache -CacheKey "XdrTenantId" -ErrorAction SilentlyContinue
-    # Extract Value property if TenantId is a hashtable (cache object)
-    if ($TenantId -is [hashtable] -and $TenantId.ContainsKey('Value')) {
-        $TenantId = $TenantId.Value
+    # Normalize TenantId from cache: use .Value when present, otherwise keep existing string
+    if ($TenantId -and -not ($TenantId -is [string])) {
+        $valueProperty = $TenantId.PSObject.Properties['Value']
+        if ($valueProperty) {
+            $TenantId = $valueProperty.Value
+        }
     }
     # Check if script variables exist
     if (Test-Path variable:script:session) {

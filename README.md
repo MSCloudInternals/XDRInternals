@@ -56,7 +56,8 @@ Get-XdrTenantContext -Force
 | Get-XdrConfigurationAlertServiceSetting                     | Get alert service configuration settings                      |
 | Get-XdrConfigurationAlertTuning                             | Retrieve alert tuning and suppression rules                   |
 | Get-XdrConfigurationAssetRuleManagement                     | Get asset rule management configuration                       |
-| Get-XdrConfigurationCriticalAssetManagement                 | Retrieve critical asset management settings                   |
+| Get-XdrConfigurationCriticalAssetManagementClassification   | Retrieve critical asset management classification rules       |
+| Get-XdrConfigurationCriticalAssetManagementClassificationSchema | Get available properties for classification rules         |
 | Get-XdrConfigurationServiceAccountClassification            | Get service account classification configuration              |
 | Get-XdrConfigurationUnifiedRBACWorkload                     | Retrieve Unified RBAC workload configuration                  |
 | Get-XdrDatalakeDatabase                                     | Get available datalake databases                              |
@@ -106,12 +107,16 @@ Get-XdrTenantContext -Force
 | Merge-XdrIncident                                           | Merge multiple incidents into a single incident               |
 | Move-XdrAlertToIncident                                     | Move alerts to a specific incident or create a new one        |
 | New-XdrAdvancedHuntingFunction                              | Create new Advanced Hunting functions                         |
+| New-XdrConfigurationCriticalAssetManagementClassification   | Create critical asset management classification rules         |
 | New-XdrEndpointConfigurationCustomCollectionRule            | Create custom collection rules from YAML files                |
 | New-XdrEndpointDeviceRbacGroup                              | Create new endpoint device groups                             |
 | New-XdrIdentityConfigurationRemediationActionAccount        | Create new remediation action account configuration           |
 | Remove-XdrAdvancedHuntingFunction                           | Remove Advanced Hunting functions                             |
+| Remove-XdrConfigurationCriticalAssetManagementClassification| Remove critical asset management classification rules         |
 | Remove-XdrIdentityConfigurationRemediationActionAccount     | Remove remediation action account configuration               |
 | Set-XdrAdvancedHuntingFunction                              | Update existing Advanced Hunting functions                    |
+| Set-XdrConfigurationCriticalAssetManagementClassification   | Enable or disable classification rules                        |
+| Set-XdrConfigurationPreviewFeatures                         | Update preview feature settings                               |
 | Set-XdrConnectionSettings                                   | Configure connection settings for XDR                         |
 | Set-XdrEndpointAdvancedFeatures                             | Set endpoint advanced features configuration                  |
 | Set-XdrEndpointConfigurationCustomCollectionRule            | Update existing custom collection rules                       |

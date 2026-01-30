@@ -118,8 +118,13 @@
             throw "Cannot delete predefined rule '$ruleName'. Use Set-XdrConfigurationCriticalAssetManagementClassification -Enabled `$false to disable it instead."
         }
 
-        # Confirm deletion unless Force is specified
-        if (-not $Force -and -not $PSCmdlet.ShouldProcess($ruleName, "Delete Critical Asset Management rule")) {
+        # Handle -Force to suppress confirmation while still honoring -WhatIf
+        if ($Force -and -not $PSBoundParameters.ContainsKey('Confirm')) {
+            $ConfirmPreference = 'None'
+        }
+
+        # Always call ShouldProcess to honor -WhatIf and -Confirm
+        if (-not $PSCmdlet.ShouldProcess($ruleName, "Delete Critical Asset Management rule")) {
             return
         }
 

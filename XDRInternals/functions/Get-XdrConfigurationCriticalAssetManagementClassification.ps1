@@ -175,6 +175,10 @@
         # Fetch affected assets for each rule if requested
         if ($IncludeAffectedAssets -and $criticalAssetRules) {
             Write-Verbose "Fetching affected assets for rules"
+            # Clone rules to avoid mutating cached objects with Add-Member
+            $criticalAssetRules = $criticalAssetRules | ForEach-Object {
+                [PSCustomObject]($_ | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
+            }
             foreach ($rule in $criticalAssetRules) {
                 if ($rule.affectedAssetsCount -gt 0 -and $rule.ruleName) {
                     $encodedRuleName = [System.Uri]::EscapeDataString($rule.ruleName)

@@ -72,6 +72,12 @@
         When specified, returns the full rule object after creation.
         By default, only the ruleId is returned.
 
+    .PARAMETER WhatIf
+        Shows what would happen if the cmdlet runs. The cmdlet is not run.
+
+    .PARAMETER Confirm
+        Prompts you for confirmation before running the cmdlet.
+
     .EXAMPLE
         New-XdrConfigurationCriticalAssetManagementClassification -RuleName "Executive Accounts" `
             -RuleDescription "Identifies executive user accounts" `
@@ -173,9 +179,8 @@
           Set-XdrConfigurationCriticalAssetManagementClassification -Enabled $false
         - Predefined rules cannot be created; this cmdlet only creates user-defined rules
     #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'This function creates a new rule and does not modify existing resources')]
     [OutputType([PSCustomObject])]
-    [CmdletBinding(DefaultParameterSetName = 'Simple')]
+    [CmdletBinding(DefaultParameterSetName = 'Simple', SupportsShouldProcess = $true)]
     param (
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
@@ -280,6 +285,10 @@
         $Uri = "https://security.microsoft.com/apiproxy/mtp/xspmatlas/assetrules"
         Write-Verbose "Creating new Critical Asset Management rule: $RuleName"
         Write-Verbose "Request body: $($body | ConvertTo-Json -Depth 10)"
+
+        if (-not $PSCmdlet.ShouldProcess($RuleName, "Create Critical Asset Management rule")) {
+            return
+        }
 
         try {
             $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers

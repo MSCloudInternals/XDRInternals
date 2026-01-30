@@ -13,7 +13,12 @@
 
     .PARAMETER RuleId
         The unique identifier of the rule to update.
-        This parameter is mandatory and can be piped from Get-XdrConfigurationCriticalAssetManagementClassification.
+        This parameter is mandatory when not using -InputObject.
+
+    .PARAMETER InputObject
+        A rule object from Get-XdrConfigurationCriticalAssetManagementClassification.
+        When provided, avoids an extra API call to fetch rule details.
+        Can be piped directly to this cmdlet.
 
     .PARAMETER Enabled
         Sets whether the rule should be enabled or disabled.
@@ -63,7 +68,7 @@
 
     .INPUTS
         System.Object
-        You can pipe objects containing an 'id' or 'RuleId' property to this cmdlet.
+        You can pipe objects containing a 'ruleId', 'RuleId', or 'id' property to this cmdlet.
 
     .OUTPUTS
         None by default. System.Object if -PassThru is specified.
@@ -75,12 +80,16 @@
         Get-XdrConfigurationCriticalAssetManagementClassification calls return fresh data.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'ShouldProcess is implemented')]
-    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium', DefaultParameterSetName = 'ByRuleId')]
     param (
-        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+        [Parameter(Mandatory, ParameterSetName = 'ByRuleId')]
         [Alias('id')]
         [ValidateNotNullOrEmpty()]
         [string]$RuleId,
+
+        [Parameter(Mandatory, ValueFromPipeline, ParameterSetName = 'ByInputObject')]
+        [ValidateNotNull()]
+        [PSObject]$InputObject,
 
         [Parameter(Mandatory)]
         [bool]$Enabled,
@@ -94,8 +103,27 @@
     }
 
     process {
-        # Get current rule information for display purposes
-        $currentRule = Get-XdrConfigurationCriticalAssetManagementClassification -RuleId $RuleId -Force
+        # Get rule information from InputObject or fetch it
+        if ($PSCmdlet.ParameterSetName -eq 'ByInputObject') {
+            if (-not $InputObject.ruleId) {
+                Write-Error "InputObject does not contain a ruleId property."
+                return
+            }
+            $RuleId = $InputObject.ruleId
+            # Use InputObject if it has all required properties for the PATCH body
+            if ($InputObject.ruleName -and $InputObject.ruleDescription -and
+                $InputObject.ruleDefinition -and $InputObject.actions -and
+                $InputObject.ruleType -and $InputObject.assetType -and
+                $null -ne $InputObject.isDisabled) {
+                $currentRule = $InputObject
+            } else {
+                # Fetch full rule if InputObject is missing required properties
+                $currentRule = Get-XdrConfigurationCriticalAssetManagementClassification -RuleId $RuleId -Force
+            }
+        } else {
+            $currentRule = Get-XdrConfigurationCriticalAssetManagementClassification -RuleId $RuleId -Force
+        }
+
         if (-not $currentRule) {
             Write-Error "Rule with ID '$RuleId' not found."
             return

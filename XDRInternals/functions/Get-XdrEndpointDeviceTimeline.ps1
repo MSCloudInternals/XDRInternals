@@ -41,7 +41,7 @@
         Force using the API cache when retrieving timeline data.
 
     .PARAMETER PageSize
-        The number of events to return per page. Defaults to 200.
+        The number of events to return per page. Defaults to 1000 for optimal performance.
 
     .PARAMETER IncludeSentinelEvents
         Include Sentinel events in the timeline results.
@@ -74,6 +74,11 @@
 
     .PARAMETER RetryDelaySeconds
         Base delay in seconds between retry attempts (uses exponential backoff). Defaults to 30.
+
+    .PARAMETER ChunkHours
+        The size of each time chunk in hours for parallel processing. Defaults to 4 hours.
+        For time windows of 40 hours or less, chunk size is automatically calculated as totalHours/10.
+        Larger chunks reduce overhead but may increase individual request times.
 
     .PARAMETER OutputPath
         Optional. The path to store temporary JSON files. Defaults to a temp folder.
@@ -136,7 +141,7 @@
 
         [Parameter()]
         [ValidateRange(1, 1000)]
-        [int]$PageSize = 200,
+        [int]$PageSize = 1000,
 
         [Parameter()]
         [switch]$MarkedEventsOnly,
@@ -189,6 +194,10 @@
         [Parameter()]
         [ValidateRange(1, 300)]
         [int]$RetryDelaySeconds = 30,
+
+        [Parameter()]
+        [ValidateRange(1, 24)]
+        [int]$ChunkHours = 4,
 
         [Parameter()]
         [string]$OutputPath,
@@ -293,16 +302,22 @@
             RetryDelaySeconds      = $RetryDelaySeconds
         }
 
-        # Generate date chunks - always use 1-hour chunks for optimal parallelism
+        # Generate date chunks using configurable chunk size
         $dateChunks = [System.Collections.Generic.List[hashtable]]::new()
         $totalDays = ($ToDate - $FromDate).TotalDays
         $totalHours = $totalDays * 24
 
-        # Use 1-hour chunks for maximum parallelism and performance
+        # For small time windows (≤40 hours), dynamically calculate chunk size unless explicitly specified
+        if (-not $PSBoundParameters.ContainsKey('ChunkHours') -and $totalHours -le 40) {
+            $ChunkHours = [math]::Max(1, [math]::Ceiling($totalHours / 10))
+            Write-Verbose "Auto-calculated ChunkHours=$ChunkHours for $([math]::Round($totalHours, 1)) hour time window"
+        }
+
+        # Use configurable chunk size (default 4 hours, or auto-calculated for small windows)
         $currentDate = $FromDate
         $chunkIndex = 0
         while ($currentDate -lt $ToDate) {
-            $chunkEnd = $currentDate.AddHours(1)
+            $chunkEnd = $currentDate.AddHours($ChunkHours)
             if ($chunkEnd -gt $ToDate) {
                 $chunkEnd = $ToDate
             }
@@ -314,7 +329,7 @@
             $chunkIndex++
             $currentDate = $chunkEnd
         }
-        Write-Information "Split $([math]::Round($totalHours, 1)) hours into $($dateChunks.Count) chunks (1 hour each)" -InformationAction Continue
+        Write-Information "Split $([math]::Round($totalHours, 1)) hours into $($dateChunks.Count) chunks ($ChunkHours hour$(if($ChunkHours -gt 1){'s'}) each)" -InformationAction Continue
 
         # Store session cookies as a serializable format for parallel execution
         $cookieContainer = $script:session.Cookies
@@ -418,15 +433,24 @@
                             $queryParams = $queryParams + $sourceProvidersParams
                         }
 
-                        $chunkEvents = [System.Collections.Generic.List[object]]::new()
                         $Uri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience/machines/$deviceId/events/?$($queryParams -join '&')"
                         $maxRetries = $baseParams.MaxRetries
                         $baseDelay = $baseParams.RetryDelaySeconds
+
+                        # Prepare file path for streaming writes
+                        $fileName = "chunk_{0:D4}_{1:yyyyMMdd_HHmmss}_{2:yyyyMMdd_HHmmss}.json" -f $chunkIndex, $chunkFromDate, $chunkToDate
+                        $filePath = Join-Path $tempPath $fileName
 
                         try {
                             # Start timing this chunk
                             $chunkStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                             $pagesRetrieved = 0
+                            $eventCount = 0
+
+                            # Use StreamWriter to write events directly to file - avoids memory accumulation
+                            $streamWriter = [System.IO.StreamWriter]::new($filePath, $false, [System.Text.Encoding]::UTF8)
+                            $streamWriter.Write('{"ChunkIndex":' + $chunkIndex + ',"FromDate":"' + $chunkFromDate.ToString('o') + '","ToDate":"' + $chunkToDate.ToString('o') + '","Events":[')
+                            $isFirstEvent = $true
 
                             do {
                                 $attempt = 0
@@ -458,42 +482,49 @@
                                     }
                                 }
 
-                                if ($response -and $response.Items) {
-                                    $chunkEvents.AddRange($response.Items)
+                                # Stream events directly to file instead of accumulating in memory
+                                $nextUri = $null
+                                if ($response) {
+                                    if ($response.Items) {
+                                        foreach ($item in $response.Items) {
+                                            if (-not $isFirstEvent) { $streamWriter.Write(',') }
+                                            $streamWriter.Write(($item | ConvertTo-Json -Depth 20 -Compress))
+                                            $isFirstEvent = $false
+                                            $eventCount++
+                                        }
+                                    }
+                                    # Capture next page URL before clearing response
+                                    if (-not [string]::IsNullOrWhiteSpace($response.Prev)) {
+                                        $nextUri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
+                                    }
+                                    # Clear response to free memory immediately
+                                    $response = $null
                                 }
 
-                                if ([string]::IsNullOrWhiteSpace($response.Prev)) {
+                                if (-not $nextUri) {
                                     break
                                 } else {
-                                    $Uri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
+                                    $Uri = $nextUri
                                     # Small delay between pagination requests
                                     Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
                                 }
                             } while ($true)
 
+                            # Complete the JSON structure
+                            $streamWriter.Write('],"EventCount":' + $eventCount + '}')
+                            $streamWriter.Close()
+                            $streamWriter.Dispose()
+                            $streamWriter = $null
+
                             # Stop timing
                             $chunkStopwatch.Stop()
                             $elapsedSeconds = $chunkStopwatch.Elapsed.TotalSeconds
-
-                            # Write results to JSON file
-                            $fileName = "chunk_{0:D4}_{1:yyyyMMdd_HHmmss}_{2:yyyyMMdd_HHmmss}.json" -f $chunkIndex, $chunkFromDate, $chunkToDate
-                            $filePath = Join-Path $tempPath $fileName
-
-                            $jsonContent = @{
-                                ChunkIndex = $chunkIndex
-                                FromDate   = $chunkFromDate.ToString('o')
-                                ToDate     = $chunkToDate.ToString('o')
-                                EventCount = $chunkEvents.Count
-                                Events     = $chunkEvents
-                            } | ConvertTo-Json -Depth 100 -Compress
-
-                            $jsonContent | Out-File -FilePath $filePath -Encoding utf8
                             $fileSizeKB = [math]::Round((Get-Item $filePath).Length / 1KB, 2)
 
                             @{
                                 ChunkIndex     = $chunkIndex
                                 FilePath       = $filePath
-                                EventCount     = $chunkEvents.Count
+                                EventCount     = $eventCount
                                 FromDate       = $chunkFromDate
                                 ToDate         = $chunkToDate
                                 Success        = $true
@@ -502,6 +533,9 @@
                                 FileSizeKB     = $fileSizeKB
                             }
                         } catch {
+                            if ($streamWriter) {
+                                try { $streamWriter.Close(); $streamWriter.Dispose() } catch { }
+                            }
                             if ($chunkStopwatch) { $chunkStopwatch.Stop() }
                             @{
                                 ChunkIndex     = $chunkIndex
@@ -574,9 +608,13 @@
                     }
                 }
 
-                # Collect results from job
+                # Collect results from job and clean up
                 $results = Receive-Job -Job $parallelJob -Wait
                 Remove-Job -Job $parallelJob -Force
+                
+                # Force garbage collection after parallel job completes to reclaim thread memory
+                [System.GC]::Collect()
+                [System.GC]::WaitForPendingFinalizers()
             } else {
                 # Fallback for PowerShell 5.1 using runspace pool
                 # NOTE: The chunk processing logic is duplicated between PS7 (ForEach-Object -Parallel above)
@@ -643,15 +681,24 @@
                         $queryParams = $queryParams + $sourceProvidersParams
                     }
 
-                    $chunkEvents = [System.Collections.Generic.List[object]]::new()
                     $Uri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience/machines/$deviceId/events/?$($queryParams -join '&')"
                     $maxRetries = $baseParams.MaxRetries
                     $baseDelay = $baseParams.RetryDelaySeconds
+
+                    # Prepare file path for streaming writes
+                    $fileName = "chunk_{0:D4}_{1:yyyyMMdd_HHmmss}_{2:yyyyMMdd_HHmmss}.json" -f $chunkIndex, $chunkFromDate, $chunkToDate
+                    $filePath = Join-Path $tempPath $fileName
 
                     try {
                         # Start timing this chunk
                         $chunkStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                         $pagesRetrieved = 0
+                        $eventCount = 0
+
+                        # Use StreamWriter to write events directly to file - avoids memory accumulation
+                        $streamWriter = [System.IO.StreamWriter]::new($filePath, $false, [System.Text.Encoding]::UTF8)
+                        $streamWriter.Write('{"ChunkIndex":' + $chunkIndex + ',"FromDate":"' + $chunkFromDate.ToString('o') + '","ToDate":"' + $chunkToDate.ToString('o') + '","Events":[')
+                        $isFirstEvent = $true
 
                         do {
                             $attempt = 0
@@ -683,42 +730,49 @@
                                 }
                             }
 
-                            if ($response -and $response.Items) {
-                                $chunkEvents.AddRange($response.Items)
+                            # Stream events directly to file instead of accumulating in memory
+                            $nextUri = $null
+                            if ($response) {
+                                if ($response.Items) {
+                                    foreach ($item in $response.Items) {
+                                        if (-not $isFirstEvent) { $streamWriter.Write(',') }
+                                        $streamWriter.Write(($item | ConvertTo-Json -Depth 20 -Compress))
+                                        $isFirstEvent = $false
+                                        $eventCount++
+                                    }
+                                }
+                                # Capture next page URL before clearing response
+                                if (-not [string]::IsNullOrWhiteSpace($response.Prev)) {
+                                    $nextUri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
+                                }
+                                # Clear response to free memory immediately
+                                $response = $null
                             }
 
-                            if ([string]::IsNullOrWhiteSpace($response.Prev)) {
+                            if (-not $nextUri) {
                                 break
                             } else {
-                                $Uri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
+                                $Uri = $nextUri
                                 # Small delay between pagination requests
                                 Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
                             }
                         } while ($true)
 
+                        # Complete the JSON structure
+                        $streamWriter.Write('],"EventCount":' + $eventCount + '}')
+                        $streamWriter.Close()
+                        $streamWriter.Dispose()
+                        $streamWriter = $null
+
                         # Stop timing
                         $chunkStopwatch.Stop()
                         $elapsedSeconds = $chunkStopwatch.Elapsed.TotalSeconds
-
-                        # Write results to JSON file
-                        $fileName = "chunk_{0:D4}_{1:yyyyMMdd_HHmmss}_{2:yyyyMMdd_HHmmss}.json" -f $chunkIndex, $chunkFromDate, $chunkToDate
-                        $filePath = Join-Path $tempPath $fileName
-
-                        $jsonContent = @{
-                            ChunkIndex = $chunkIndex
-                            FromDate   = $chunkFromDate.ToString('o')
-                            ToDate     = $chunkToDate.ToString('o')
-                            EventCount = $chunkEvents.Count
-                            Events     = $chunkEvents
-                        } | ConvertTo-Json -Depth 100 -Compress
-
-                        $jsonContent | Out-File -FilePath $filePath -Encoding utf8
                         $fileSizeKB = [math]::Round((Get-Item $filePath).Length / 1KB, 2)
 
                         @{
                             ChunkIndex     = $chunkIndex
                             FilePath       = $filePath
-                            EventCount     = $chunkEvents.Count
+                            EventCount     = $eventCount
                             FromDate       = $chunkFromDate
                             ToDate         = $chunkToDate
                             Success        = $true
@@ -727,6 +781,9 @@
                             FileSizeKB     = $fileSizeKB
                         }
                     } catch {
+                        if ($streamWriter) {
+                            try { $streamWriter.Close(); $streamWriter.Dispose() } catch { }
+                        }
                         if ($chunkStopwatch) { $chunkStopwatch.Stop() }
                         @{
                             ChunkIndex     = $chunkIndex
@@ -844,6 +901,10 @@
 
                 $runspacePool.Close()
                 $runspacePool.Dispose()
+                
+                # Force garbage collection after runspace pool completes to reclaim thread memory
+                [System.GC]::Collect()
+                [System.GC]::WaitForPendingFinalizers()
             }
 
             # Complete progress
@@ -885,11 +946,86 @@
             Write-Information "Total chunks: $($results.Count) | Total events: $totalEvents | Total size: $([math]::Round($totalSizeKB / 1024, 2)) MB" -InformationAction Continue
             Write-Information "Cumulative download time: $([math]::Round($totalElapsed, 2))s | Wall-clock time: $([math]::Round($wallClockSeconds, 2))s | Effective rate: $overallEventsPerSec events/sec" -InformationAction Continue
 
-            # Merge all JSON files with progress
+            # Merge all JSON files with progress - using memory-efficient streaming
             Write-Progress -Activity "Processing Results" -Status "Merging chunk files..." -PercentComplete 0 -Id 2
             Write-Verbose "Merging results from $($results.Count) chunk(s)..."
-            $allEvents = [System.Collections.Generic.List[object]]::new()
+            
             $jsonFiles = Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue | Sort-Object Name
+
+            # If ExportPath is specified, use pure file-based merge (most memory efficient)
+            if ($PSBoundParameters.ContainsKey('ExportPath')) {
+                Write-Verbose "Exporting to file using streaming merge (memory-efficient)..."
+                $exportDir = Split-Path -Parent $ExportPath
+                if ($exportDir -and -not (Test-Path $exportDir)) {
+                    New-Item -Path $exportDir -ItemType Directory -Force | Out-Null
+                }
+                
+                # Stream merge directly to export file without loading into memory
+                $exportWriter = [System.IO.StreamWriter]::new($ExportPath, $false, [System.Text.Encoding]::UTF8)
+                try {
+                    $exportWriter.Write('[')
+                    $isFirstEvent = $true
+                    $fileIndex = 0
+                    $totalFiles = $jsonFiles.Count
+                    
+                    foreach ($file in $jsonFiles) {
+                        $fileIndex++
+                        $percentComplete = [math]::Round(($fileIndex / [math]::Max(1, $totalFiles)) * 100)
+                        Write-Progress -Activity "Processing Results" -Status "Merging file $fileIndex of $totalFiles to export" -PercentComplete $percentComplete -Id 2
+                        
+                        # Read file content as text and extract just the Events array
+                        $rawContent = [System.IO.File]::ReadAllText($file.FullName)
+                        # Find Events array - it starts after "Events":[ and ends before ],"EventCount" or ]}
+                        $eventsStart = $rawContent.IndexOf('"Events":[') + 10
+                        $eventsEnd = $rawContent.LastIndexOf('],"EventCount"')
+                        if ($eventsEnd -lt 0) { $eventsEnd = $rawContent.LastIndexOf(']}') }
+                        
+                        if ($eventsStart -gt 10 -and $eventsEnd -gt $eventsStart) {
+                            $eventsJson = $rawContent.Substring($eventsStart, $eventsEnd - $eventsStart)
+                            if ($eventsJson.Length -gt 0) {
+                                if (-not $isFirstEvent) { $exportWriter.Write(',') }
+                                $exportWriter.Write($eventsJson)
+                                $isFirstEvent = $false
+                            }
+                        }
+                        $rawContent = $null
+                        
+                        # GC periodically
+                        if ($fileIndex % 50 -eq 0) {
+                            [System.GC]::Collect()
+                        }
+                    }
+                    $exportWriter.Write(']')
+                } finally {
+                    $exportWriter.Close()
+                    $exportWriter.Dispose()
+                }
+                Write-Progress -Activity "Processing Results" -Completed -Id 2
+                Write-Information "Exported $totalEvents events to: $ExportPath" -InformationAction Continue
+                
+                # Clean up temp files unless KeepTempFiles is specified
+                if (-not $KeepTempFiles) {
+                    Write-Verbose "Cleaning up temporary files..."
+                    Remove-Item -Path $runTempPath -Recurse -Force -ErrorAction SilentlyContinue
+                } else {
+                    Write-Verbose "Temporary files kept at: $runTempPath"
+                }
+                
+                [System.GC]::Collect()
+                
+                # Return summary info instead of all events when exporting
+                return [PSCustomObject]@{
+                    ExportPath = $ExportPath
+                    TotalEvents = $totalEvents
+                    TotalChunks = $results.Count
+                    TotalSizeMB = [math]::Round($totalSizeKB / 1024, 2)
+                    WallClockSeconds = [math]::Round($wallClockSeconds, 2)
+                    EffectiveRate = $overallEventsPerSec
+                }
+            }
+            
+            # For in-memory return, load events but with aggressive memory management
+            $allEvents = [System.Collections.Generic.List[object]]::new([math]::Max(10000, $totalEvents))
 
             $fileIndex = 0
             $totalFiles = $jsonFiles.Count
@@ -898,11 +1034,20 @@
                 $percentComplete = [math]::Round(($fileIndex / [math]::Max(1, $totalFiles)) * 100)
                 Write-Progress -Activity "Processing Results" -Status "Merging file $fileIndex of $totalFiles" -PercentComplete $percentComplete -Id 2
 
-                $chunkData = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json
+                # Read and process file, then clear to free memory
+                $rawContent = Get-Content -Path $file.FullName -Raw
+                $chunkData = $rawContent | ConvertFrom-Json
+                $rawContent = $null  # Free the raw string memory
+                
                 if ($chunkData.Events) {
-                    foreach ($eventItem in $chunkData.Events) {
-                        $allEvents.Add($eventItem)
-                    }
+                    $allEvents.AddRange($chunkData.Events)
+                }
+                $chunkData = $null  # Free parsed object memory
+                
+                # Force garbage collection every 100 files to prevent memory buildup
+                if ($fileIndex % 100 -eq 0) {
+                    [System.GC]::Collect()
+                    [System.GC]::WaitForPendingFinalizers()
                 }
             }
             Write-Progress -Activity "Processing Results" -Completed -Id 2
@@ -935,24 +1080,24 @@
                 Write-Verbose "Temporary files kept at: $runTempPath"
             }
 
-            # Sort events by timestamp (if available)
-            $sortedEvents = $allEvents
+            # Sort events in-place by timestamp (if available) to avoid creating a copy
             if ($allEvents.Count -gt 0 -and $allEvents[0].PSObject.Properties['Timestamp']) {
-                $sortedEvents = $allEvents | Sort-Object -Property Timestamp -Descending
+                Write-Verbose "Sorting $($allEvents.Count) events by timestamp..."
+                # Use Sort() method for in-place sorting (more memory efficient than Sort-Object)
+                $allEvents.Sort([System.Comparison[object]]{
+                    param($a, $b)
+                    # Sort descending (newest first)
+                    [datetime]::Compare($b.Timestamp, $a.Timestamp)
+                })
             }
 
-            # Export to file if ExportPath specified
-            if ($PSBoundParameters.ContainsKey('ExportPath')) {
-                Write-Verbose "Exporting $($sortedEvents.Count) events to: $ExportPath"
-                $exportDir = Split-Path -Parent $ExportPath
-                if ($exportDir -and -not (Test-Path $exportDir)) {
-                    New-Item -Path $exportDir -ItemType Directory -Force | Out-Null
-                }
-                $sortedEvents | ConvertTo-Json -Depth 100 | Out-File -FilePath $ExportPath -Encoding utf8
-                Write-Information "Exported $($sortedEvents.Count) events to: $ExportPath" -InformationAction Continue
-            }
-
-            return $sortedEvents
+            # Return results and clean up
+            $result = $allEvents.ToArray()
+            $allEvents.Clear()
+            $allEvents = $null
+            [System.GC]::Collect()
+            
+            return $result
         } catch {
             Write-Progress -Activity "Retrieving Device Timeline" -Completed -Id 1
             Write-Progress -Activity "Processing Results" -Completed -Id 2

@@ -533,14 +533,18 @@
                                 FileSizeKB     = $fileSizeKB
                             }
                         } catch {
+                            $chunkError = $_.ToString()
                             if ($streamWriter) {
-                                try { $streamWriter.Close(); $streamWriter.Dispose() } catch { }
+                                try { $streamWriter.Close(); $streamWriter.Dispose() } catch {
+                                    # Log disposal error but don't override the original error
+                                    Write-Warning "Failed to dispose stream writer for chunk $chunkIndex`: $_"
+                                }
                             }
                             if ($chunkStopwatch) { $chunkStopwatch.Stop() }
                             @{
                                 ChunkIndex     = $chunkIndex
                                 Success        = $false
-                                Error          = $_.ToString()
+                                Error          = $chunkError
                                 FromDate       = $chunkFromDate
                                 ToDate         = $chunkToDate
                                 ElapsedSeconds = if ($chunkStopwatch) { [math]::Round($chunkStopwatch.Elapsed.TotalSeconds, 2) } else { 0 }
@@ -781,14 +785,18 @@
                             FileSizeKB     = $fileSizeKB
                         }
                     } catch {
+                        $chunkError = $_.ToString()
                         if ($streamWriter) {
-                            try { $streamWriter.Close(); $streamWriter.Dispose() } catch { }
+                            try { $streamWriter.Close(); $streamWriter.Dispose() } catch {
+                                # Log disposal error but don't override the original error
+                                Write-Warning "Failed to dispose stream writer for chunk $chunkIndex`: $_"
+                            }
                         }
                         if ($chunkStopwatch) { $chunkStopwatch.Stop() }
                         @{
                             ChunkIndex     = $chunkIndex
                             Success        = $false
-                            Error          = $_.ToString()
+                            Error          = $chunkError
                             FromDate       = $chunkFromDate
                             ToDate         = $chunkToDate
                             ElapsedSeconds = if ($chunkStopwatch) { [math]::Round($chunkStopwatch.Elapsed.TotalSeconds, 2) } else { 0 }

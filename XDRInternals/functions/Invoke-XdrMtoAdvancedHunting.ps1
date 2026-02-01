@@ -85,6 +85,7 @@
         Warnings are generated for any tenant that returns an error.
         Verbose output includes per-tenant latency information.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseLiteralInitializerForHashtable', '', Justification = 'PSUseLiteralInitializerForHashtable')]
     [CmdletBinding(DefaultParameterSetName = 'DaysAgo')]
     [OutputType([PSCustomObject])]
     param (
@@ -168,7 +169,7 @@
         Write-Verbose "End time: $endTimeString"
 
         # Build the request body
-        $body = [hashtable]::new()
+        $body = [hashtable]::new();
         $body.Add("QueryText" , $QueryText)
         $body.Add("EncodedQueryText" , $QueryText)
         $body.Add("StartTime"        , $startTimeString)
@@ -256,7 +257,7 @@
                     return $typedResults
                 } else {
                     Write-Verbose "No results in response"
-                    return @()
+                    return $null
                 }
             } else {
                 Write-Verbose "No results returned"

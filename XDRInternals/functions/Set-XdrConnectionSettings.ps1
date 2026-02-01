@@ -2,15 +2,15 @@
     <#
     .SYNOPSIS
         Creates XDR connection settings using authentication cookies.
-    
+
     .DESCRIPTION
         Creates global session and headers variables for XDR API calls using the provided
         sccauth and XSRF token values. This function sets up the necessary authentication
         context for other XDR cmdlets to interact with the Microsoft Defender XDR portal.
-    
+
     .PARAMETER sccauth
         The sccauth cookie value from an authenticated session to security.microsoft.com.
-    
+
     .PARAMETER xsrf
         The XSRF-TOKEN cookie value from an authenticated session to security.microsoft.com.
 
@@ -21,11 +21,15 @@
     .PARAMETER WebSession
         An optional WebRequestSession object to use for the requests. If not provided,
         a new session will be created.
-    
+
+    .PARAMETER ResetWebSession
+        If specified, resets the existing WebSession by creating a new one while retaining
+        the existing authentication cookies.
+
     .EXAMPLE
         Set-XdrConnectionSettings -sccauth "your_sccauth_value" -xsrf "your_xsrf_value"
         Creates XDR connection settings using the provided authentication cookies.
-    
+
     .OUTPUTS
         String
         Returns a confirmation message when connection settings are created.
@@ -83,8 +87,8 @@
         $script:session.Cookies.Add((New-Object System.Net.Cookie("sccauth", $SccAuthValue, "/", "security.microsoft.com")))
         $script:session.Cookies.Add((New-Object System.Net.Cookie("XSRF-TOKEN", $XsrfValue, "/", "security.microsoft.com")))
     }
-    
-    
+
+
     if ($PSBoundParameters.ContainsKey('WebSession')) {
         # Use the provided WebSession instead of creating a new one
         $script:session = $WebSession
@@ -118,7 +122,7 @@
     }
     if ( -not [string]::IsNullOrWhiteSpace($TenantId)) {
         $script:headers["x-tid"] = $TenantId
-        $script:headers["tenant-id"] = $TenantId        
+        $script:headers["tenant-id"] = $TenantId
     }
 
     # Cache the XSRF token with 5 minute TTL

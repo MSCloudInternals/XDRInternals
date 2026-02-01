@@ -91,6 +91,7 @@ Get-XdrTenantContext -Force
 | Get-XdrIdentityStatistic                                    | Get identity statistics                                       |
 | Get-XdrIncident                                             | Retrieve incidents with filtering and pagination              |
 | Get-XdrIncidentAssociatedAlert                              | Retrieve alerts associated with a specific incident           |
+| Get-XdrMtoTenantList                                        | Get list of tenants in MTO multi-tenant view                  |
 | Get-XdrStreamingApiConfiguration                            | Get Streaming API configuration                               |
 | Get-XdrSuppressionRule                                      | Retrieve alert suppression rules                              |
 | Get-XdrTenantContext                                        | Retrieve tenant context information                           |
@@ -101,6 +102,7 @@ Get-XdrTenantContext -Force
 | Get-XdrXspmTopEntryPoint                                    | Retrieve top entry points from attack paths                   |
 | Get-XdrXspmTopTarget                                        | Get top targets from attack paths                             |
 | Invoke-XdrHuntingQueryValidation                            | Validate an Advanced Hunting query for custom detection rules |
+| Invoke-XdrMtoAdvancedHunting                                | Execute Advanced Hunting queries across multiple tenants      |
 | Invoke-XdrRestMethod                                        | Invoke REST API calls to XDR endpoints                        |
 | Invoke-XdrXspmHuntingQuery                                  | Execute hunting queries against XSPM attack surface API       |
 | Merge-XdrIncident                                           | Merge multiple incidents into a single incident               |

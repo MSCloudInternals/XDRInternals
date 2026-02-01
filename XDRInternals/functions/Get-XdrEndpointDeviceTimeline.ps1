@@ -321,6 +321,10 @@
             if ($chunkEnd -gt $ToDate) {
                 $chunkEnd = $ToDate
             }
+            if ($chunkEnd -ge $ToDate) {
+                # Prevent infinite loop if chunkEnd is greater or equal to ToDate
+                break
+            }
             $dateChunks.Add(@{
                     FromDate = $currentDate
                     ToDate   = $chunkEnd
@@ -1023,12 +1027,12 @@
                 
                 # Return summary info instead of all events when exporting
                 return [PSCustomObject]@{
-                    ExportPath = $ExportPath
-                    TotalEvents = $totalEvents
-                    TotalChunks = $results.Count
-                    TotalSizeMB = [math]::Round($totalSizeKB / 1024, 2)
+                    ExportPath       = $ExportPath
+                    TotalEvents      = $totalEvents
+                    TotalChunks      = $results.Count
+                    TotalSizeMB      = [math]::Round($totalSizeKB / 1024, 2)
                     WallClockSeconds = [math]::Round($wallClockSeconds, 2)
-                    EffectiveRate = $overallEventsPerSec
+                    EffectiveRate    = $overallEventsPerSec
                 }
             }
             
@@ -1092,11 +1096,11 @@
             if ($allEvents.Count -gt 0 -and $allEvents[0].PSObject.Properties['Timestamp']) {
                 Write-Verbose "Sorting $($allEvents.Count) events by timestamp..."
                 # Use Sort() method for in-place sorting (more memory efficient than Sort-Object)
-                $allEvents.Sort([System.Comparison[object]]{
-                    param($a, $b)
-                    # Sort descending (newest first)
-                    [datetime]::Compare($b.Timestamp, $a.Timestamp)
-                })
+                $allEvents.Sort([System.Comparison[object]] {
+                        param($a, $b)
+                        # Sort descending (newest first)
+                        [datetime]::Compare($b.Timestamp, $a.Timestamp)
+                    })
             }
 
             # Return results and clean up

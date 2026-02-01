@@ -51,13 +51,17 @@ Get-XdrTenantContext -Force
 | Get-XdrActionsCenterPending                                 | Retrieve pending actions from the Action Center               |
 | Get-XdrAdvancedHuntingFunction                              | Get saved Advanced Hunting functions                          |
 | Get-XdrAdvancedHuntingTableSchema                           | Get the schema for Advanced Hunting tables                    |
+| Get-XdrAdvancedHuntingUnifiedDetectionRules                 | Get unified detection rules from Advanced Hunting             |
 | Get-XdrAdvancedHuntingUserHistory                           | Retrieve user's Advanced Hunting query history                |
 | Get-XdrAlert                                                | Retrieve alerts with filtering and pagination                 |
+| Get-XdrCloudAppsGeneralSetting                              | Get Cloud Apps general settings                               |
 | Get-XdrConfigurationAlertServiceSetting                     | Get alert service configuration settings                      |
 | Get-XdrConfigurationAlertTuning                             | Retrieve alert tuning and suppression rules                   |
 | Get-XdrConfigurationAssetRuleManagement                     | Get asset rule management configuration                       |
 | Get-XdrConfigurationCriticalAssetManagementClassification   | Retrieve critical asset management classification rules       |
 | Get-XdrConfigurationCriticalAssetManagementClassificationSchema | Get available properties for classification rules         |
+| Get-XdrConfigurationCriticalAssetManagement                 | Retrieve critical asset management settings                   |
+| Get-XdrConfigurationPreviewFeatures                         | Get and manage XDR preview features                           |
 | Get-XdrConfigurationServiceAccountClassification            | Get service account classification configuration              |
 | Get-XdrConfigurationUnifiedRBACWorkload                     | Retrieve Unified RBAC workload configuration                  |
 | Get-XdrDatalakeDatabase                                     | Get available datalake databases                              |
@@ -82,6 +86,7 @@ Get-XdrTenantContext -Force
 | Get-XdrEndpointDeviceVendor                                 | Retrieve device vendor information                            |
 | Get-XdrEndpointDeviceWindowsReleaseVersion                  | Get Windows release version information                       |
 | Get-XdrEndpointLicenseReport                                | Retrieve endpoint license report                              |
+| Get-XdrExposureManagementRecommendations                    | Get security recommendations from Exposure Management         |
 | Get-XdrIdentityAlertThreshold                               | Get alert threshold configuration for Defender for Identity   |
 | Get-XdrIdentityConfigurationDirectoryServiceAccount         | Retrieve directory service account configuration              |
 | Get-XdrIdentityConfigurationRemediationActionAccount        | Get remediation action account configuration                  |
@@ -97,6 +102,17 @@ Get-XdrTenantContext -Force
 | Get-XdrTenantContext                                        | Retrieve tenant context information                           |
 | Get-XdrTenants                                              | Retrieve list of accessible tenants                           |
 | Get-XdrTenantWorkloadStatus                                 | Get workload status for the tenant                            |
+| Get-XdrThreatAnalyticsOutbreaks                             | Retrieve threat analytics outbreak data (-ChangeCount, -TopThreats) |
+| Get-XdrUserPreference                                       | Get user preferences from Microsoft Defender XDR              |
+| Get-XdrVulnerabilityManagementAdvisories                    | Retrieve security advisories from TVM                         |
+| Get-XdrVulnerabilityManagementBaseline                      | Get security baseline assessment data from TVM                |
+| Get-XdrVulnerabilityManagementCertificates                  | Retrieve certificate inventory from TVM                       |
+| Get-XdrVulnerabilityManagementChangeEvents                  | Get change events from TVM                                    |
+| Get-XdrVulnerabilityManagementDashboard                     | Retrieve TVM dashboard data                                   |
+| Get-XdrVulnerabilityManagementExtensions                    | Get browser extension inventory from TVM                      |
+| Get-XdrVulnerabilityManagementProducts                      | Retrieve product information from TVM                         |
+| Get-XdrVulnerabilityManagementRemediationTasks              | Get remediation tasks and exceptions from TVM                 |
+| Get-XdrVulnerabilityManagementVulnerabilities               | Retrieve vulnerabilities from TVM (-Summary for stats)        |
 | Get-XdrXspmAttackPath                                       | Retrieve attack path data from XSPM                           |
 | Get-XdrXspmChokePoint                                       | Get choke points in attack paths                              |
 | Get-XdrXspmTopEntryPoint                                    | Retrieve top entry points from attack paths                   |
@@ -116,7 +132,7 @@ Get-XdrTenantContext -Force
 | Remove-XdrIdentityConfigurationRemediationActionAccount     | Remove remediation action account configuration               |
 | Set-XdrAdvancedHuntingFunction                              | Update existing Advanced Hunting functions                    |
 | Set-XdrConfigurationCriticalAssetManagementClassification   | Enable or disable classification rules                        |
-| Set-XdrConfigurationPreviewFeatures                         | Update preview feature settings                               |
+| Set-XdrConfigurationPreviewFeatures                         | Enable or disable XDR preview features                        |
 | Set-XdrConnectionSettings                                   | Configure connection settings for XDR                         |
 | Set-XdrEndpointAdvancedFeatures                             | Set endpoint advanced features configuration                  |
 | Set-XdrEndpointConfigurationCustomCollectionRule            | Update existing custom collection rules                       |

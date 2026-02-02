@@ -45,8 +45,6 @@
         [Parameter(Mandatory, ParameterSetName = 'Manual')]
         $Xsrf,
 
-        [Parameter(ParameterSetName = 'Manual')]
-        [Parameter(Mandatory, ParameterSetName = 'TenantId')]
         $TenantId,
 
         [Parameter(Mandatory, ParameterSetName = 'Websession')]
@@ -114,7 +112,7 @@
 
     # Set TenantId in cache and headers
     Write-Verbose "Caching TenantId with 1 day TTL"
-    if ($PSBoundParameters.ContainsKey('TenantId') -or $TenantId) {
+    if ( $TenantId ) {
         Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 1440
     } else {
         # Retrieve TenantId from XDR portal without using cache or dedicated function to avoid circular dependency

@@ -130,7 +130,7 @@
                 if ($cachedTenantList.Value) {
                     # Get the selected tenant from the cached list
                     $TenantIds = $cachedTenantList.Value | Select-Object -Unique -ExpandProperty tenantId
-                    Write-Verbose "Using tenant from cache: $($selectedTenant.name) ($($selectedTenant.tenantId))"
+                    Write-Verbose "Using tenant from cache: $($TenantIds.name) ($($TenantIds.tenantId))"
                 } else {
                     $XdrTenantId = Get-XdrCache -CacheKey "XdrTenantId" -ErrorAction SilentlyContinue
                     $tenantId = $XdrTenantId.Value

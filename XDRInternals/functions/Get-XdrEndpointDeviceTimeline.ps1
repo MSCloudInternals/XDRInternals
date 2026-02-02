@@ -321,11 +321,19 @@
             if ($chunkEnd -gt $ToDate) {
                 $chunkEnd = $ToDate
             }
+            $DifferenceInSeconds = ($chunkEnd - $currentDate).TotalSeconds
+            Write-Debug "Chunk difference in seconds: $DifferenceInSeconds"
+            if ($DifferenceInSeconds -lt 1) {
+                # Prevent infinite loop in case of unexpected date calculation
+                Write-Debug "Chunk difference is less than 1 second; stopping chunk generation to avoid infinite loop."
+                break
+            }
             $dateChunks.Add(@{
                     FromDate = $currentDate
                     ToDate   = $chunkEnd
                     Index    = $chunkIndex
                 })
+            Write-Debug "$($dateChunks[$chunkIndex].FromDate.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')) to $($dateChunks[$chunkIndex].ToDate.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'))"
             $chunkIndex++
             $currentDate = $chunkEnd
         }
@@ -1023,12 +1031,12 @@
                 
                 # Return summary info instead of all events when exporting
                 return [PSCustomObject]@{
-                    ExportPath = $ExportPath
-                    TotalEvents = $totalEvents
-                    TotalChunks = $results.Count
-                    TotalSizeMB = [math]::Round($totalSizeKB / 1024, 2)
+                    ExportPath       = $ExportPath
+                    TotalEvents      = $totalEvents
+                    TotalChunks      = $results.Count
+                    TotalSizeMB      = [math]::Round($totalSizeKB / 1024, 2)
                     WallClockSeconds = [math]::Round($wallClockSeconds, 2)
-                    EffectiveRate = $overallEventsPerSec
+                    EffectiveRate    = $overallEventsPerSec
                 }
             }
             
@@ -1092,11 +1100,11 @@
             if ($allEvents.Count -gt 0 -and $allEvents[0].PSObject.Properties['Timestamp']) {
                 Write-Verbose "Sorting $($allEvents.Count) events by timestamp..."
                 # Use Sort() method for in-place sorting (more memory efficient than Sort-Object)
-                $allEvents.Sort([System.Comparison[object]]{
-                    param($a, $b)
-                    # Sort descending (newest first)
-                    [datetime]::Compare($b.Timestamp, $a.Timestamp)
-                })
+                $allEvents.Sort([System.Comparison[object]] {
+                        param($a, $b)
+                        # Sort descending (newest first)
+                        [datetime]::Compare($b.Timestamp, $a.Timestamp)
+                    })
             }
 
             # Return results and clean up

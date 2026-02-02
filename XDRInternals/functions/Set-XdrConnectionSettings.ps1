@@ -45,7 +45,7 @@
         [Parameter(Mandatory, ParameterSetName = 'Manual')]
         $Xsrf,
 
-        [Parameter(Mandatory, ParameterSetName = 'Manual')]
+        [Parameter(ParameterSetName = 'Manual')]
         [Parameter(Mandatory, ParameterSetName = 'TenantId')]
         $TenantId,
 
@@ -117,7 +117,10 @@
     if ($PSBoundParameters.ContainsKey('TenantId') -or $TenantId) {
         Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 1440
     } else {
-        $TenantId = (Get-XdrTenantContext).AuthInfo.TenantId
+        # Retrieve TenantId from XDR portal without using cache or dedicated function to avoid circular dependency
+        Write-Verbose "Retrieving TenantId from XDR portal"
+        $XdrTenantContext = Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/sccManagement/mgmt/TenantContext?realTime=true" -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+        $TenantId = $XdrTenantContext.AuthInfo.TenantId
         Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 1440
     }
     if ( -not [string]::IsNullOrWhiteSpace($TenantId)) {

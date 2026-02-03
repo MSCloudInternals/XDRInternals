@@ -402,13 +402,14 @@ foreach ($cmdletGroup in @($getCmdlets, $setCmdlets, $otherCmdlets)) {
     }
 }
 
-# Convert to array and sort alphabetically by Cmdlet name for JSON output
+# Convert to array and sort alphabetically by Cmdlet, then by ApiUri for JSON output
 # Note: Must convert ordered hashtables to PSCustomObjects for Sort-Object to work correctly
+# Use explicit string comparison to ensure stable, deterministic sort order
 $apiMappingArray = [System.Collections.ArrayList]@()
 $existingMappings.Values | ForEach-Object {
     # Convert ordered hashtable to PSCustomObject
     [PSCustomObject]$_
-} | Sort-Object -Property Cmdlet | ForEach-Object {
+} | Sort-Object -Property @{Expression={$_.Cmdlet}; Ascending=$true}, @{Expression={$_.ApiUri}; Ascending=$true} | ForEach-Object {
     # Convert back to ordered hashtable for JSON serialization
     $mapping = [ordered]@{
         Cmdlet = $_.Cmdlet

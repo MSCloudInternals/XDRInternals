@@ -119,6 +119,13 @@ foreach ($file in $cmdletFiles) {
         # Normalize the URI (remove query strings, convert variables to placeholders)
         $uri = Normalize-ApiUri -Uri $uri
         
+        # Skip URIs that are just the base domain + placeholder (incomplete URIs)
+        # Example: https://security.microsoft.com{Endpoint}
+        if ($uri -match '^https://[^/]+\{[\w]+\}$') {
+            Write-Verbose "Skipping incomplete URI pattern in $($file.Name): $uri"
+            continue
+        }
+        
         # Try to extract parameter mappings
         $parameters = @{}
         
@@ -167,6 +174,13 @@ foreach ($file in $cmdletFiles) {
         
         # Normalize the URI (remove query strings, convert variables to placeholders)
         $uri = Normalize-ApiUri -Uri $uri
+        
+        # Skip URIs that are just the base domain + placeholder (incomplete URIs)
+        # Example: https://security.microsoft.com{Endpoint}
+        if ($uri -match '^https://[^/]+\{[\w]+\}$') {
+            Write-Verbose "Skipping incomplete URI pattern in $($file.Name): $uri"
+            continue
+        }
         
         # Try to extract parameter mappings
         $parameters = @{}
@@ -293,6 +307,13 @@ if (Test-Path $jsonPath) {
             if ($validCmdletNames -contains $mapping.Cmdlet) {
                 # Normalize the existing API URI
                 $normalizedUri = Normalize-ApiUri -Uri $mapping.ApiUri
+                
+                # Skip incomplete URIs (just domain + placeholder)
+                if ($normalizedUri -match '^https://[^/]+\{[\w]+\}$') {
+                    Write-Verbose "Removing incomplete URI pattern from cache: $($mapping.Cmdlet) - $normalizedUri"
+                    $deletedCount++
+                    continue
+                }
                 
                 # Cmdlet still exists, keep the mapping
                 $key = "$($mapping.Cmdlet)|$normalizedUri"

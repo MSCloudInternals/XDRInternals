@@ -187,11 +187,11 @@
   },
   {
     "Cmdlet": "Get-XdrIdentityConfigurationRemediationActionAccount",
-    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials"
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/remediationActions/configuration"
   },
   {
     "Cmdlet": "Get-XdrIdentityConfigurationRemediationActionAccount",
-    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/remediationActions/configuration"
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials"
   },
   {
     "Cmdlet": "Get-XdrIdentityDomainControllerCoverage",
@@ -277,19 +277,15 @@
   },
   {
     "Cmdlet": "Get-XdrThreatAnalyticsOutbreaks",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks"
+  },
+  {
+    "Cmdlet": "Get-XdrThreatAnalyticsOutbreaks",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks/topThreats"
   },
   {
     "Cmdlet": "Get-XdrThreatAnalyticsOutbreaks",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks/changeCount"
-  },
-  {
-    "Cmdlet": "Get-XdrThreatAnalyticsOutbreaks",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks"
-  },
-  {
-    "Cmdlet": "Get-XdrVulnerabilityManagementRemediationTasks",
-    "ApiUri": "https://security.microsoft.com{Endpoint}"
   },
   {
     "Cmdlet": "Invoke-XdrHuntingQueryValidation",
@@ -418,11 +414,11 @@
   },
   {
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting"
   },
   {
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SaveAdvancedFeaturesSetting"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense"
   },
   {
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
@@ -430,15 +426,15 @@
   },
   {
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/update_properties"
-  },
-  {
-    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/provision"
   },
   {
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SaveAdvancedFeaturesSetting"
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/update_properties"
   },
   {
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",

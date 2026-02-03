@@ -49,6 +49,96 @@ if ($cmdletFiles.Count -eq 0) {
 
 Write-Host "📁 Found $($cmdletFiles.Count) cmdlet files" -ForegroundColor Green
 
+# Helper function to sort hashtable keys alphabetically
+function ConvertTo-SortedHashtable {
+    param([hashtable]$InputHashtable)
+    
+    if ($InputHashtable.Count -eq 0) {
+        return @{}
+    }
+    
+    $sorted = [ordered]@{}
+    $InputHashtable.Keys | Sort-Object | ForEach-Object {
+        $sorted[$_] = $InputHashtable[$_]
+    }
+    return $sorted
+}
+
+# Helper function to convert PSCustomObject or hashtable to sorted hashtable
+function ConvertTo-SortedHashtableFromObject {
+    param($InputObject)
+    
+    if ($null -eq $InputObject) {
+        return @{}
+    }
+    
+    if ($InputObject -is [PSCustomObject]) {
+        $hash = @{}
+        $InputObject.PSObject.Properties | ForEach-Object {
+            $hash[$_.Name] = $_.Value
+        }
+        return ConvertTo-SortedHashtable -InputHashtable $hash
+    } elseif ($InputObject -is [hashtable]) {
+        return ConvertTo-SortedHashtable -InputHashtable $InputObject
+    }
+    
+    return $InputObject
+}
+
+# Helper function to test if URI is incomplete (just domain + placeholder)
+function Test-IncompleteUri {
+    param([string]$Uri)
+    return $Uri -match '^https://[^/]+\{[\w]+\}$'
+}
+
+# Helper function to extract API parameters from cmdlet content
+function Get-ApiParameters {
+    param([string]$Content)
+    
+    $parameters = @{}
+    
+    # Look for body properties being set
+    if ($Content -match '(?s)\$body\s*=\s*@\{([^}]+)\}') {
+        $bodyBlock = $Matches[1]
+        $bodyMatches = [regex]::Matches($bodyBlock, '(\w+)\s*=\s*\$(\w+)')
+        foreach ($bm in $bodyMatches) {
+            $bodyKey = $bm.Groups[1].Value
+            $paramName = $bm.Groups[2].Value
+            $parameters[$paramName] = "body.$bodyKey"
+        }
+    }
+    
+    # Look for custom headers
+    $headerMatches = [regex]::Matches($Content, '\$(?:custom)?[Hh]eaders\[["\''](\w-]+)["\'']]\s*=\s*\$(\w+)')
+    foreach ($hm in $headerMatches) {
+        $headerName = $hm.Groups[1].Value
+        $paramName = $hm.Groups[2].Value
+        $parameters[$paramName] = "header:$headerName"
+    }
+    
+    return $parameters
+}
+
+# Helper function to create API mapping object
+function New-ApiMapping {
+    param(
+        [string]$CmdletName,
+        [string]$Uri,
+        [hashtable]$Parameters
+    )
+    
+    $mapping = [ordered]@{
+        Cmdlet = $CmdletName
+        ApiUri = $Uri
+    }
+    
+    if ($Parameters.Count -gt 0) {
+        $mapping.Parameters = ConvertTo-SortedHashtable -InputHashtable $Parameters
+    }
+    
+    return $mapping
+}
+
 # Helper function to normalize API URIs
 function Normalize-ApiUri {
     param([string]$Uri)
@@ -107,7 +197,7 @@ foreach ($file in $cmdletFiles) {
     }
     
     # Extract API URIs and build parameters mapping
-    $apiMappings = @()
+    $apiMappings = [System.Collections.ArrayList]@()
     
     # Pattern 1: Find $Uri = "https://..." variable assignments
     $uriAssignmentPattern = '\$Uri\s*=\s*["\''](https://security\.microsoft\.com[^"'']+)["\'']\s*'
@@ -120,47 +210,20 @@ foreach ($file in $cmdletFiles) {
         $uri = Normalize-ApiUri -Uri $uri
         
         # Skip URIs that are just the base domain + placeholder (incomplete URIs)
-        # Example: https://security.microsoft.com{Endpoint}
-        if ($uri -match '^https://[^/]+\{[\w]+\}$') {
+        if (Test-IncompleteUri -Uri $uri) {
             Write-Verbose "Skipping incomplete URI pattern in $($file.Name): $uri"
             continue
         }
         
-        # Try to extract parameter mappings
-        $parameters = @{}
+        # Extract parameter mappings
+        $parameters = Get-ApiParameters -Content $content
         
-        # Look for body properties being set
-        if ($content -match '(?s)\$body\s*=\s*@\{([^}]+)\}') {
-            $bodyBlock = $Matches[1]
-            # Extract key = value pairs from body
-            $bodyMatches = [regex]::Matches($bodyBlock, '(\w+)\s*=\s*\$(\w+)')
-            foreach ($bm in $bodyMatches) {
-                $bodyKey = $bm.Groups[1].Value
-                $paramName = $bm.Groups[2].Value
-                $parameters[$paramName] = "body.$bodyKey"
-            }
-        }
-        
-        # Look for custom headers
-        $headerMatches = [regex]::Matches($content, '\$(?:custom)?[Hh]eaders\[["\'']([\w-]+)["\'']]\s*=\s*\$(\w+)')
-        foreach ($hm in $headerMatches) {
-            $headerName = $hm.Groups[1].Value
-            $paramName = $hm.Groups[2].Value
-            $parameters[$paramName] = "header:$headerName"
-        }
-        
-        $mapping = [ordered]@{
-            Cmdlet = $cmdletName
-            ApiUri = $uri
-        }
-        
-        if ($parameters.Count -gt 0) {
-            $mapping.Parameters = $parameters
-        }
+        # Create mapping object
+        $mapping = New-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $parameters
         
         # Only add unique URIs for this cmdlet
         if (-not ($apiMappings | Where-Object { $_.ApiUri -eq $uri })) {
-            $apiMappings += $mapping
+            [void]$apiMappings.Add($mapping)
         }
     }
     
@@ -176,47 +239,20 @@ foreach ($file in $cmdletFiles) {
         $uri = Normalize-ApiUri -Uri $uri
         
         # Skip URIs that are just the base domain + placeholder (incomplete URIs)
-        # Example: https://security.microsoft.com{Endpoint}
-        if ($uri -match '^https://[^/]+\{[\w]+\}$') {
+        if (Test-IncompleteUri -Uri $uri) {
             Write-Verbose "Skipping incomplete URI pattern in $($file.Name): $uri"
             continue
         }
         
-        # Try to extract parameter mappings
-        $parameters = @{}
+        # Extract parameter mappings
+        $parameters = Get-ApiParameters -Content $content
         
-        # Look for body properties being set
-        if ($content -match '(?s)\$body\s*=\s*@\{([^}]+)\}') {
-            $bodyBlock = $Matches[1]
-            # Extract key = value pairs from body
-            $bodyMatches = [regex]::Matches($bodyBlock, '(\w+)\s*=\s*\$(\w+)')
-            foreach ($bm in $bodyMatches) {
-                $bodyKey = $bm.Groups[1].Value
-                $paramName = $bm.Groups[2].Value
-                $parameters[$paramName] = "body.$bodyKey"
-            }
-        }
-        
-        # Look for custom headers
-        $headerMatches = [regex]::Matches($content, '\$(?:custom)?[Hh]eaders\[["\'']([\w-]+)["\'']]\s*=\s*\$(\w+)')
-        foreach ($hm in $headerMatches) {
-            $headerName = $hm.Groups[1].Value
-            $paramName = $hm.Groups[2].Value
-            $parameters[$paramName] = "header:$headerName"
-        }
-        
-        $mapping = [ordered]@{
-            Cmdlet = $cmdletName
-            ApiUri = $uri
-        }
-        
-        if ($parameters.Count -gt 0) {
-            $mapping.Parameters = $parameters
-        }
+        # Create mapping object
+        $mapping = New-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $parameters
         
         # Only add unique URIs for this cmdlet
         if (-not ($apiMappings | Where-Object { $_.ApiUri -eq $uri })) {
-            $apiMappings += $mapping
+            [void]$apiMappings.Add($mapping)
         }
     }
     
@@ -309,7 +345,7 @@ if (Test-Path $jsonPath) {
                 $normalizedUri = Normalize-ApiUri -Uri $mapping.ApiUri
                 
                 # Skip incomplete URIs (just domain + placeholder)
-                if ($normalizedUri -match '^https://[^/]+\{[\w]+\}$') {
+                if (Test-IncompleteUri -Uri $normalizedUri) {
                     Write-Verbose "Removing incomplete URI pattern from cache: $($mapping.Cmdlet) - $normalizedUri"
                     $deletedCount++
                     continue
@@ -324,7 +360,7 @@ if (Test-Path $jsonPath) {
                     ApiUri = $normalizedUri
                 }
                 if ($mapping.Parameters) {
-                    $updatedMapping.Parameters = $mapping.Parameters
+                    $updatedMapping.Parameters = ConvertTo-SortedHashtableFromObject -InputObject $mapping.Parameters
                 }
                 
                 $existingMappings[$key] = $updatedMapping
@@ -379,7 +415,7 @@ $existingMappings.Values | ForEach-Object {
         ApiUri = $_.ApiUri
     }
     if ($_.Parameters) {
-        $mapping.Parameters = $_.Parameters
+        $mapping.Parameters = ConvertTo-SortedHashtableFromObject -InputObject $_.Parameters
     }
     [void]$apiMappingArray.Add($mapping)
 }

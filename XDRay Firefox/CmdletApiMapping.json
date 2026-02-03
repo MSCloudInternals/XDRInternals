@@ -34,8 +34,8 @@
     "Cmdlet": "Get-XdrAdvancedHuntingUserHistory",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/reports/userHistory",
     "Parameters": {
-      "startTimeString": "body.startTime",
-      "MaxResults": "body.maxResults"
+      "MaxResults": "body.maxResults",
+      "startTimeString": "body.startTime"
     }
   },
   {
@@ -44,9 +44,9 @@
     "Parameters": {
       "currentPage": "body.pageNumber",
       "DaysAgo": "body.daysAgo",
-      "PageSize": "body.pageSize",
+      "false": "body.shouldReturnAlertsLinkedBy",
       "Order": "body.order",
-      "false": "body.shouldReturnAlertsLinkedBy"
+      "PageSize": "body.pageSize"
     }
   },
   {
@@ -201,10 +201,10 @@
     "Cmdlet": "Get-XdrIdentityIdentity",
     "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities",
     "Parameters": {
-      "pageSizeForAll": "body.PageSize",
-      "SortDirection": "body.Direction",
       "currentSkip": "body.Skip",
-      "SortByField": "body.Field"
+      "pageSizeForAll": "body.PageSize",
+      "SortByField": "body.Field",
+      "SortDirection": "body.Direction"
     }
   },
   {
@@ -227,36 +227,36 @@
     "Cmdlet": "Get-XdrIncident",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidentQueue/incidents/{IncidentId}",
     "Parameters": {
-      "null": "body.requestType",
-      "SortOrder": "body.sortOrder",
-      "LookBackInDays": "body.lookBackInDays",
-      "true": "body.filterByLastUpdateTime",
-      "DefenderExpertsLicensed": "body.isDexLicense",
       "currentPageIndex": "body.pageIndex",
+      "DefenderExpertsLicensed": "body.isDexLicense",
+      "LookBackInDays": "body.lookBackInDays",
+      "null": "body.requestType",
       "PageSize": "body.pageSize",
-      "SortByField": "body.sortByField"
+      "SortByField": "body.sortByField",
+      "SortOrder": "body.sortOrder",
+      "true": "body.filterByLastUpdateTime"
     }
   },
   {
     "Cmdlet": "Get-XdrIncident",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidentQueue/incidents/alerts",
     "Parameters": {
-      "null": "body.requestType",
-      "SortOrder": "body.sortOrder",
-      "LookBackInDays": "body.lookBackInDays",
-      "true": "body.filterByLastUpdateTime",
-      "DefenderExpertsLicensed": "body.isDexLicense",
       "currentPageIndex": "body.pageIndex",
+      "DefenderExpertsLicensed": "body.isDexLicense",
+      "LookBackInDays": "body.lookBackInDays",
+      "null": "body.requestType",
       "PageSize": "body.pageSize",
-      "SortByField": "body.sortByField"
+      "SortByField": "body.sortByField",
+      "SortOrder": "body.sortOrder",
+      "true": "body.filterByLastUpdateTime"
     }
   },
   {
     "Cmdlet": "Get-XdrIncidentAssociatedAlert",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidents/{IncidentId}/AssociatedAlerts",
     "Parameters": {
-      "pageSize": "body.PageSize",
-      "pageIndex": "body.PageIndex"
+      "pageIndex": "body.PageIndex",
+      "pageSize": "body.PageSize"
     }
   },
   {
@@ -291,28 +291,26 @@
     "Cmdlet": "Invoke-XdrHuntingQueryValidation",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/rules/validateQuery",
     "Parameters": {
-      "QueryText": "body.QueryText",
-      "HuntingRule": "body.HuntingRule"
+      "HuntingRule": "body.HuntingRule",
+      "QueryText": "body.QueryText"
     }
   },
   {
     "Cmdlet": "Invoke-XdrXspmHuntingQuery",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/xspmatlas/attacksurface/query",
     "Parameters": {
-      "Top": "body.top",
-      "tenantId": "header:x-tid",
+      "Query": "body.query",
       "Skip": "body.skip",
-      "ScenarioName": "header:x-ms-scenario-name",
-      "Query": "body.query"
+      "Top": "body.top"
     }
   },
   {
     "Cmdlet": "Merge-XdrIncident",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidents/merge",
     "Parameters": {
-      "IncidentIds": "body.IncidentIds",
       "aadUserId": "body.AadUserId",
-      "Comment": "body.Comment"
+      "Comment": "body.Comment",
+      "IncidentIds": "body.IncidentIds"
     }
   },
   {
@@ -320,20 +318,20 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/alertsLinks/alerts/incidentLinks",
     "Parameters": {
       "Comment": "body.Comment",
+      "incidentIdValue": "body.IncidentId",
       "true": "body.ReturnOkIfAlertAlreadyLinkedToIncident",
-      "validAlertIds": "body.AlertIds",
-      "incidentIdValue": "body.IncidentId"
+      "validAlertIds": "body.AlertIds"
     }
   },
   {
     "Cmdlet": "New-XdrAdvancedHuntingFunction",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions",
     "Parameters": {
-      "normalizedPath": "body.Path",
       "Description": "body.Description",
       "IsShared": "body.IsShared",
       "KQLQuery": "body.Body",
-      "Name": "body.Name"
+      "Name": "body.Name",
+      "normalizedPath": "body.Path"
     }
   },
   {
@@ -354,11 +352,11 @@
     "Cmdlet": "New-XdrIdentityConfigurationRemediationActionAccount",
     "ApiUri": "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials",
     "Parameters": {
-      "true": "body.IsGroupManagedServiceAccount",
-      "IsSingleLabelAccountDomainName": "body.IsSingleLabelAccountDomainName",
       "AccountName": "body.AccountName",
       "DomainDnsName": "body.DomainDnsName",
-      "null": "body.AccountPassword"
+      "IsSingleLabelAccountDomainName": "body.IsSingleLabelAccountDomainName",
+      "null": "body.AccountPassword",
+      "true": "body.IsGroupManagedServiceAccount"
     }
   },
   {
@@ -369,8 +367,8 @@
     "Cmdlet": "Remove-XdrConfigurationCriticalAssetManagementClassification",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/xspmatlas/assetrules/{RuleId}",
     "Parameters": {
-      "true": "body.isDeleted",
-      "RuleId": "body.ruleId"
+      "RuleId": "body.ruleId",
+      "true": "body.isDeleted"
     }
   },
   {
@@ -384,12 +382,12 @@
     "Cmdlet": "Set-XdrAdvancedHuntingFunction",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions/{Id}",
     "Parameters": {
-      "functionPath": "body.Path",
+      "functionBody": "body.Body",
       "functionDescription": "body.Description",
       "functionInputParameters": "body.InputParameters",
       "functionIsShared": "body.IsShared",
-      "functionBody": "body.Body",
       "functionName": "body.Name",
+      "functionPath": "body.Path",
       "Id": "body.Id"
     }
   },

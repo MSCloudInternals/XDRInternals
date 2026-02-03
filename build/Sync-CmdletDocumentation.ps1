@@ -199,7 +199,7 @@ if ($readmeContent -match '(?s)(## Available Cmdlets\s*\n+\|[^\n]+\|\s*\n\|[^\n]
     
     $newTable = $tableHeader + ($tableRows -join "`n") + $tableEnd
     
-    $newReadmeContent = $readmeContent -replace '(?s)(## Available Cmdlets\s*\n\s*\|[^\n]+\|[^\n]+\|\s*\n\|[^\n]+\|\s*\n)(.+?)(\n\n##)', $newTable
+    $newReadmeContent = $readmeContent -replace '(?s)(## Available Cmdlets\s*\n+\|[^\n]+\|\s*\n\|[^\n]+\|\s*\n)(.+?)(\n+##\s+\w+)', $newTable
     
     if ($PSCmdlet.ShouldProcess($readmePath, "Update cmdlet table")) {
         $utf8Bom = New-Object System.Text.UTF8Encoding $true

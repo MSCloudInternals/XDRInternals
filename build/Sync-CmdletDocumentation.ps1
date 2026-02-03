@@ -246,8 +246,18 @@ foreach ($cmdletGroup in @($getCmdlets, $setCmdlets, $otherCmdlets)) {
     }
 }
 
-# Convert to array and sort by cmdlet name
-$apiMappingArray = @($existingMappings.Values | Sort-Object Cmdlet)
+# Convert to array and sort by ApiUri, then prefix priority (Get-* before Set-* before others), then cmdlet name
+$apiMappingArray = @(
+    $existingMappings.Values | Sort-Object `
+        -Property `
+            @{ Expression = { $_.ApiUri } }, `
+            @{ Expression = {
+                   if ($_.Cmdlet -like 'Get-*') { 0 }
+                   elseif ($_.Cmdlet -like 'Set-*') { 1 }
+                   else { 2 }
+               } }, `
+            @{ Expression = { $_.Cmdlet } }
+)
 
 Write-Host "  📊 API mappings: $($apiMappingArray.Count) total ($newCount new, $updatedCount updated, $deletedCount removed)" -ForegroundColor Green
 

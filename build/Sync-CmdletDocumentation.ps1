@@ -345,18 +345,26 @@ foreach ($cmdletGroup in @($getCmdlets, $setCmdlets, $otherCmdlets)) {
     }
 }
 
-# Convert to array and sort by ApiUri, then prefix priority (Get-* before Set-* before others), then cmdlet name
-$apiMappingArray = @(
-    $existingMappings.Values | Sort-Object `
-        -Property `
-            @{ Expression = { $_.ApiUri } }, `
-            @{ Expression = {
-                   if ($_.Cmdlet -like 'Get-*') { 0 }
-                   elseif ($_.Cmdlet -like 'Set-*') { 1 }
-                   else { 2 }
-               } }, `
-            @{ Expression = { $_.Cmdlet } }
-)
+# Convert to array and sort alphabetically by Cmdlet name for JSON output
+# Note: Must convert ordered hashtables to PSCustomObjects for Sort-Object to work correctly
+$apiMappingArray = [System.Collections.ArrayList]@()
+$existingMappings.Values | ForEach-Object {
+    # Convert ordered hashtable to PSCustomObject
+    [PSCustomObject]$_
+} | Sort-Object -Property Cmdlet | ForEach-Object {
+    # Convert back to ordered hashtable for JSON serialization
+    $mapping = [ordered]@{
+        Cmdlet = $_.Cmdlet
+        ApiUri = $_.ApiUri
+    }
+    if ($_.Parameters) {
+        $mapping.Parameters = $_.Parameters
+    }
+    [void]$apiMappingArray.Add($mapping)
+}
+
+# Debug: Show first few entries to verify sort
+Write-Verbose "First 5 cmdlets in sorted array: $($apiMappingArray[0..4].Cmdlet -join ', ')"
 
 Write-Host "  📊 API mappings: $($apiMappingArray.Count) total ($newCount new, $updatedCount updated, $deletedCount removed)" -ForegroundColor Green
 

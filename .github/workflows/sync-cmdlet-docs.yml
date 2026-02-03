@@ -39,7 +39,7 @@ jobs:
           fi
 
       - name: Commit and push changes
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.fork == false)
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

@@ -195,25 +195,61 @@ if ($psd1Content -match '(?s)FunctionsToExport\s*=\s*@\([^)]+\)') {
 
 Write-Host "`n🗺️  Building API mappings..." -ForegroundColor Cyan
 
-# Collect all API mappings, prioritizing Get- cmdlets
-$allApiMappings = @{}
+# Step 1: Load existing mappings and filter to only cmdlets that still exist
+$validCmdletNames = @($cmdlets.Name)
+$existingMappings = @{}
+$deletedCount = 0
 
-foreach ($cmdlet in $cmdlets) {
-    foreach ($mapping in $cmdlet.ApiMappings) {
-        $uri = $mapping.ApiUri
-        $isGetCmdlet = $cmdlet.Name -like 'Get-*'
-        
-        # If this URI doesn't exist yet, or current cmdlet is a Get- cmdlet, use it
-        if (-not $allApiMappings.ContainsKey($uri) -or $isGetCmdlet) {
-            $allApiMappings[$uri] = $mapping
+if (Test-Path $jsonPath) {
+    try {
+        $existingApiMappings = Get-Content -Path $jsonPath -Raw | ConvertFrom-Json
+        foreach ($mapping in $existingApiMappings) {
+            if ($validCmdletNames -contains $mapping.Cmdlet) {
+                # Cmdlet still exists, keep the mapping
+                $key = "$($mapping.Cmdlet)|$($mapping.ApiUri)"
+                $existingMappings[$key] = $mapping
+            } else {
+                $deletedCount++
+            }
+        }
+        Write-Host "  📥 Loaded $($existingMappings.Count) existing API mappings ($deletedCount orphaned entries removed)" -ForegroundColor Cyan
+    } catch {
+        Write-Warning "Could not load existing API mappings: $_"
+    }
+}
+
+# Step 2-4: Add/update mappings in priority order (Get-*, Set-*, others)
+# This ensures Get- cmdlets are preferred for any given URI
+$newCount = 0
+$updatedCount = 0
+
+# Group cmdlets by prefix for priority processing
+$getCmdlets = $cmdlets | Where-Object { $_.Name -like 'Get-*' }
+$setCmdlets = $cmdlets | Where-Object { $_.Name -like 'Set-*' }
+$otherCmdlets = $cmdlets | Where-Object { $_.Name -notlike 'Get-*' -and $_.Name -notlike 'Set-*' }
+
+foreach ($cmdletGroup in @($getCmdlets, $setCmdlets, $otherCmdlets)) {
+    foreach ($cmdlet in $cmdletGroup) {
+        foreach ($mapping in $cmdlet.ApiMappings) {
+            $key = "$($mapping.Cmdlet)|$($mapping.ApiUri)"
+            
+            if ($existingMappings.ContainsKey($key)) {
+                # Update existing mapping (in case parameters changed)
+                $existingMappings[$key] = $mapping
+                $updatedCount++
+            } else {
+                # Add new mapping
+                $existingMappings[$key] = $mapping
+                $newCount++
+            }
         }
     }
 }
 
 # Convert to array and sort by cmdlet name
-$apiMappingArray = @($allApiMappings.Values | Sort-Object Cmdlet)
+$apiMappingArray = @($existingMappings.Values | Sort-Object Cmdlet)
 
-Write-Host "  📊 Generated $($apiMappingArray.Count) API mappings" -ForegroundColor Green
+Write-Host "  📊 API mappings: $($apiMappingArray.Count) total ($newCount new, $updatedCount updated, $deletedCount removed)" -ForegroundColor Green
 
 # Convert to JSON with proper formatting
 $jsonContent = $apiMappingArray | ConvertTo-Json -Depth 10

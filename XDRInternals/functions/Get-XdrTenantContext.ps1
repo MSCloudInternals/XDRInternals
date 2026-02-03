@@ -1,4 +1,5 @@
 # Test workflow trigger
+# Test workflow trigger
 function Get-XdrTenantContext {
     <#
     .SYNOPSIS

@@ -74,7 +74,52 @@ foreach ($file in $cmdletFiles) {
     # Extract API URIs and build parameters mapping
     $apiMappings = @()
     
-    # Find all Invoke-RestMethod calls with URIs
+    # Pattern 1: Find $Uri = "https://..." variable assignments
+    $uriAssignmentPattern = '\$Uri\s*=\s*["\''](https://security\.microsoft\.com[^"'']+)["\'']\s*'
+    $uriAssignmentMatches = [regex]::Matches($content, $uriAssignmentPattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    
+    foreach ($match in $uriAssignmentMatches) {
+        $uri = $match.Groups[1].Value.Trim()
+        
+        # Try to extract parameter mappings
+        $parameters = @{}
+        
+        # Look for body properties being set
+        if ($content -match '(?s)\$body\s*=\s*@\{([^}]+)\}') {
+            $bodyBlock = $Matches[1]
+            # Extract key = value pairs from body
+            $bodyMatches = [regex]::Matches($bodyBlock, '(\w+)\s*=\s*\$(\w+)')
+            foreach ($bm in $bodyMatches) {
+                $bodyKey = $bm.Groups[1].Value
+                $paramName = $bm.Groups[2].Value
+                $parameters[$paramName] = "body.$bodyKey"
+            }
+        }
+        
+        # Look for custom headers
+        $headerMatches = [regex]::Matches($content, '\$(?:custom)?[Hh]eaders\[["\'']([\w-]+)["\'']]\s*=\s*\$(\w+)')
+        foreach ($hm in $headerMatches) {
+            $headerName = $hm.Groups[1].Value
+            $paramName = $hm.Groups[2].Value
+            $parameters[$paramName] = "header:$headerName"
+        }
+        
+        $mapping = @{
+            Cmdlet = $cmdletName
+            ApiUri = $uri
+        }
+        
+        if ($parameters.Count -gt 0) {
+            $mapping.Parameters = $parameters
+        }
+        
+        # Only add unique URIs for this cmdlet
+        if (-not ($apiMappings | Where-Object { $_.ApiUri -eq $uri })) {
+            $apiMappings += $mapping
+        }
+    }
+    
+    # Pattern 2: Find Invoke-RestMethod calls with literal URI strings (for cmdlets that don't use $Uri variable)
     $restMethodPattern = 'Invoke-RestMethod[^;]*?-Uri\s+["\''](https://security\.microsoft\.com[^"'']+)["\'']\s*[^;]*?(?:-Method\s+(\w+))?'
     $restMatches = [regex]::Matches($content, $restMethodPattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
     

@@ -16,11 +16,11 @@
   },
   {
     "Cmdlet": "Get-XdrAdvancedHuntingFunction",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/functions/defender/savedfunctions/{Id}"
   },
   {
     "Cmdlet": "Get-XdrAdvancedHuntingFunction",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/functions/defender/savedfunctions/{Id}"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions"
   },
   {
     "Cmdlet": "Get-XdrAdvancedHuntingTableSchema",
@@ -135,11 +135,11 @@
   },
   {
     "Cmdlet": "Get-XdrEndpointDeviceRbacGroup",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/userExposedRbacGroups/UserExposedRbacGroups"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/rbacManagementApi/rbac/machine_groups"
   },
   {
     "Cmdlet": "Get-XdrEndpointDeviceRbacGroup",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/rbacManagementApi/rbac/machine_groups"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/userExposedRbacGroups/UserExposedRbacGroups"
   },
   {
     "Cmdlet": "Get-XdrEndpointDeviceRbacGroupScope",
@@ -277,15 +277,15 @@
   },
   {
     "Cmdlet": "Get-XdrThreatAnalyticsOutbreaks",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks/changeCount"
+  },
+  {
+    "Cmdlet": "Get-XdrThreatAnalyticsOutbreaks",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks"
   },
   {
     "Cmdlet": "Get-XdrThreatAnalyticsOutbreaks",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks/topThreats"
-  },
-  {
-    "Cmdlet": "Get-XdrThreatAnalyticsOutbreaks",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks/changeCount"
   },
   {
     "Cmdlet": "Invoke-XdrHuntingQueryValidation",
@@ -412,6 +412,22 @@
   },
   {
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/provision"
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/update_properties"
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/wdatpInternalApi/compliance/alertSharing/status/"
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SaveAdvancedFeaturesSetting"
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting"
   },
   {
@@ -421,22 +437,6 @@
   {
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/deprovision"
-  },
-  {
-    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/provision"
-  },
-  {
-    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SaveAdvancedFeaturesSetting"
-  },
-  {
-    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/update_properties"
-  },
-  {
-    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/wdatpInternalApi/compliance/alertSharing/status/"
   },
   {
     "Cmdlet": "Set-XdrEndpointConfigurationCustomCollectionRule",

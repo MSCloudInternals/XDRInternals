@@ -49,6 +49,41 @@ if ($cmdletFiles.Count -eq 0) {
 
 Write-Host "📁 Found $($cmdletFiles.Count) cmdlet files" -ForegroundColor Green
 
+# Helper function to normalize API URIs
+function Normalize-ApiUri {
+    param([string]$Uri)
+    
+    # Strip query string parameters (everything after ?)
+    if ($Uri -match '^([^?]+)') {
+        $Uri = $Matches[1]
+    }
+    
+    # Convert PowerShell variables to placeholders - order matters!
+    
+    # Pattern 1: $({variable}.property) -> {Property}
+    while ($Uri -match '\$\(\{[^}]+\}\.(\w+)\)') {
+        $propName = $Matches[1]
+        $Uri = $Uri -replace [regex]::Escape($Matches[0]), "{$propName}"
+    }
+    
+    # Pattern 2: $($variable.property) -> {Property}
+    while ($Uri -match '\$\(\$\w+\.(\w+)\)') {
+        $propName = $Matches[1]
+        $Uri = $Uri -replace [regex]::Escape($Matches[0]), "{$propName}"
+    }
+    
+    # Pattern 3: $({variable}) -> {Variable}
+    $Uri = $Uri -replace '\$\(\{(\w+)\}\)', '{$1}'
+    
+    # Pattern 4: $($variable) -> {Variable}
+    $Uri = $Uri -replace '\$\(\$?(\w+)\)', '{$1}'
+    
+    # Pattern 5: $variable -> {Variable}
+    $Uri = $Uri -replace '\$(\w+)', '{$1}'
+    
+    return $Uri
+}
+
 # Extract cmdlet metadata
 $cmdlets = @()
 
@@ -81,6 +116,9 @@ foreach ($file in $cmdletFiles) {
     foreach ($match in $uriAssignmentMatches) {
         $uri = $match.Groups[1].Value.Trim()
         
+        # Normalize the URI (remove query strings, convert variables to placeholders)
+        $uri = Normalize-ApiUri -Uri $uri
+        
         # Try to extract parameter mappings
         $parameters = @{}
         
@@ -104,7 +142,7 @@ foreach ($file in $cmdletFiles) {
             $parameters[$paramName] = "header:$headerName"
         }
         
-        $mapping = @{
+        $mapping = [ordered]@{
             Cmdlet = $cmdletName
             ApiUri = $uri
         }
@@ -127,6 +165,9 @@ foreach ($file in $cmdletFiles) {
         $uri = $match.Groups[1].Value.Trim()
         $method = if ($match.Groups[2].Success) { $match.Groups[2].Value } else { "GET" }
         
+        # Normalize the URI (remove query strings, convert variables to placeholders)
+        $uri = Normalize-ApiUri -Uri $uri
+        
         # Try to extract parameter mappings
         $parameters = @{}
         
@@ -150,7 +191,7 @@ foreach ($file in $cmdletFiles) {
             $parameters[$paramName] = "header:$headerName"
         }
         
-        $mapping = @{
+        $mapping = [ordered]@{
             Cmdlet = $cmdletName
             ApiUri = $uri
         }
@@ -250,9 +291,22 @@ if (Test-Path $jsonPath) {
         $existingApiMappings = Get-Content -Path $jsonPath -Raw | ConvertFrom-Json
         foreach ($mapping in $existingApiMappings) {
             if ($validCmdletNames -contains $mapping.Cmdlet) {
+                # Normalize the existing API URI
+                $normalizedUri = Normalize-ApiUri -Uri $mapping.ApiUri
+                
                 # Cmdlet still exists, keep the mapping
-                $key = "$($mapping.Cmdlet)|$($mapping.ApiUri)"
-                $existingMappings[$key] = $mapping
+                $key = "$($mapping.Cmdlet)|$normalizedUri"
+                
+                # Update the mapping with normalized URI
+                $updatedMapping = [ordered]@{
+                    Cmdlet = $mapping.Cmdlet
+                    ApiUri = $normalizedUri
+                }
+                if ($mapping.Parameters) {
+                    $updatedMapping.Parameters = $mapping.Parameters
+                }
+                
+                $existingMappings[$key] = $updatedMapping
             } else {
                 $deletedCount++
             }

@@ -1,4 +1,5 @@
-﻿function Get-XdrTenantContext {
+# Test workflow trigger
+function Get-XdrTenantContext {
     <#
     .SYNOPSIS
         Retrieves the tenant context information from Microsoft Defender XDR.

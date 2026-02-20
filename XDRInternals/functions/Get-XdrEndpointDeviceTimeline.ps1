@@ -124,7 +124,9 @@
     [CmdletBinding(DefaultParameterSetName = 'ByDeviceId')]
     param (
         [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, ParameterSetName = 'ByDeviceId')]
-        [Alias('MachineId')]
+        [Alias('MachineId', 'SenseMachineId')]
+        [ValidateLength(40,40)]
+        [ValidatePattern('^[0-9a-fA-F]{40}$')]
         [string]$DeviceId,
 
         [Parameter(Mandatory, ParameterSetName = 'ByMachineDnsName')]

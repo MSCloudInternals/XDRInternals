@@ -46,7 +46,9 @@ Get-XdrTenantContext -Force
 | Cmdlet                                                          | Description                                                         |
 | --------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Connect-XdrByEstsCookie                                         | Authenticate to Microsoft Defender XDR using ESTS cookie            |
+| Connect-XdrEndpointDeviceLiveResponse                           | Start an interactive Live Response session on a device              |
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encode Advanced Hunting queries for URL/API usage                   |
+| Disconnect-XdrEndpointDeviceLiveResponse                        | Close an active Live Response session                               |
 | Get-XdrActionsCenterHistory                                     | Retrieve historical actions from the Action Center                  |
 | Get-XdrActionsCenterPending                                     | Retrieve pending actions from the Action Center                     |
 | Get-XdrAdvancedHuntingFunction                                  | Get saved Advanced Hunting functions                                |
@@ -76,8 +78,10 @@ Get-XdrTenantContext -Force
 | Get-XdrEndpointConfigurationPreviewFeature                      | Get preview feature configuration                                   |
 | Get-XdrEndpointConfigurationPurviewSharing                      | Retrieve Purview data sharing configuration                         |
 | Get-XdrEndpointDevice                                           | Get endpoint devices with filtering and pagination                  |
+| Get-XdrEndpointDeviceActionResult                               | Get device action results, status, and download URIs                |
 | Get-XdrEndpointDeviceModel                                      | Retrieve device models                                              |
 | Get-XdrEndpointDeviceOsVersionFriendlyName                      | Get friendly names for OS versions                                  |
+| Get-XdrEndpointDeviceLiveResponseLibrary                        | List files in the Live Response library                             |
 | Get-XdrEndpointDeviceRbacGroup                                  | Retrieve RBAC groups for devices                                    |
 | Get-XdrEndpointDeviceRbacGroupScope                             | Retrieve RBAC groups scope for devices                              |
 | Get-XdrEndpointDeviceTag                                        | Get device tags                                                     |
@@ -117,6 +121,10 @@ Get-XdrTenantContext -Force
 | Get-XdrXspmChokePoint                                           | Get choke points in attack paths                                    |
 | Get-XdrXspmTopEntryPoint                                        | Retrieve top entry points from attack paths                         |
 | Get-XdrXspmTopTarget                                            | Get top targets from attack paths                                   |
+| Invoke-XdrEndpointDeviceAction                                  | Unified cmdlet for all endpoint device actions                      |
+| Invoke-XdrEndpointDeviceAutomatedInvestigation                  | Start an automated investigation on a device                        |
+| Invoke-XdrEndpointDeviceLiveResponseCommand                     | Execute a command in a Live Response session programmatically       |
+| Invoke-XdrEndpointDevicePolicySync                              | Force a policy sync on a device                                     |
 | Invoke-XdrHuntingQueryValidation                                | Validate an Advanced Hunting query for custom detection rules       |
 | Invoke-XdrMtoAdvancedHunting                                    | Execute Advanced Hunting queries across multiple tenants            |
 | Invoke-XdrRestMethod                                            | Invoke REST API calls to XDR endpoints                              |
@@ -137,8 +145,13 @@ Get-XdrTenantContext -Force
 | Set-XdrConnectionSettings                                       | Configure connection settings for XDR                               |
 | Set-XdrEndpointAdvancedFeatures                                 | Set endpoint advanced features configuration                        |
 | Set-XdrEndpointConfigurationCustomCollectionRule                | Update existing custom collection rules                             |
+| Set-XdrEndpointDeviceAssetValue                                 | Set the asset value for one or more devices                         |
+| Set-XdrEndpointDeviceCriticalityLevel                           | Set the criticality level for one or more devices                   |
+| Set-XdrEndpointDeviceExclusionState                             | Set device exclusion state (Excluded/Included)                      |
 | Set-XdrEndpointDeviceRbacGroup                                  | Update endpoint device groups                                       |
+| Set-XdrEndpointDeviceTag                                        | Set user-defined tags on one or more devices                        |
 | Set-XdrIdentityConfigurationRemediationActionAccount            | Update remediation action account configuration                     |
+| Stop-XdrEndpointDeviceAction                                    | Cancel a pending device action by request GUID                      |
 | Update-XdrConnectionSettings                                    | Update and refresh connection settings                              |
 
 ## Installation

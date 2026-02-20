@@ -63,6 +63,7 @@
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(
         "Connect-XdrByEstsCookie",
+        "Connect-XdrEndpointDeviceLiveResponse",
         "ConvertTo-XdrEncodedAdvancedHuntingQuery",
         "Get-XdrActionsCenterHistory",
         "Get-XdrActionsCenterPending",
@@ -91,7 +92,10 @@
         "Get-XdrEndpointConfigurationPotentiallyUnwantedApplications",
         "Get-XdrEndpointConfigurationPreviewFeature",
         "Get-XdrEndpointConfigurationPurviewSharing",
+        "Disconnect-XdrEndpointDeviceLiveResponse",
         "Get-XdrEndpointDevice",
+        "Get-XdrEndpointDeviceActionResult",
+        "Get-XdrEndpointDeviceLiveResponseLibrary",
         "Get-XdrEndpointDeviceModel",
         "Get-XdrEndpointDeviceOsVersionFriendlyName",
         "Get-XdrEndpointDeviceRbacGroup",
@@ -132,6 +136,10 @@
         "Get-XdrXspmChokePoint",
         "Get-XdrXspmTopEntryPoint",
         "Get-XdrXspmTopTarget",
+        "Invoke-XdrEndpointDeviceAction",
+        "Invoke-XdrEndpointDeviceAutomatedInvestigation",
+        "Invoke-XdrEndpointDeviceLiveResponseCommand",
+        "Invoke-XdrEndpointDevicePolicySync",
         "Invoke-XdrHuntingQueryValidation",
         "Invoke-XdrMtoAdvancedHunting",
         "Invoke-XdrRestMethod",
@@ -151,8 +159,13 @@
         "Set-XdrConnectionSettings",
         "Set-XdrConfigurationPreviewFeatures",
         "Set-XdrEndpointAdvancedFeatures",
+        "Set-XdrEndpointDeviceAssetValue",
+        "Set-XdrEndpointDeviceCriticalityLevel",
+        "Set-XdrEndpointDeviceExclusionState",
         "Set-XdrEndpointConfigurationCustomCollectionRule",
         "Set-XdrEndpointDeviceRbacGroup",
+        "Set-XdrEndpointDeviceTag",
+        "Stop-XdrEndpointDeviceAction",
         "Set-XdrIdentityConfigurationRemediationActionAccount",
         "Update-XdrConnectionSettings"
     )

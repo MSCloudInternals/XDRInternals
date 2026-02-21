@@ -82,6 +82,7 @@ Get-XdrTenantContext -Force
 | Get-XdrEndpointDeviceModel                                      | Retrieve device models                                              |
 | Get-XdrEndpointDeviceOsVersionFriendlyName                      | Get friendly names for OS versions                                  |
 | Get-XdrEndpointDeviceLiveResponseLibrary                        | List files in the Live Response library                             |
+| Get-XdrEndpointDeviceLiveResponseLibraryFile                    | Download a script file from the Live Response library               |
 | Get-XdrEndpointDeviceRbacGroup                                  | Retrieve RBAC groups for devices                                    |
 | Get-XdrEndpointDeviceRbacGroupScope                             | Retrieve RBAC groups scope for devices                              |
 | Get-XdrEndpointDeviceTag                                        | Get device tags                                                     |
@@ -134,10 +135,12 @@ Get-XdrTenantContext -Force
 | New-XdrAdvancedHuntingFunction                                  | Create new Advanced Hunting functions                               |
 | New-XdrConfigurationCriticalAssetManagementClassification       | Create critical asset management classification rules               |
 | New-XdrEndpointConfigurationCustomCollectionRule                | Create custom collection rules from YAML files                      |
+| New-XdrEndpointDeviceLiveResponseLibraryFile                    | Upload a script file to the Live Response library                   |
 | New-XdrEndpointDeviceRbacGroup                                  | Create new endpoint device groups                                   |
 | New-XdrIdentityConfigurationRemediationActionAccount            | Create new remediation action account configuration                 |
 | Remove-XdrAdvancedHuntingFunction                               | Remove Advanced Hunting functions                                   |
 | Remove-XdrConfigurationCriticalAssetManagementClassification    | Remove critical asset management classification rules               |
+| Remove-XdrEndpointDeviceLiveResponseLibraryFile                 | Delete a file from the Live Response library                        |
 | Remove-XdrIdentityConfigurationRemediationActionAccount         | Remove remediation action account configuration                     |
 | Set-XdrAdvancedHuntingFunction                                  | Update existing Advanced Hunting functions                          |
 | Set-XdrConfigurationCriticalAssetManagementClassification       | Enable or disable classification rules                              |

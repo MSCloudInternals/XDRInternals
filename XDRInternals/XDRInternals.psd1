@@ -111,6 +111,8 @@
         "Get-XdrIdentityOnboardingStatus",
         "Get-XdrIdentityServiceAccount",
         "Get-XdrIdentityStatistic",
+        "Get-XdrIdentityUser",
+        "Get-XdrIdentityUserTimeline",
         "Get-XdrIncident",
         "Get-XdrIncidentAssociatedAlert",
         "Get-XdrStreamingApiConfiguration",

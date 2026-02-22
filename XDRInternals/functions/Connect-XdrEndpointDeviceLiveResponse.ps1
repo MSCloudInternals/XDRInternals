@@ -13,9 +13,13 @@
         Type 'help' to see available Live Response commands.
 
         Available Live Response commands include:
-        analyze, cd, cls, connect, connections, dir, drivers, fileinfo, findfile,
+        analyze, cd, cls, connect, connections, dir, drivers, fg, fileinfo, findfile,
         getfile, help, jobs, library, log, persistence, prefetch, processes, putfile,
-        registry, remediate, run, scheduledtasks, services, startup, trace, undo
+        registry, remediate, run, scheduledtasks, services, startupfolders, status,
+        trace, undo
+
+        Command aliases (e.g. ls, process, download) are supported and resolved automatically.
+        Use 'help <command>' for detailed syntax and flags for a specific command.
 
     .PARAMETER DeviceId
         The device ID (SenseMachineId) of the target device.
@@ -51,9 +55,10 @@
         # Known Live Response commands for tab completion fallback
         $knownCommands = @(
             'analyze', 'cd', 'cls', 'connect', 'connections', 'dir', 'drivers',
-            'fileinfo', 'findfile', 'getfile', 'help', 'jobs', 'library', 'log',
+            'fg', 'fileinfo', 'findfile', 'getfile', 'help', 'jobs', 'library', 'log',
             'persistence', 'prefetch', 'processes', 'putfile', 'registry',
-            'remediate', 'run', 'scheduledtasks', 'services', 'startup', 'trace', 'undo'
+            'remediate', 'run', 'scheduledtasks', 'services', 'startupfolders',
+            'status', 'trace', 'undo'
         )
 
         # Step 1: Get device details
@@ -141,11 +146,17 @@
                         if (-not $autoCommandId) { $autoCommandId = $autoCmd.id }
                         Write-Verbose "Discovered auto-created command: $autoCommandId"
 
-                        # Check if the command already completed in the list response
+                        # Check if the command already completed in the list response.
+                        # Status 1 = success; status 2+ = failed (e.g. existing session conflict).
+                        # For failures fall through to the polling section which extracts error details.
                         if ($autoCmd.completed_on -or ($null -ne $autoCmd.status -and $autoCmd.status -ne 0)) {
-                            $connected = $true
-                            Write-Verbose "Auto-created command already completed (status: $($autoCmd.status))"
-                            break
+                            if ($autoCmd.status -eq 1) {
+                                $connected = $true
+                                Write-Verbose "Auto-created command already completed successfully"
+                                break
+                            } else {
+                                Write-Verbose "Auto-created command already failed (status: $($autoCmd.status)); fetching full result for details"
+                            }
                         }
                     }
                 } catch {
@@ -164,11 +175,50 @@
                     $cmdStatus = $cmdResult.status
                     Write-Verbose "Auto-command status: $cmdStatus (${elapsed}s)"
 
-                    # Status 0 = still pending; any other status (1=Completed, etc.) means done
+                    # Status 0 = still pending.
+                    # Status 1 = Completed/Success — session is ready.
+                    # Status 2+ = Failed/Cancelled — auto-connect was rejected (e.g. existing session on device).
                     if ($cmdResult.completed_on -or ($null -ne $cmdStatus -and $cmdStatus -ne 0)) {
-                        $connected = $true
-                        Write-Verbose "Auto-created command completed with status: $cmdStatus"
-                        break
+                        if ($cmdStatus -eq 1) {
+                            $connected = $true
+                            Write-Verbose "Auto-created command completed successfully"
+                            break
+                        }
+
+                        # Connection failed — collect error text from all possible fields
+                        $errText = ''
+                        if ($cmdResult.errors) {
+                            $errText = @($cmdResult.errors | ForEach-Object {
+                                if ($_ -is [string]) { $_ } else { $_.message ?? ($_ | ConvertTo-Json -Compress) }
+                            }) -join ' '
+                        }
+                        if (-not $errText -and $cmdResult.error_message) { $errText = "$($cmdResult.error_message)" }
+                        if (-not $errText) { $errText = ($cmdResult | ConvertTo-Json -Depth 5 -Compress) }
+
+                        # Check for "existing session" portal-link pattern
+                        if ($errText -match '<portal-link>(\{[^<]+\})</portal-link>') {
+                            $existingSessionId = $null
+                            try {
+                                $linkData = $Matches[1] | ConvertFrom-Json
+                                $existingSessionId = $linkData.id
+                            } catch { }
+                            $deviceUser = if ($errText -match 'created by\s+(?:another user:\s*)?(\S+@\S+|\S+)') { $Matches[1] } else { 'another user' }
+
+                            Write-Host ''
+                            Write-Host "Cannot connect: a Live Response session is already active on '$deviceName'." -ForegroundColor Red
+                            if ($existingSessionId) {
+                                Write-Host "  Active session : $existingSessionId" -ForegroundColor Yellow
+                                Write-Host "  Created by     : $deviceUser" -ForegroundColor Yellow
+                                Write-Host ''
+                                Write-Host "To close the existing session and try again, run:" -ForegroundColor Gray
+                                Write-Host "  Disconnect-XdrEndpointDeviceLiveResponse -SessionId '$existingSessionId'" -ForegroundColor Cyan
+                            }
+                        } else {
+                            Write-Error "Session connect failed (status: $cmdStatus).$(if ($errText) { " $errText" })"
+                        }
+
+                        try { Disconnect-XdrEndpointDeviceLiveResponse -SessionId $sessionId -ErrorAction SilentlyContinue } catch { }
+                        return
                     }
                 } catch {
                     Write-Verbose "Command polling error (retrying): $_"
@@ -274,32 +324,103 @@
                 break
             }
 
-            # Handle help
-            if ($trimmed -eq 'help') {
-                Write-Host ""
-                Write-Host "Available Live Response Commands:" -ForegroundColor Cyan
-                Write-Host "=================================" -ForegroundColor Cyan
-                if ($commandDefinitions -and $commandDefinitions.Count -gt 0) {
-                    foreach ($cmd in ($commandDefinitions | Sort-Object -Property command_definition_id)) {
-                        $cmdName = $cmd.command_definition_id
-                        $cmdDesc = $cmd.description
-                        if ($cmdDesc) {
-                            Write-Host "  $cmdName" -ForegroundColor White -NoNewline
-                            Write-Host " - $cmdDesc" -ForegroundColor Gray
-                        } else {
-                            Write-Host "  $cmdName" -ForegroundColor White
+            # Handle help / help <command>
+            if ($trimmed -eq 'help' -or $trimmed -like 'help *') {
+                $helpSubCmd = $null
+                if ($trimmed -like 'help *') {
+                    $helpSubCmd = ($trimmed -split '\s+', 2)[1].Trim().ToLower()
+                }
+
+                if ($helpSubCmd -and $commandDefinitions) {
+                    # Detailed help for a specific command
+                    $helpDef = $commandDefinitions | Where-Object { $_.command_definition_id -eq $helpSubCmd } | Select-Object -First 1
+                    if ($helpDef) {
+                        Write-Host ""
+                        Write-Host $helpDef.command_definition_id -ForegroundColor White
+                        if ($helpDef.description) {
+                            Write-Host "  $($helpDef.description)" -ForegroundColor Gray
                         }
+                        Write-Host ""
+
+                        # Syntax line
+                        $syntaxParts = @($helpDef.command_definition_id)
+                        if ($helpDef.params) {
+                            foreach ($p in $helpDef.params) {
+                                $syntaxParts += if ($p.optional) { "[$($p.param_id)]" } else { $p.param_id }
+                            }
+                        }
+                        if ($helpDef.flags) {
+                            foreach ($f in $helpDef.flags) {
+                                $fid = if ($f -is [string]) { $f } else { $f.flag_id ?? $f.id ?? $f.name }
+                                if ($fid) { $syntaxParts += "[-$fid]" }
+                            }
+                        }
+                        Write-Host ($syntaxParts -join ' ') -ForegroundColor Cyan
+                        Write-Host ""
+
+                        # Parameters
+                        if ($helpDef.params -and @($helpDef.params).Count -gt 0) {
+                            Write-Host "Parameters:" -ForegroundColor Cyan
+                            foreach ($p in $helpDef.params) {
+                                $reqText = if ($p.optional) { '' } else { ' (required)' }
+                                Write-Host "  $($p.param_id)$reqText" -ForegroundColor White -NoNewline
+                                if ($p.description) { Write-Host "  $($p.description)" -ForegroundColor Gray } else { Write-Host '' }
+                            }
+                            Write-Host ""
+                        }
+
+                        # Flags
+                        if ($helpDef.flags -and @($helpDef.flags).Count -gt 0) {
+                            Write-Host "Flags:" -ForegroundColor Cyan
+                            foreach ($f in $helpDef.flags) {
+                                $fid = if ($f -is [string]) { $f } else { $f.flag_id ?? $f.id ?? $f.name }
+                                $fdesc = if ($f -is [string]) { '' } else { $f.description }
+                                if ($fid) {
+                                    Write-Host "  -$fid" -ForegroundColor White -NoNewline
+                                    if ($fdesc) { Write-Host "  $fdesc" -ForegroundColor Gray } else { Write-Host '' }
+                                }
+                            }
+                            Write-Host ""
+                        }
+
+                        # Aliases
+                        if ($helpDef.aliases -and @($helpDef.aliases).Count -gt 0) {
+                            Write-Host "Aliases:" -ForegroundColor Cyan
+                            Write-Host "  $($helpDef.aliases -join ', ')" -ForegroundColor Gray
+                            Write-Host ""
+                        }
+                    } else {
+                        Write-Host "Unknown command: $helpSubCmd" -ForegroundColor Yellow
+                        Write-Host "Type 'help' to see all available commands." -ForegroundColor Gray
                     }
                 } else {
-                    $availableCommands | ForEach-Object {
-                        Write-Host "  $_" -ForegroundColor White
+                    # General help: list all commands
+                    Write-Host ""
+                    Write-Host "Available Live Response Commands:" -ForegroundColor Cyan
+                    Write-Host "=================================" -ForegroundColor Cyan
+                    if ($commandDefinitions -and $commandDefinitions.Count -gt 0) {
+                        foreach ($cmd in ($commandDefinitions | Sort-Object -Property command_definition_id)) {
+                            $cmdName = $cmd.command_definition_id
+                            $cmdDesc = $cmd.description
+                            if ($cmdDesc) {
+                                Write-Host "  $cmdName" -ForegroundColor White -NoNewline
+                                Write-Host " - $cmdDesc" -ForegroundColor Gray
+                            } else {
+                                Write-Host "  $cmdName" -ForegroundColor White
+                            }
+                        }
+                    } else {
+                        $availableCommands | ForEach-Object {
+                            Write-Host "  $_" -ForegroundColor White
+                        }
                     }
+                    Write-Host ""
+                    Write-Host "Session commands:" -ForegroundColor Cyan
+                    Write-Host "  disconnect       - Close session and return to PowerShell" -ForegroundColor Gray
+                    Write-Host "  help             - Show this help message" -ForegroundColor Gray
+                    Write-Host "  help <command>   - Show detailed help for a specific command" -ForegroundColor Gray
+                    Write-Host ""
                 }
-                Write-Host ""
-                Write-Host "Session commands:" -ForegroundColor Cyan
-                Write-Host "  disconnect  - Close session and return to PowerShell" -ForegroundColor Gray
-                Write-Host "  help        - Show this help message" -ForegroundColor Gray
-                Write-Host ""
                 continue
             }
 
@@ -313,8 +434,12 @@
             try {
                 $cmdResult = Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId $sessionId -Command $trimmed -CurrentDirectory $currentDir -CommandDefinitions $commandDefinitions
 
-                # Display output from the command result
-                # The API returns outputs[] array where each element has data_type and data
+                # Resolve the first token of the command for command-specific output handling.
+                # Needed before the output loop so analyze verdict can be color-coded.
+                $firstCmdToken = ($trimmed -split '\s+', 2)[0].ToLower()
+
+                # Display output from the command result.
+                # The API returns outputs[] where each element has data_type, data, keys, table_config.
                 if ($cmdResult -and $cmdResult.outputs) {
                     foreach ($outputItem in $cmdResult.outputs) {
                         $dataType = $outputItem.data_type
@@ -324,36 +449,95 @@
 
                         switch ($dataType) {
                             'table' {
-                                # Table data: array of objects, use keys for column selection if available
+                                # Keys can be plain strings OR {id, name} objects depending on the command.
+                                # Handle both forms so column selection always works.
                                 if ($outputItem.keys) {
-                                    $columns = @($outputItem.keys | ForEach-Object { $_.id })
-                                    $data | Select-Object -Property $columns | Format-Table -AutoSize | Out-Host
+                                    $columns = @($outputItem.keys | ForEach-Object {
+                                        if ($_ -is [string]) { $_ } else { $_.id ?? $_.name }
+                                    }) | Where-Object { $_ }
+                                    if ($columns.Count -gt 0) {
+                                        $data | Select-Object -Property $columns | Format-Table -AutoSize | Out-Host
+                                    } else {
+                                        $data | Format-Table -AutoSize | Out-Host
+                                    }
                                 } else {
                                     $data | Format-Table -AutoSize | Out-Host
                                 }
                             }
                             'object' {
-                                # Object data: render as formatted JSON
-                                $data | ConvertTo-Json -Depth 10 | Out-Host
+                                # Object data: Format-List is more readable interactively than raw JSON
+                                $data | Format-List | Out-Host
                             }
                             default {
-                                # String or other data types
-                                Write-Host $data
+                                # String or other data types.  Handle arrays of strings cleanly.
+                                if ($data -is [array]) {
+                                    $data | ForEach-Object { Write-Host $_ }
+                                } elseif ($firstCmdToken -eq 'analyze') {
+                                    # Color-code the analyze verdict for quick visual identification
+                                    $verdictLower = "$data".ToLower()
+                                    $verdictColor = if ($verdictLower -match 'malicious') { 'Red' } `
+                                        elseif ($verdictLower -match 'suspicious') { 'Yellow' } `
+                                        elseif ($verdictLower -match 'clean') { 'Green' } `
+                                        else { 'White' }
+                                    Write-Host "Verdict: $data" -ForegroundColor $verdictColor
+                                } else {
+                                    Write-Host $data
+                                }
                             }
                         }
                     }
                 }
 
-                # Check for errors
+                # Display PowerShell transcript — populated when a script is run via the 'run' command.
+                if ($cmdResult -and $cmdResult.powershell_transcript) {
+                    Write-Host '--- Script Output ---' -ForegroundColor Cyan
+                    Write-Host $cmdResult.powershell_transcript
+                }
+
+                # Check for errors. Error objects have {hresult, message, command_error_type}; plain
+                # strings are also possible. Extract the human-readable message in both cases.
                 if ($cmdResult.errors -and $cmdResult.errors.Count -gt 0) {
                     foreach ($err in $cmdResult.errors) {
-                        Write-Host "Error: $err" -ForegroundColor Red
+                        $errMsg = if ($err -is [string]) { $err } `
+                            else { $err.message ?? ($err | ConvertTo-Json -Compress) }
+                        Write-Host "Error: $errMsg" -ForegroundColor Red
+                    }
+                }
+
+                # Handle getfile download: after command completes, context.download_token
+                # contains a short-lived token to retrieve the file from the device.
+                # Endpoint: GET /download_file?token={token}&session_id={sid}
+                if ($cmdResult -and $cmdResult.context -and $cmdResult.context.download_token) {
+                    $downloadToken = $cmdResult.context.download_token
+                    # Extract the remote path from the command to suggest a default local filename
+                    $cmdParts = $trimmed -split '\s+', 2
+                    $pathArg = if ($cmdParts.Count -ge 2) {
+                        # Strip leading/trailing quotes and any trailing flags (e.g. -upload)
+                        ($cmdParts[1] -split '\s+-')[0].Trim().Trim('"', "'")
+                    } else { '' }
+                    $defaultName = if ($pathArg) { [System.IO.Path]::GetFileName($pathArg) } else { 'downloaded_file' }
+                    if ([string]::IsNullOrWhiteSpace($defaultName)) { $defaultName = 'downloaded_file' }
+                    $defaultLocal = Join-Path ([System.IO.Path]::GetTempPath()) $defaultName
+
+                    Write-Host ''
+                    Write-Host "File ready for download from device." -ForegroundColor Green
+                    Write-Host "Default path: $defaultLocal" -ForegroundColor Gray
+                    $savePath = Read-Host "Save as [Enter for default]"
+                    if ([string]::IsNullOrWhiteSpace($savePath)) { $savePath = $defaultLocal }
+
+                    try {
+                        $dlUri = "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/download_file?token=$([System.Uri]::EscapeDataString($downloadToken))&session_id=$sessionId&useV2Api=false&useV3Api=true"
+                        Write-Host "Downloading..." -ForegroundColor Cyan
+                        $dlResponse = Invoke-WebRequest -Uri $dlUri -Method Get -WebSession $script:session -Headers $script:headers
+                        [System.IO.File]::WriteAllBytes($savePath, $dlResponse.Content)
+                        Write-Host "Saved to: $savePath" -ForegroundColor Green
+                    } catch {
+                        Write-Host "Download failed: $_" -ForegroundColor Red
                     }
                 }
 
                 # Update current directory if cd command
-                $firstToken = ($trimmed -split '\s+', 2)[0].ToLower()
-                if ($firstToken -eq 'cd' -and $cmdResult.context -and $cmdResult.context.current_directory) {
+                if ($firstCmdToken -eq 'cd' -and $cmdResult.context -and $cmdResult.context.current_directory) {
                     $currentDir = $cmdResult.context.current_directory
                 }
 
@@ -361,6 +545,11 @@
                 $cmdStatus = $cmdResult.status
                 if ($null -ne $cmdStatus -and $cmdStatus -ne 1) {
                     Write-Host "Command status: $cmdStatus" -ForegroundColor Yellow
+                }
+
+                # Show execution time for visibility
+                if ($null -ne $cmdResult.duration_seconds) {
+                    Write-Host "  [$('{0:N2}' -f $cmdResult.duration_seconds)s]" -ForegroundColor DarkGray
                 }
             } catch {
                 Write-Host "Error executing command: $_" -ForegroundColor Red

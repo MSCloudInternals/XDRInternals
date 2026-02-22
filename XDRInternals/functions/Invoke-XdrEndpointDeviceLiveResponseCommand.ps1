@@ -8,6 +8,12 @@
         Parses the raw command line to extract the command definition ID and parameters,
         then sends the command via the Live Response API and waits for completion.
 
+        Supports the full Live Response command syntax including:
+        - Positional parameters mapped by order from the command definition
+        - Named parameters using -paramName value syntax (e.g. -output json, -name notepad.exe)
+        - Boolean flags using -flagName syntax (e.g. -full_path, -upload, -overwrite, -keep)
+        - Alias resolution (ls -> dir, process -> processes, download -> getfile, etc.)
+
         This cmdlet can be used programmatically or is called automatically by
         Connect-XdrEndpointDeviceLiveResponse during interactive sessions.
 
@@ -16,6 +22,8 @@
 
     .PARAMETER Command
         The raw command line to execute (e.g., "dir C:\Windows", "processes", "getfile C:\temp\log.txt").
+        Supports all Live Response command aliases (ls, process, download, etc.).
+        Values containing spaces must be quoted: getfile "C:\path with spaces\file.txt"
 
     .PARAMETER CurrentDirectory
         The current working directory on the remote device. Defaults to "C:\".
@@ -25,14 +33,15 @@
 
     .PARAMETER TimeoutSeconds
         Maximum time to wait for command completion. Defaults to 300 seconds (5 minutes).
+        Automatically extended to 600s for analyze commands.
 
     .PARAMETER PollIntervalSeconds
         How often to check for command completion. Defaults to 2 seconds.
 
     .PARAMETER CommandDefinitions
         Array of command definition objects from the Live Response API's get_command_definitions endpoint.
-        Used to map positional parameters to the correct param_id for each command.
-        When not provided, falls back to using 'path' as the default param_id.
+        Used to resolve aliases and correctly classify -name tokens as flags or named parameters.
+        When not provided, falls back to heuristic parsing with 'path' as the default param_id.
 
     .EXAMPLE
         Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "processes"
@@ -43,13 +52,26 @@
         Lists the contents of C:\Windows.
 
     .EXAMPLE
+        Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "dir -full_path"
+        Lists all files with full paths. The -full_path flag is correctly sent in the flags[] array.
+
+    .EXAMPLE
+        Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "process -name SenseIR.exe"
+        Filters processes by name using the 'process' alias and a named -name parameter.
+
+    .EXAMPLE
         Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "getfile C:\temp\log.txt" -TimeoutSeconds 120
         Downloads a file with a 2-minute timeout.
 
+    .EXAMPLE
+        Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "ls"
+        Lists files using the 'ls' alias for 'dir'. Alias is preserved in raw_command_line.
+
     .OUTPUTS
         PSCustomObject
-        Returns the command result object including output and status.
+        Returns the command result object including output, status, context, and errors.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '', Justification = 'Parameters used inside process block; false positive from PSScriptAnalyzer scoping')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
@@ -79,93 +101,308 @@
     }
 
     process {
-        # Parse command line: first token is command_definition_id, rest are params
-        $tokens = $Command.Trim() -split '\s+', 2
-        $commandId = $tokens[0].ToLower()
-        $paramString = if ($tokens.Length -gt 1) { $tokens[1] } else { $null }
+        #region Step 1: Tokenize the command line, respecting quoted strings
+        # Example: dir "C:\Program Files" -output json -> ["dir", "C:\Program Files", "-output", "json"]
+        # $tokenIsQuoted tracks whether each token was originally surrounded by quotes.
+        # A quoted token is never treated as a flag even if its content starts with '-'.
+        # This is critical for: run script.ps1 -parameters "-processName Registry"
+        $tokenList = [System.Collections.Generic.List[string]]::new()
+        $tokenIsQuoted = [System.Collections.Generic.List[bool]]::new()
+        $pos = 0
+        $line = $Command.Trim()
+        while ($pos -lt $line.Length) {
+            # Skip whitespace between tokens
+            while ($pos -lt $line.Length -and $line[$pos] -eq ' ') { $pos++ }
+            if ($pos -ge $line.Length) { break }
 
-        # Build params array using command definitions for correct param_id mapping
-        $params = @()
-        if ($paramString) {
-            # Look up the command definition to find the correct param_id
-            $cmdDef = $null
-            if ($CommandDefinitions) {
-                $cmdDef = $CommandDefinitions | Where-Object { $_.command_definition_id -eq $commandId }
-            }
-
-            if ($cmdDef -and $cmdDef.params) {
-                # Get value params (exclude 'output' format selector)
-                $valueParams = @($cmdDef.params | Where-Object { $_.param_id -ne 'output' })
-
-                if ($valueParams.Count -eq 1) {
-                    # Single value param: entire paramString is the value (strip surrounding quotes if present)
-                    $value = $paramString -replace '^"(.*)"$', '$1' -replace "^'(.*)'$", '$1'
-                    $params += @{
-                        param_id = $valueParams[0].param_id
-                        value    = $value
+            $tokenBuf = [System.Text.StringBuilder]::new()
+            $wasQuoted = $false
+            while ($pos -lt $line.Length -and $line[$pos] -ne ' ') {
+                $ch = $line[$pos]
+                if ($ch -eq '"' -or $ch -eq "'") {
+                    # Quoted segment: consume until matching closing quote, stripping the quotes
+                    $wasQuoted = $true
+                    $qc = $ch; $pos++
+                    while ($pos -lt $line.Length -and $line[$pos] -ne $qc) {
+                        $null = $tokenBuf.Append($line[$pos]); $pos++
                     }
-                } elseif ($valueParams.Count -gt 1) {
-                    # Multiple value params: split with limit so the last param gets the remainder
-                    # Use shell-like tokenization to respect quoted strings
-                    $paramTokens = [System.Collections.Generic.List[string]]::new()
-                    $remaining = $paramString
-                    for ($i = 0; $i -lt ($valueParams.Count - 1); $i++) {
-                        $remaining = $remaining.TrimStart()
-                        if ($remaining -match '^"([^"]*)"(.*)$') {
-                            $paramTokens.Add($Matches[1])
-                            $remaining = $Matches[2]
-                        } elseif ($remaining -match "^'([^']*)'(.*)$") {
-                            $paramTokens.Add($Matches[1])
-                            $remaining = $Matches[2]
-                        } elseif ($remaining -match '^(\S+)(.*)$') {
-                            $paramTokens.Add($Matches[1])
-                            $remaining = $Matches[2]
-                        } else {
+                    if ($pos -lt $line.Length) { $pos++ }  # skip closing quote
+                } else {
+                    $null = $tokenBuf.Append($ch); $pos++
+                }
+            }
+            if ($tokenBuf.Length -gt 0) {
+                $tokenList.Add($tokenBuf.ToString())
+                $tokenIsQuoted.Add($wasQuoted)
+            }
+        }
+
+        if ($tokenList.Count -eq 0) {
+            Write-Error 'Empty command'
+            return
+        }
+
+        $rawFirstToken = $tokenList[0]      # Original token (may be alias) — preserved in raw_command_line
+        $rawTokenLower = $rawFirstToken.ToLower()
+        #endregion
+
+        #region Step 2: Resolve alias -> canonical command_definition_id
+        # The portal preserves the original alias in raw_command_line but uses the
+        # canonical command_definition_id (e.g. raw: "ls", command_definition_id: "dir").
+        $commandId = $rawTokenLower
+        $cmdDef = $null
+
+        if ($CommandDefinitions) {
+            # First try direct match by command_definition_id
+            $cmdDef = $CommandDefinitions | Where-Object { $_.command_definition_id -eq $commandId } | Select-Object -First 1
+
+            if (-not $cmdDef) {
+                # Try alias lookup across all definitions
+                foreach ($def in $CommandDefinitions) {
+                    if ($def.aliases) {
+                        $aliasLower = @($def.aliases | ForEach-Object { "$_".ToLower() })
+                        if ($commandId -in $aliasLower) {
+                            # Ensure command_definition_id is always a scalar string.
+                            # Guard against partial/malformed definitions where the field
+                            # might be an array (member enumeration artefact).
+                            $cid = $def.command_definition_id
+                            $commandId = if ($cid -is [System.Collections.IEnumerable] -and $cid -isnot [string]) {
+                                "$($cid | Select-Object -First 1)"
+                            } else { "$cid" }
+                            $cmdDef = $def
                             break
                         }
                     }
-                    # Last value param gets whatever remains
-                    $lastValue = $remaining.Trim() -replace '^"(.*)"$', '$1' -replace "^'(.*)'$", '$1'
-                    if ($lastValue) { $paramTokens.Add($lastValue) }
+                }
+            }
+        }
+        #endregion
 
-                    for ($i = 0; $i -lt [Math]::Min($valueParams.Count, $paramTokens.Count); $i++) {
-                        $params += @{
-                            param_id = $valueParams[$i].param_id
-                            value    = $paramTokens[$i]
-                        }
-                    }
+        #region Step 3: Build lookup sets for known flags and params from the command definition
+        $knownFlagIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $knownParamIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+        if ($cmdDef) {
+            if ($cmdDef.flags) {
+                foreach ($f in $cmdDef.flags) {
+                    $fid = if ($f -is [string]) { $f } else { $f.flag_id ?? $f.id ?? $f.name }
+                    if ($fid) { $null = $knownFlagIds.Add($fid) }
+                }
+            }
+            if ($cmdDef.params) {
+                foreach ($p in $cmdDef.params) {
+                    if ($p.param_id) { $null = $knownParamIds.Add($p.param_id) }
+                }
+            }
+        }
+        #endregion
+
+        #region Step 4: Parse remaining tokens into params, flags, and positionals
+        # Rules (determined by command definition when available):
+        #   -flagname           -> boolean flag if flagname is a known flag_id
+        #   -paramname value    -> named param if paramname is a known param_id and a value follows
+        #   -name value         -> named param (heuristic: next token doesn't start with -)
+        #   -name               -> flag (heuristic: no value follows, or next token starts with -)
+        #   value               -> positional
+        $params = [System.Collections.Generic.List[hashtable]]::new()
+        $flags = [System.Collections.Generic.List[string]]::new()
+        $positional = [System.Collections.Generic.List[string]]::new()
+        # Tracks -param value pairs for raw_command_line reconstruction
+        $namedParamSpecs = [System.Collections.Generic.List[hashtable]]::new()
+
+        $i = 1  # Start after the command name token
+        while ($i -lt $tokenList.Count) {
+            $token = $tokenList[$i]
+
+            if ($token -match '^-(.+)$') {
+                $nameWithoutDash = $Matches[1].ToLower()
+                $nextIdx = $i + 1
+                $hasNext = $nextIdx -lt $tokenList.Count
+                $nextToken = if ($hasNext) { $tokenList[$nextIdx] } else { $null }
+                # A quoted token is never a flag even if its unquoted content starts with '-'
+                # (e.g. run script.ps1 -parameters "-processName Registry" should treat the
+                # quoted value as the param value, not as a flag)
+                $nextIsFlag = $nextToken -and $nextToken -match '^-' -and -not $tokenIsQuoted[$nextIdx]
+
+                $isKnownFlag = $knownFlagIds.Contains($nameWithoutDash)
+                $isKnownParam = $knownParamIds.Contains($nameWithoutDash)
+
+                if ($isKnownFlag) {
+                    # Definitively a boolean flag from command definition
+                    $flags.Add($nameWithoutDash)
+                    $i++
+                } elseif ($isKnownParam -and $hasNext -and -not $nextIsFlag) {
+                    # Definitively a named parameter with a value from command definition
+                    $params.Add(@{ param_id = $nameWithoutDash; value = $nextToken })
+                    $namedParamSpecs.Add(@{ param_id = $nameWithoutDash; value = $nextToken })
+                    $i += 2
+                } elseif (-not $isKnownFlag -and -not $isKnownParam -and $hasNext -and -not $nextIsFlag) {
+                    # Unknown -name with a following non-flag value: treat as named param
+                    # (e.g. -output json when cmdDef is unavailable)
+                    $params.Add(@{ param_id = $nameWithoutDash; value = $nextToken })
+                    $namedParamSpecs.Add(@{ param_id = $nameWithoutDash; value = $nextToken })
+                    $i += 2
+                } else {
+                    # No following value, next token is also a flag, or standalone: treat as flag
+                    $flags.Add($nameWithoutDash)
+                    $i++
                 }
             } else {
-                # Fallback: use 'path' as default param_id (works for dir, fileinfo, getfile)
-                $params += @{
-                    param_id = 'path'
-                    value    = $paramString -replace '^"(.*)"$', '$1' -replace "^'(.*)'$", '$1'
+                $positional.Add($token)
+                $i++
+            }
+        }
+        #endregion
+
+        #region Handle: library (REST API — not a Live Response session command)
+        # 'library' has no command_definition_id; route to the module's library cmdlets instead.
+        #   library              -> Get-XdrEndpointDeviceLiveResponseLibrary (list)
+        #   library add <path>   -> New-XdrEndpointDeviceLiveResponseLibraryFile
+        #   library delete <name>-> Remove-XdrEndpointDeviceLiveResponseLibraryFile
+        if ($commandId -eq 'library') {
+            $subCmd = if ($positional.Count -gt 0) { $positional[0].ToLower() } else { '' }
+            $now = (Get-Date -Format 'o')
+            $syntheticId = [System.Guid]::NewGuid().ToString()
+
+            if ($subCmd -eq 'add') {
+                $libFilePath = if ($positional.Count -gt 1) { $positional[1] } else { $null }
+                if (-not $libFilePath) {
+                    $errObj = [PSCustomObject]@{ message = "library add requires a file path: library add <path> [-Description <text>] [-HasParameters] [-ParametersDescription <text>] [-OverrideIfExists]" }
+                    $r = [PSCustomObject]@{ command_id = $syntheticId; status = 2; completed_on = $now; errors = @($errObj); outputs = @() }
+                    $r.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceLiveResponseCommand')
+                    return $r
+                }
+                $splatNew = @{ FilePath = $libFilePath }
+                $descParam = $params | Where-Object { $_.param_id -eq 'description' } | Select-Object -First 1
+                if ($descParam) { $splatNew['Description'] = $descParam.value }
+                $pdParam = $params | Where-Object { $_.param_id -in 'parametersdescription', 'parameters_description' } | Select-Object -First 1
+                if ($pdParam) { $splatNew['ParametersDescription'] = $pdParam.value }
+                if ($flags -contains 'hasparameters')    { $splatNew['HasParameters']   = $true }
+                if ($flags -contains 'overrideifexists') { $splatNew['OverrideIfExists'] = $true }
+                try {
+                    $uploadResult = New-XdrEndpointDeviceLiveResponseLibraryFile @splatNew
+                    $r = [PSCustomObject]@{
+                        command_id   = $syntheticId; status = 1; completed_on = $now; errors = @()
+                        outputs      = @([PSCustomObject]@{ data_type = 'object'; data = $uploadResult })
+                    }
+                } catch {
+                    $r = [PSCustomObject]@{ command_id = $syntheticId; status = 2; completed_on = $now
+                        errors = @([PSCustomObject]@{ message = "$_" }); outputs = @() }
+                }
+                $r.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceLiveResponseCommand')
+                return $r
+
+            } elseif ($subCmd -eq 'delete') {
+                $libFileName = if ($positional.Count -gt 1) { $positional[1] } else { $null }
+                if (-not $libFileName) {
+                    $errObj = [PSCustomObject]@{ message = "library delete requires a file name: library delete <filename>" }
+                    $r = [PSCustomObject]@{ command_id = $syntheticId; status = 2; completed_on = $now; errors = @($errObj); outputs = @() }
+                    $r.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceLiveResponseCommand')
+                    return $r
+                }
+                try {
+                    Remove-XdrEndpointDeviceLiveResponseLibraryFile -FileName $libFileName -Confirm:$false
+                    $r = [PSCustomObject]@{
+                        command_id   = $syntheticId; status = 1; completed_on = $now; errors = @()
+                        outputs      = @([PSCustomObject]@{ data_type = 'string'; data = "Deleted '$libFileName' from Live Response library" })
+                    }
+                } catch {
+                    $r = [PSCustomObject]@{ command_id = $syntheticId; status = 2; completed_on = $now
+                        errors = @([PSCustomObject]@{ message = "$_" }); outputs = @() }
+                }
+                $r.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceLiveResponseCommand')
+                return $r
+
+            } else {
+                # No subcommand: list library files
+                try {
+                    $libFiles = Get-XdrEndpointDeviceLiveResponseLibrary
+                    $r = [PSCustomObject]@{
+                        command_id   = $syntheticId; status = 1; completed_on = $now; errors = @()
+                        outputs      = @([PSCustomObject]@{ data_type = 'table'; data = if ($libFiles) { @($libFiles) } else { @() } })
+                    }
+                } catch {
+                    $r = [PSCustomObject]@{ command_id = $syntheticId; status = 2; completed_on = $now
+                        errors = @([PSCustomObject]@{ message = "$_" }); outputs = @() }
+                }
+                $r.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceLiveResponseCommand')
+                return $r
+            }
+        }
+        #endregion
+
+        #region Step 5: Map positional values to unfilled param_ids from the command definition
+        if ($positional.Count -gt 0) {
+            if ($cmdDef -and $cmdDef.params) {
+                # Find params not already filled by -named value syntax
+                $namedParamIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+                foreach ($np in $namedParamSpecs) { $null = $namedParamIds.Add($np.param_id) }
+
+                # Guard: skip params with null param_id (malformed/partial definition) to
+                # avoid ArgumentNullException from HashSet.Contains(null).
+                # Also skip isHidden params (internal fields like pid on fileinfo) — the portal
+                # skips these when mapping positional arguments, so we must do the same.
+                $remainingParamDefs = @($cmdDef.params | Where-Object { $null -ne $_ -and $_.param_id -and -not $_.isHidden -and -not $namedParamIds.Contains($_.param_id) })
+                for ($j = 0; $j -lt [Math]::Min($positional.Count, $remainingParamDefs.Count); $j++) {
+                    $params.Add(@{ param_id = $remainingParamDefs[$j].param_id; value = $positional[$j] })
+                }
+            } elseif ($positional.Count -eq 1) {
+                # Fallback: single positional -> 'path' (covers dir, fileinfo, getfile)
+                $params.Add(@{ param_id = 'path'; value = $positional[0] })
+            }
+            # Multi-positional with no cmdDef: rely on server-side parsing of raw_command_line
+        }
+        #endregion
+
+        #region Step 6: Build raw_command_line
+        # Use the original user input as-is; rebuild only when a param value contains
+        # unquoted spaces, which would cause "Inconsistency between raw command and
+        # input parameters" on the server.
+        $rawCommandLine = $Command.Trim()
+
+        $needsRebuild = $false
+        foreach ($p in $params) {
+            if ($p.value -match '\s') {
+                if (-not ($rawCommandLine -match [regex]::Escape("""$($p.value)""")) -and
+                    -not ($rawCommandLine -match [regex]::Escape("'$($p.value)'"))) {
+                    $needsRebuild = $true
+                    break
                 }
             }
         }
 
-        # Build raw_command_line with quoting for param values that contain spaces
-        # The API server parses raw_command_line and validates consistency with params.
-        # Values containing spaces must be quoted in raw_command_line to be treated as single tokens.
-        $rawCommandLine = $Command
-        if ($params.Count -gt 0) {
-            $quotedParts = @($commandId)
-            foreach ($p in $params) {
-                if ($p.value -match '\s') {
-                    $quotedParts += "`"$($p.value)`""
-                } else {
-                    $quotedParts += $p.value
-                }
+        if ($needsRebuild) {
+            # Rebuild preserving the original alias, then positionals, named params, flags
+            $parts = [System.Collections.Generic.List[string]]::new()
+            $parts.Add($rawFirstToken)
+            foreach ($pv in $positional) {
+                $quotedPv = if ($pv -match '\s') { """$pv""" } else { $pv }
+                $parts.Add($quotedPv)
             }
-            $rawCommandLine = $quotedParts -join ' '
+            foreach ($np in $namedParamSpecs) {
+                $namedPart = if ($np.value -match '\s') { "-$($np.param_id) ""$($np.value)""" } else { "-$($np.param_id) $($np.value)" }
+                $parts.Add($namedPart)
+            }
+            foreach ($f in $flags) { $parts.Add("-$f") }
+            $rawCommandLine = $parts -join ' '
         }
+        #endregion
+
+        #region Step 7: Per-command timeout overrides
+        # analyze can take several minutes for cloud lookups; findfile scans the whole disk
+        $effectiveTimeout = switch ($commandId) {
+            'analyze'  { [Math]::Max($TimeoutSeconds, 600) }
+            'findfile' { [Math]::Max($TimeoutSeconds, 300) }
+            default    { $TimeoutSeconds }
+        }
+        #endregion
 
         # Build the create command body
         $body = @{
             session_id            = $SessionId
             command_definition_id = $commandId
-            params                = $params
-            flags                 = @()
+            params                = @($params)
+            flags                 = @($flags)
             raw_command_line      = $rawCommandLine
             current_directory     = $CurrentDirectory
             background_mode       = [bool]$BackgroundMode
@@ -174,12 +411,12 @@
         try {
             # Create the command
             $createUri = "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/create_command?session_id=$SessionId&useV3Api=true"
-            Write-Verbose "Sending Live Response command: $Command"
-            $createResult = Invoke-RestMethod -Uri $createUri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
+            Write-Verbose "Sending Live Response command: $rawCommandLine (command_definition_id: $commandId, flags: [$($flags -join ', ')], params: $($params.Count))"
+            $createResult = Invoke-RestMethod -Uri $createUri -Method Post -ContentType 'application/json' -Body $body -WebSession $script:session -Headers $script:headers
 
             $commandGuid = $createResult.command_id
             if (-not $commandGuid) {
-                Write-Error "Failed to create Live Response command - no command_id returned"
+                Write-Error 'Failed to create Live Response command - no command_id returned'
                 return $createResult
             }
 
@@ -188,12 +425,13 @@
             # Poll for command completion
             $pollUri = "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/commands/${commandGuid}?session_id=$SessionId&useV2Api=false&useV3Api=true"
             $elapsed = 0
+            $commandResult = $null
 
-            while ($elapsed -lt $TimeoutSeconds) {
+            while ($elapsed -lt $effectiveTimeout) {
                 Start-Sleep -Seconds $PollIntervalSeconds
                 $elapsed += $PollIntervalSeconds
 
-                $commandResult = Invoke-RestMethod -Uri $pollUri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                $commandResult = Invoke-RestMethod -Uri $pollUri -Method Get -ContentType 'application/json' -WebSession $script:session -Headers $script:headers
 
                 $status = $commandResult.status
                 Write-Verbose "Command status: $status (${elapsed}s elapsed)"
@@ -207,9 +445,11 @@
                 }
             }
 
-            Write-Warning "Command timed out after $TimeoutSeconds seconds. Command ID: $commandGuid"
-            $commandResult.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceLiveResponseCommand')
-            return $commandResult
+            Write-Warning "Command timed out after $effectiveTimeout seconds. Command ID: $commandGuid"
+            if ($commandResult) {
+                $commandResult.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceLiveResponseCommand')
+                return $commandResult
+            }
         } catch {
             Write-Error "Failed to execute Live Response command: $_"
         }

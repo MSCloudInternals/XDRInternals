@@ -14,6 +14,8 @@ function Get-XdrIdentityUserTimeline {
         - Parallel day chunks for a single user
         - Parallel users when processing multiple users via pipeline
 
+        Final merged results are strictly filtered to the requested [FromDate, ToDate) range.
+
     .PARAMETER AadId
         The Entra (Azure AD) object ID of the user.
 
@@ -49,7 +51,7 @@ function Get-XdrIdentityUserTimeline {
         Lists available event types for filtering and exits without retrieving timeline data.
 
     .PARAMETER PageSize
-        The number of events to return per page. Defaults to 50.
+        The number of events to return per page. Defaults to 1000.
 
     .PARAMETER IncludeSentinelEvents
         Include Microsoft Sentinel UEBA anomaly events in the timeline results.
@@ -57,7 +59,7 @@ function Get-XdrIdentityUserTimeline {
         the resolved user identifiers.
 
     .PARAMETER ThrottleLimit
-        The maximum number of concurrent requests. Defaults to 10.
+        The maximum number of concurrent requests. Defaults to 32.
 
     .PARAMETER TimeoutSeconds
         Maximum time in seconds to wait for all requests to complete. Defaults to 3600 (1 hour).
@@ -66,12 +68,15 @@ function Get-XdrIdentityUserTimeline {
         Maximum number of retry attempts for failed API requests. Defaults to 3.
 
     .PARAMETER RetryDelaySeconds
-        Base delay in seconds between retry attempts (uses exponential backoff). Defaults to 30.
+        Base delay in seconds between retry attempts (uses exponential backoff). Defaults to 5.
 
     .PARAMETER ChunkSizeHours
-        Size of each time chunk in hours (1-24). Defaults to 12 hours.
-        Smaller chunks allow faster failure recovery but increase API calls.
-        Larger chunks are more efficient but lose more data if a chunk fails.
+        Maximum size of each time chunk in hours (1-168). Defaults to 72 hours.
+        By default, adaptive chunking may reduce this value based on the requested range
+        to improve throughput and avoid oversized identity timeline windows.
+
+    .PARAMETER DisableAdaptiveChunking
+        Disables adaptive chunk sizing and forces fixed-size chunks based on ChunkSizeHours.
 
     .PARAMETER RequestTimeoutSeconds
         Timeout in seconds for individual HTTP requests (10-120). Defaults to 30.
@@ -182,15 +187,15 @@ function Get-XdrIdentityUserTimeline {
         [switch]$ListEventTypes,
 
         [Parameter()]
-        [ValidateRange(1, 100)]
-        [int]$PageSize = 50,
+        [ValidateRange(1, 1000)]
+        [int]$PageSize = 1000,
 
         [Parameter()]
         [switch]$IncludeSentinelEvents,
 
         [Parameter()]
-        [ValidateRange(1, 20)]
-        [int]$ThrottleLimit = 10,
+        [ValidateRange(1, 64)]
+        [int]$ThrottleLimit = 32,
 
         [Parameter()]
         [ValidateRange(60, 86400)]
@@ -202,18 +207,21 @@ function Get-XdrIdentityUserTimeline {
 
         [Parameter()]
         [ValidateRange(1, 300)]
-        [int]$RetryDelaySeconds = 30,
+        [int]$RetryDelaySeconds = 5,
 
         [Parameter()]
-        [ValidateRange(1, 24)]
-        [int]$ChunkSizeHours = 12,
+        [ValidateRange(1, 168)]
+        [int]$ChunkSizeHours = 72,
+
+        [Parameter()]
+        [switch]$DisableAdaptiveChunking,
 
         [Parameter()]
         [ValidateRange(10, 120)]
         [int]$RequestTimeoutSeconds = 30,
 
         [Parameter()]
-        [ValidateScript({ 
+        [ValidateScript({
             if ([string]::IsNullOrWhiteSpace($_)) { return $true }
             if (-not (Test-Path -Path $_ -PathType Container)) {
                 throw "OutputPath '$_' does not exist or is not a directory."
@@ -244,7 +252,7 @@ function Get-XdrIdentityUserTimeline {
         $UnixEpoch = [datetime]'1970-01-01'
         $StallTimeoutSeconds = 120           # Stall detection: no progress for this duration kills the job
         $RecentProgressSeconds = 30          # Progress files updated within this window reset stall timer
-        $MaxPagesPerChunk = 50               # Safety limit: 50 pages * PageSize events max per chunk
+        $IdentityMaxSkip = 9000            # Identity API skip values above 9000 are rejected
 
         # Build headers with tenant-id and m-* headers required for MDI APIs
         $tenantIdCache = Get-XdrCache -CacheKey "XdrTenantId" -ErrorAction SilentlyContinue
@@ -449,15 +457,38 @@ function Get-XdrIdentityUserTimeline {
             RetryDelaySeconds = $RetryDelaySeconds
             EventType         = if ($PSBoundParameters.ContainsKey('EventType')) { $EventType } else { $null }
             RequestTimeoutSec = $RequestTimeoutSeconds
-            MaxPagesPerChunk  = $MaxPagesPerChunk
+            MaxSkip           = $IdentityMaxSkip
         }
 
-        # Generate date chunks based on ChunkSizeHours parameter
-        # Smaller chunks allow more parallel requests and faster failure recovery
-        # 12-hour default provides best balance of efficiency and data loss on failure
+        # Generate date chunks.
+        # Adaptive chunking reduces chunk size using a tested range profile.
         $dateChunks = [System.Collections.Generic.List[hashtable]]::new()
-        $totalDays = ($ToDate - $FromDate).TotalDays
-        $chunkHours = $ChunkSizeHours
+        $totalTimespan = $ToDate - $FromDate
+        $totalDays = $totalTimespan.TotalDays
+        $totalHours = [int][Math]::Ceiling([Math]::Max(1, $totalTimespan.TotalHours))
+
+        $configuredChunkHours = [int]$ChunkSizeHours
+        $chunkHours = $configuredChunkHours
+        $adaptiveChunkingApplied = $false
+
+        $configuredChunkCount = [int][Math]::Ceiling($totalHours / [double][Math]::Max(1, $configuredChunkHours))
+
+        # Adaptive chunk profile tuned from benchmark data after strict in-range filtering.
+        # - <= 30 days: 72h chunks provide highest throughput.
+        # - > 30 days : 48h chunks avoid long-tail slowdowns on larger windows.
+        if (-not $DisableAdaptiveChunking) {
+            $rangeMaxChunkHours = if ($totalDays -le 30) {
+                72
+            } else {
+                48
+            }
+
+            $adaptiveChunkHours = [int][Math]::Min($configuredChunkHours, $rangeMaxChunkHours)
+            if ($adaptiveChunkHours -lt $chunkHours) {
+                $chunkHours = $adaptiveChunkHours
+                $adaptiveChunkingApplied = $true
+            }
+        }
 
         $currentDate = $FromDate
         $chunkIndex = 0
@@ -474,7 +505,15 @@ function Get-XdrIdentityUserTimeline {
             $chunkIndex++
             $currentDate = $chunkEnd
         }
-        Write-Information "Split $([math]::Round($totalDays, 1)) days into $($dateChunks.Count) chunks ($chunkHours hours each)" -InformationAction Continue
+
+        if ($adaptiveChunkingApplied) {
+            Write-Verbose "Adaptive chunking reduced chunk size from $configuredChunkHours to $chunkHours hours (configured chunks: $configuredChunkCount, generated chunks: $($dateChunks.Count), throttle: $ThrottleLimit)"
+        } elseif ($DisableAdaptiveChunking) {
+            Write-Verbose "Adaptive chunking disabled; using fixed chunk size of $chunkHours hours"
+        }
+
+        $chunkModeLabel = if ($adaptiveChunkingApplied) { 'adaptive' } else { 'fixed' }
+        Write-Information "Split $([math]::Round($totalDays, 1)) days into $($dateChunks.Count) chunks ($chunkHours hours each, $chunkModeLabel)" -InformationAction Continue
 
         # Store session cookies for parallel execution
         $cookieContainer = $script:session.Cookies
@@ -532,7 +571,7 @@ function Get-XdrIdentityUserTimeline {
                 $maxRetries = $baseParams.MaxRetries
                 $baseDelay = $baseParams.RetryDelaySeconds
                 $requestTimeout = $baseParams.RequestTimeoutSec
-                $maxPages = $baseParams.MaxPagesPerChunk
+                $maxSkip = $baseParams.MaxSkip
                 $pageSize = $baseParams.PageSize
 
                 # Chunk-level retry loop
@@ -544,17 +583,18 @@ function Get-XdrIdentityUserTimeline {
                     $chunkAttempt++
                     $chunkEvents = [System.Collections.Generic.List[object]]::new()
                     $skip = 0
+                    $currentToUnix = $toUnix
+                    $previousBoundaryTimestamp = $null
+                    $progressFile = Join-Path $tempPath "progress_$chunkIndex.txt"
+                    $lastProgressWriteUtc = [datetime]::MinValue
 
                     try {
                         $chunkStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                         $pagesRetrieved = 0
+                        $boundaryTimestamp = $null
+                        $boundaryCount = 0
 
                         do {
-                            # Check max pages safety limit
-                            if ($pagesRetrieved -ge $maxPages) {
-                                throw "Chunk $chunkIndex : Exceeded max pages limit ($maxPages)"
-                            }
-
                             # Build request body
                             $requestBody = @{
                                 count           = $pageSize
@@ -562,7 +602,7 @@ function Get-XdrIdentityUserTimeline {
                                 userIdentifiers = $userIds
                                 filters         = @{
                                     Timeframe = @{
-                                        between = @($fromUnix, $toUnix)
+                                        between = @($fromUnix, $currentToUnix)
                                     }
                                 }
                             }
@@ -578,6 +618,7 @@ function Get-XdrIdentityUserTimeline {
 
                             $attempt = 0
                             $success = $false
+                            $response = $null
 
                             while (-not $success -and $attempt -lt $maxRetries) {
                                 try {
@@ -586,9 +627,11 @@ function Get-XdrIdentityUserTimeline {
                                     $success = $true
                                     $pagesRetrieved++
 
-                                    # Signal page-level progress to outer loop
-                                    $progressFile = Join-Path $tempPath "progress_$chunkIndex.txt"
-                                    "$pagesRetrieved" | Out-File -FilePath $progressFile -Force -NoNewline
+                                    # Signal page-level progress to outer loop (throttled to avoid excessive file I/O)
+                                    if (([datetime]::UtcNow - $lastProgressWriteUtc).TotalSeconds -ge 1) {
+                                        "$pagesRetrieved" | Out-File -FilePath $progressFile -Force -NoNewline
+                                        $lastProgressWriteUtc = [datetime]::UtcNow
+                                    }
                                 } catch {
                                     $statusCode = $null
                                     if ($_.Exception.Response) {
@@ -603,7 +646,6 @@ function Get-XdrIdentityUserTimeline {
                                         $delay = [Math]::Min($delay, 300)
                                         Start-Sleep -Seconds $delay
                                     } elseif ($isTimeout -and $attempt -lt $maxRetries) {
-                                        # Retry on timeout with shorter delay
                                         Start-Sleep -Seconds (Get-Random -Minimum 2 -Maximum 5)
                                     } elseif ($attempt -lt $maxRetries) {
                                         $delay = Get-Random -Minimum 5 -Maximum 15
@@ -614,18 +656,92 @@ function Get-XdrIdentityUserTimeline {
                                 }
                             }
 
-                            if ($response -and $response.data) {
-                                $chunkEvents.AddRange($response.data)
+                            $responseData = if ($response -and $response.data) { @($response.data) } else { @() }
+                            if ($responseData.Count -eq 0) {
+                                break
                             }
 
-                            # Check if there are more pages
-                            $returnedCount = if ($response.data) { $response.data.Count } else { 0 }
-                            if ($returnedCount -lt $pageSize) {
-                                break
-                            } else {
-                                $skip += $pageSize
-                                Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
+                            foreach ($timelineEvent in $responseData) {
+                                $chunkEvents.Add($timelineEvent)
+
+                                # Track the oldest timestamp and count events at that boundary.
+                                if ($timelineEvent.PSObject.Properties['Timestamp'] -and $timelineEvent.Timestamp) {
+                                    try {
+                                        $eventTimestamp = [datetime]::Parse($timelineEvent.Timestamp).ToUniversalTime()
+                                        if ($null -eq $boundaryTimestamp -or $eventTimestamp -lt $boundaryTimestamp) {
+                                            $boundaryTimestamp = $eventTimestamp
+                                            $boundaryCount = 1
+                                        } elseif ($eventTimestamp -eq $boundaryTimestamp) {
+                                            $boundaryCount++
+                                        }
+                                    } catch {
+                                        $null = $_  # Ignore parse errors for boundary tracking.
+                                    }
+                                }
                             }
+
+                            if ($responseData.Count -lt $pageSize) {
+                                break
+                            }
+
+                            $nextSkip = $skip + $responseData.Count
+                            if ($nextSkip -gt $maxSkip) {
+                                if ($null -eq $boundaryTimestamp) {
+                                    throw "Chunk $chunkIndex : Hit skip limit but no boundary timestamp was available"
+                                }
+
+                                # Pathological case: too many events in one second (> maxSkip + pageSize).
+                                if ($null -ne $previousBoundaryTimestamp -and $boundaryTimestamp -eq $previousBoundaryTimestamp) {
+                                    # API cannot page past this second. Drop all events for this second so output is deterministic.
+                                    $keptEvents = [System.Collections.Generic.List[object]]::new()
+                                    $droppedCount = 0
+                                    foreach ($existingEvent in $chunkEvents) {
+                                        $isBoundaryEvent = $false
+                                        if ($existingEvent.PSObject.Properties['Timestamp'] -and $existingEvent.Timestamp) {
+                                            try {
+                                                $existingTs = [datetime]::Parse($existingEvent.Timestamp).ToUniversalTime()
+                                                $isBoundaryEvent = ($existingTs -eq $boundaryTimestamp)
+                                            } catch {
+                                                $null = $_
+                                            }
+                                        }
+
+                                        if ($isBoundaryEvent) {
+                                            $droppedCount++
+                                        } else {
+                                            $keptEvents.Add($existingEvent)
+                                        }
+                                    }
+                                    $chunkEvents = $keptEvents
+
+                                    Write-Warning "Chunk $chunkIndex : More than $($maxSkip + $pageSize) events at timestamp $($boundaryTimestamp.ToString('o')); dropped $droppedCount events at this second due API pagination limits"
+
+                                    # Move to older data and skip this second entirely.
+                                    $currentToUnix = [int]($boundaryTimestamp.AddSeconds(-1) - $unixEpoch).TotalSeconds
+                                    if ($currentToUnix -lt $fromUnix) {
+                                        break
+                                    }
+
+                                    $skip = 0
+                                    $previousBoundaryTimestamp = $null
+                                    $boundaryTimestamp = $null
+                                    $boundaryCount = 0
+                                    continue
+                                }
+                                # Remove the incomplete boundary second and restart at that boundary.
+                                if ($boundaryCount -gt 0 -and $boundaryCount -le $chunkEvents.Count) {
+                                    $chunkEvents.RemoveRange($chunkEvents.Count - $boundaryCount, $boundaryCount)
+                                }
+
+                                $previousBoundaryTimestamp = $boundaryTimestamp
+                                $currentToUnix = [int]($boundaryTimestamp.AddSeconds(1) - $unixEpoch).TotalSeconds
+                                $skip = 0
+                                $boundaryTimestamp = $null
+                                $boundaryCount = 0
+                                continue
+                            }
+
+                            $skip = $nextSkip
                         } while ($true)
 
                         $chunkStopwatch.Stop()
@@ -678,7 +794,6 @@ function Get-XdrIdentityUserTimeline {
                     }
                 }
             }
-
             # Process chunks in parallel using ForEach-Object -Parallel (PowerShell 7+)
             if ($PSVersionTable.PSVersion.Major -ge 7) {
                 $totalChunks = $dateChunks.Count
@@ -910,7 +1025,7 @@ function Get-XdrIdentityUserTimeline {
             if ($successfulResults) {
                 $timingStats = $successfulResults | Measure-Object -Property ElapsedSeconds -Minimum -Maximum -Average
                 Write-Verbose "Chunk timing stats: Min=$([math]::Round($timingStats.Minimum, 2))s, Max=$([math]::Round($timingStats.Maximum, 2))s, Avg=$([math]::Round($timingStats.Average, 2))s"
-                
+
                 $slowest = $successfulResults | Sort-Object ElapsedSeconds -Descending | Select-Object -First 5
                 Write-Verbose "Slowest chunks:"
                 foreach ($chunk in $slowest) {
@@ -920,15 +1035,89 @@ function Get-XdrIdentityUserTimeline {
 
             # Merge results from JSON files
             Write-Verbose "Merging results from chunk files..."
-            $allEvents = [System.Collections.Generic.List[object]]::new()
+            $eventRows = [System.Collections.Generic.List[object]]::new()
+            $stableEventKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+            $mergeCounters = @{
+                TotalCandidates     = 0
+                Duplicates          = 0
+                OutOfRange          = 0
+                MissingTimestamp    = 0
+                TimestampParseErrors = 0
+            }
+            $fromUtcInclusive = $FromDate.ToUniversalTime()
+            $toUtcExclusive = $ToDate.ToUniversalTime()
+            $sha256 = [System.Security.Cryptography.SHA256]::Create()
             $chunkFiles = Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue | Sort-Object Name
+
+            $addDedupedEvent = {
+                param([PSObject]$eventObject)
+
+                $eventTimestampUtc = $null
+
+                if ($eventObject.PSObject.Properties['Timestamp'] -and $null -ne $eventObject.Timestamp -and -not [string]::IsNullOrWhiteSpace([string]$eventObject.Timestamp)) {
+                    try {
+                        $eventTimestampUtc = ([datetime]$eventObject.Timestamp).ToUniversalTime()
+                    } catch {
+                        $mergeCounters['TimestampParseErrors']++
+                        return
+                    }
+                } elseif ($eventObject.PSObject.Properties['ActionTimeIsoString'] -and -not [string]::IsNullOrWhiteSpace([string]$eventObject.ActionTimeIsoString)) {
+                    try {
+                        $eventTimestampUtc = ([datetime]$eventObject.ActionTimeIsoString).ToUniversalTime()
+                    } catch {
+                        $mergeCounters['TimestampParseErrors']++
+                        return
+                    }
+                } elseif ($eventObject.PSObject.Properties['TimeGenerated'] -and -not [string]::IsNullOrWhiteSpace([string]$eventObject.TimeGenerated)) {
+                    try {
+                        $eventTimestampUtc = ([datetime]$eventObject.TimeGenerated).ToUniversalTime()
+                    } catch {
+                        $mergeCounters['TimestampParseErrors']++
+                        return
+                    }
+                } else {
+                    $mergeCounters['MissingTimestamp']++
+                    return
+                }
+
+                if ($eventTimestampUtc -lt $fromUtcInclusive -or $eventTimestampUtc -ge $toUtcExclusive) {
+                    $mergeCounters['OutOfRange']++
+                    return
+                }
+
+                foreach ($unstableProperty in @('Id', 'RowNumber', 'EventId', 'ReportId')) {
+                    if ($eventObject.PSObject.Properties[$unstableProperty]) {
+                        [void]$eventObject.PSObject.Properties.Remove($unstableProperty)
+                    }
+                }
+
+                $stablePayload = [ordered]@{}
+                foreach ($property in ($eventObject.PSObject.Properties | Sort-Object Name)) {
+                    $stablePayload[$property.Name] = $property.Value
+                }
+
+                $stableJson = $stablePayload | ConvertTo-Json -Depth 20 -Compress
+                $stableHashBytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($stableJson))
+                $stableKey = [System.BitConverter]::ToString($stableHashBytes).Replace('-', '')
+                $mergeCounters['TotalCandidates']++
+
+                if ($stableEventKeys.Add($stableKey)) {
+                    [void]$eventRows.Add([PSCustomObject]@{
+                        Event        = $eventObject
+                        TimestampKey = $eventTimestampUtc.ToString('o')
+                        StableKey    = $stableKey
+                    })
+                } else {
+                    $mergeCounters['Duplicates']++
+                }
+            }
 
             foreach ($file in $chunkFiles) {
                 $chunkData = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json
                 if ($null -ne $chunkData.Events -and $chunkData.Events.Count -gt 0) {
                     foreach ($timelineEvent in $chunkData.Events) {
                         $timelineEvent.PSObject.TypeNames.Insert(0, 'XdrIdentityUserTimelineEvent')
-                        $allEvents.Add($timelineEvent)
+                        & $addDedupedEvent -eventObject $timelineEvent
                     }
                 }
             }
@@ -969,7 +1158,7 @@ function Get-XdrIdentityUserTimeline {
                             foreach ($timelineEvent in $sentinelResponse.value) {
                                 $timelineEvent.PSObject.TypeNames.Insert(0, 'XdrIdentityUserTimelineEvent')
                                 $timelineEvent | Add-Member -NotePropertyName 'SourceTable' -NotePropertyValue 'SentinelAnomaly' -Force
-                                $allEvents.Add($timelineEvent)
+                                & $addDedupedEvent -eventObject $timelineEvent
                             }
                         } else {
                             Write-Verbose "No Sentinel anomaly events found for this time range"
@@ -987,8 +1176,13 @@ function Get-XdrIdentityUserTimeline {
                 # if armId auto-detection doesn't work for a majority of users/tenants.
             }
 
-            # Sort events by timestamp (newest first)
-            $sortedEvents = $allEvents | Sort-Object -Property Timestamp -Descending
+            $sha256.Dispose()
+            Write-Verbose "Merge stats: candidates=$($mergeCounters.TotalCandidates), duplicates=$($mergeCounters.Duplicates), outOfRange=$($mergeCounters.OutOfRange), missingTimestamp=$($mergeCounters.MissingTimestamp), timestampParseErrors=$($mergeCounters.TimestampParseErrors)"
+
+            # Sort events by timestamp (newest first) with deterministic tie-breaker
+            $sortedEvents = $eventRows |
+                Sort-Object -Property @{ Expression = 'TimestampKey'; Descending = $true }, @{ Expression = 'StableKey'; Descending = $false } |
+                ForEach-Object { $_.Event }
 
             $operationStartTime.Stop()
             $totalEvents = $sortedEvents.Count
@@ -1011,7 +1205,7 @@ function Get-XdrIdentityUserTimeline {
 
             # Cleanup temp files unless KeepTempFiles is specified
             # Always clean up progress_*.txt files - they're only used for stall detection
-            Get-ChildItem -Path $runTempPath -Filter "progress_*.txt" -ErrorAction SilentlyContinue | 
+            Get-ChildItem -Path $runTempPath -Filter "progress_*.txt" -ErrorAction SilentlyContinue |
                 Remove-Item -Force -ErrorAction SilentlyContinue
 
             if (-not $KeepTempFiles -and -not $ExportPath) {
@@ -1034,3 +1228,11 @@ function Get-XdrIdentityUserTimeline {
         }
     }
 }
+
+
+
+
+
+
+
+

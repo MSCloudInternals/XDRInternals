@@ -787,7 +787,7 @@
                                             $boundaryCount++
                                         }
                                     } catch {
-                                        $null = $_  # Ignore parse errors for boundary tracking.
+                                        Write-Verbose "Ignoring timestamp parse errors for boundary tracking."
                                     }
                                 }
                             }
@@ -814,7 +814,7 @@
                                                 $existingTs = [datetime]::Parse($existingEvent.Timestamp).ToUniversalTime()
                                                 $isBoundaryEvent = ($existingTs -eq $boundaryTimestamp)
                                             } catch {
-                                                # Ignore timestamp parse errors; treat event as non-boundary.
+                                                Write-Verbose "Ignoring timestamp parse errors; treat event as non-boundary."
                                             }
                                         }
 

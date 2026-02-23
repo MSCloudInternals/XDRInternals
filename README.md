@@ -174,7 +174,7 @@ Connect-XdrByEstsCookie
 
 ```powershell
 # Configure connection settings with SCC auth (XSRF token is obtained automatically)
-Set-XdrConnectionSettings -SccAuth $scc -TenantId $tenantId -Verbose
+Set-XdrConnectionSettings -SccAuth $sccauth
 ```
 
 ### Examples

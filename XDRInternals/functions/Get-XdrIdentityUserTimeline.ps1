@@ -814,7 +814,7 @@
                                                 $existingTs = [datetime]::Parse($existingEvent.Timestamp).ToUniversalTime()
                                                 $isBoundaryEvent = ($existingTs -eq $boundaryTimestamp)
                                             } catch {
-                                                $null = $_
+                                                # Ignore timestamp parse errors; treat event as non-boundary.
                                             }
                                         }
 
@@ -1321,7 +1321,7 @@
             if (-not $KeepTempFiles) {
                 Write-Verbose "Cleaning up temporary files in $runTempPath"
                 Remove-Item -Path $runTempPath -Recurse -Force -ErrorAction SilentlyContinue
-            } elseif ($KeepTempFiles) {
+            } else {
                 Write-Information "Temporary files preserved in: $runTempPath" -InformationAction Continue
             }
 

@@ -79,8 +79,7 @@
         $count = 0
         if (-not [int]::TryParse([string]$countCandidate, [ref]$count)) {
             $message = "Identity count response was not numeric. Raw response: $($response | ConvertTo-Json -Depth 5 -Compress)"
-            Write-Error -ErrorId 'XdrIdentityIdentityCountInvalidResponse' -Category InvalidResult -TargetObject $response -Message $message
-            throw $message
+            Write-Error -ErrorId 'XdrIdentityIdentityCountInvalidResponse' -Category InvalidResult -TargetObject $response -Message $message -ErrorAction Stop
         }
 
         return $count

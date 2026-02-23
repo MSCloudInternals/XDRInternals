@@ -1,4 +1,4 @@
-function ConvertTo-XdrIdentityUserIdentifiers {
+﻿function ConvertTo-XdrIdentityUserIdentifiers {
     <#
     .SYNOPSIS
         Converts user identity data to the userIdentifiers payload.
@@ -32,6 +32,17 @@ function ConvertTo-XdrIdentityUserIdentifiers {
     .PARAMETER ResolvedUser
         The resolved user object returned by Get-XdrIdentityUser or identity resolve APIs.
         Supports objects containing either `ids` or `results.ids`.
+
+    .EXAMPLE
+        ConvertTo-XdrIdentityUserIdentifiers -AadId 'a2307c5a-76df-4513-b575-0537842c1d8b'
+
+        Builds a userIdentifiers payload using a direct Entra object ID.
+
+    .EXAMPLE
+        $user = Get-XdrIdentityUser -Upn 'user@contoso.com'
+        ConvertTo-XdrIdentityUserIdentifiers -ResolvedUser $user
+
+        Builds a userIdentifiers payload from a resolved identity user object.
 
     .OUTPUTS
         Hashtable
@@ -178,7 +189,7 @@ function ConvertTo-XdrIdentityUserIdentifiers {
         }
 
         if ($userIdentifiers.Count -eq 0) {
-            throw "No usable identity user identifiers were found."
+            throw 'No usable identity user identifiers were found.'
         }
 
         return $userIdentifiers

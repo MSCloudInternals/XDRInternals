@@ -1,13 +1,15 @@
 ﻿function Connect-XdrEndpointDeviceLiveResponse {
     <#
     .SYNOPSIS
-        Opens an interactive Live Response session to an endpoint device in Microsoft Defender XDR.
+        Opens a Live Response session to an endpoint device in Microsoft Defender XDR.
 
     .DESCRIPTION
-        Creates a Live Response session to the specified device and provides an interactive
-        command-line interface. The session connects to the device, fetches available commands
-        for tab completion, and enters an interactive loop where you can type Live Response
+        Creates a Live Response session to the specified device. By default, the cmdlet
+        provides an interactive command-line interface where you can type Live Response
         commands and see results.
+
+        When -NonInteractive is specified, the cmdlet establishes the session, loads
+        command definitions, and returns a session object without entering the prompt loop.
 
         Type 'disconnect' or 'exit' to close the session and return to PowerShell.
         Type 'help' to see available Live Response commands.
@@ -24,17 +26,36 @@
     .PARAMETER DeviceId
         The device ID (SenseMachineId) of the target device.
 
+    .PARAMETER NonInteractive
+        Connects to Live Response and returns a session object without starting the
+        interactive prompt loop.
+
     .EXAMPLE
-        Connect-XdrEndpointDeviceLiveResponse -DeviceId "55a5db7b474470725e0131dec38c07b2f54bf2ad"
+        Connect-XdrEndpointDeviceLiveResponse -DeviceId "980dddb7036eae7e38d30dee7f11b51e573a6fc2"
         Opens an interactive Live Response session to the specified device.
 
     .EXAMPLE
-        Invoke-XdrEndpointDeviceAction -DeviceId "abc123" -LiveResponse
+        $lr = Connect-XdrEndpointDeviceLiveResponse -DeviceId "980dddb7036eae7e38d30dee7f11b51e573a6fc2" -NonInteractive
+        Connects to the device and returns a session object for script-driven command execution.
+
+    .EXAMPLE
+        Invoke-XdrEndpointDeviceAction -DeviceId "980dddb7036eae7e38d30dee7f11b51e573a6fc2" -LiveResponse
         Opens a Live Response session via the unified action cmdlet.
 
+    .NOTES
+        macOS validation baseline: February 24, 2026.
+
+        Initial directory is OS-aware:
+        - Windows devices start in C:\
+        - macOS/Linux/Unix devices start in /
+
+        NonInteractive mode returns a typed XdrEndpointDeviceLiveResponseSession object
+        for automation workflows and test harnesses.
+
     .OUTPUTS
-        None
-        This cmdlet runs interactively and does not return output.
+        PSCustomObject
+        When -NonInteractive is used, returns an XdrEndpointDeviceLiveResponseSession object.
+        In interactive mode, no output is returned.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '', Justification = 'Parameters required by Register-ArgumentCompleter scriptblock signature')]
@@ -44,7 +65,10 @@
         [Alias('MachineId', 'SenseMachineId')]
         [ValidateLength(40,40)]
         [ValidatePattern('^[0-9a-fA-F]{40}$')]
-        [string]$DeviceId
+        [string]$DeviceId,
+
+        [Parameter()]
+        [switch]$NonInteractive
     )
 
     begin {
@@ -261,14 +285,36 @@
             $availableCommands = $knownCommands
         }
 
+        # Determine initial directory from OS platform.
+        # macOS and Linux devices start at '/', while Windows starts at C:\.
+        $osPlatform = "$($device.OsPlatform)".ToLower()
+        $initialDirectory = if ($osPlatform -match 'mac|linux|unix') { '/' } else { 'C:\' }
+
         # Store session state
         $script:LiveResponseSession = @{
             SessionId          = $sessionId
             MachineId          = $DeviceId
             DeviceName         = $deviceName
-            CurrentDirectory   = 'C:\'
+            OsPlatform         = $device.OsPlatform
+            CurrentDirectory   = $initialDirectory
             CommandDefinitions = $commandDefinitions
             AvailableCommands  = $availableCommands
+        }
+
+
+        if ($NonInteractive) {
+            $sessionObj = [PSCustomObject]@{
+                SessionId          = $sessionId
+                DeviceId           = $DeviceId
+                DeviceName         = $deviceName
+                OsPlatform         = $device.OsPlatform
+                CurrentDirectory   = $initialDirectory
+                CommandDefinitions = $commandDefinitions
+                AvailableCommands  = $availableCommands
+                ConnectedOnUtc     = (Get-Date).ToUniversalTime().ToString('o')
+            }
+            $sessionObj.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceLiveResponseSession')
+            return $sessionObj
         }
 
         # Step 5: Register tab completion for the interactive session
@@ -290,7 +336,7 @@
         Write-Host ""
 
         # Step 6: Interactive command loop
-        $currentDir = 'C:\'
+        $currentDir = $initialDirectory
         $running = $true
 
         while ($running) {

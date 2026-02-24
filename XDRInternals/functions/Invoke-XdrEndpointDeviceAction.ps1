@@ -1,4 +1,4 @@
-﻿function Invoke-XdrEndpointDeviceAction {
+function Invoke-XdrEndpointDeviceAction {
     <#
     .SYNOPSIS
         Invokes response actions on an endpoint device in Microsoft Defender XDR.
@@ -33,9 +33,13 @@
 
     .PARAMETER RestrictAppExecution
         Restricts application execution on the device to Microsoft-signed binaries only.
+        macOS note: this action is currently unsupported and should be attempted only for
+        capability detection/documentation.
 
     .PARAMETER RemoveAppExecutionRestriction
         Removes application execution restriction from the device.
+        macOS note: this action is currently unsupported and should be attempted only for
+        capability detection/documentation.
 
     .PARAMETER CollectInvestigationPackage
         Collects a forensic investigation package from the device.
@@ -79,6 +83,8 @@
 
     .PARAMETER StartInvestigation
         Starts an automated investigation. Wraps Invoke-XdrEndpointDeviceAutomatedInvestigation.
+        macOS note: this action is currently unsupported and should be attempted only for
+        capability detection/documentation.
 
     .PARAMETER LiveResponse
         Starts an interactive Live Response session. Wraps Connect-XdrEndpointDeviceLiveResponse.
@@ -90,36 +96,50 @@
         Shows what would happen if the cmdlet runs without actually performing the action.
 
     .EXAMPLE
-        Invoke-XdrEndpointDeviceAction -DeviceId "abc123" -Scan Quick
+        Invoke-XdrEndpointDeviceAction -DeviceId "980dddb7036eae7e38d30dee7f11b51e573a6fc2" -Scan Quick
         Runs a quick antivirus scan on the specified device.
 
     .EXAMPLE
-        Invoke-XdrEndpointDeviceAction -DeviceId "abc123" -Scan Full -Comment "Post-incident full scan"
+        Invoke-XdrEndpointDeviceAction -DeviceId "980dddb7036eae7e38d30dee7f11b51e573a6fc2" -Scan Full -Comment "macOS validation full scan"
         Runs a full antivirus scan with a comment.
 
     .EXAMPLE
-        Invoke-XdrEndpointDeviceAction -DeviceId "abc123" -Isolate Full -Comment "Suspected compromise"
+        Invoke-XdrEndpointDeviceAction -DeviceId "980dddb7036eae7e38d30dee7f11b51e573a6fc2" -Isolate Full -Comment "macOS containment test"
         Fully isolates the device from the network.
 
     .EXAMPLE
-        Invoke-XdrEndpointDeviceAction -DeviceId "abc123" -ReleaseFromIsolation -Comment "Investigation complete"
+        Invoke-XdrEndpointDeviceAction -DeviceId "980dddb7036eae7e38d30dee7f11b51e573a6fc2" -ReleaseFromIsolation -Comment "macOS containment test rollback"
         Releases the device from isolation.
 
     .EXAMPLE
-        Invoke-XdrEndpointDeviceAction -DeviceId "abc123" -CollectInvestigationPackage -Comment "Forensics collection"
+        Invoke-XdrEndpointDeviceAction -DeviceId "980dddb7036eae7e38d30dee7f11b51e573a6fc2" -CollectInvestigationPackage -Comment "macOS evidence collection"
         Collects a forensic investigation package from the device.
 
     .EXAMPLE
-        Invoke-XdrEndpointDeviceAction -DeviceId "abc123" -LiveResponse
+        Invoke-XdrEndpointDeviceAction -DeviceId "980dddb7036eae7e38d30dee7f11b51e573a6fc2" -LiveResponse
         Opens an interactive Live Response session to the device.
 
     .EXAMPLE
-        Invoke-XdrEndpointDeviceAction -DeviceId "abc123" -SetAssetValue High
+        Invoke-XdrEndpointDeviceAction -DeviceId "980dddb7036eae7e38d30dee7f11b51e573a6fc2" -SetAssetValue High
         Sets the asset value to High.
 
     .EXAMPLE
-        Invoke-XdrEndpointDeviceAction -DeviceId "abc123" -ForceSync
+        Invoke-XdrEndpointDeviceAction -DeviceId "980dddb7036eae7e38d30dee7f11b51e573a6fc2" -ForceSync -Comment "macOS policy sync validation"
         Forces a policy sync on the device.
+
+    .NOTES
+        macOS validation baseline: February 24, 2026.
+
+        Validated on macOS:
+        Scan (Quick, Full), Isolate (Full, Selective), ReleaseFromIsolation,
+        CollectInvestigationPackage, StartTroubleshoot, StopTroubleshoot, SetTags,
+        SetAssetValue, SetCriticalityLevel, SetExclusionState, ForceSync, LiveResponse.
+
+        Service-dependent on macOS:
+        CollectSupportLogs (may return transient backend InternalServerError).
+
+        Not currently supported on macOS:
+        RestrictAppExecution, RemoveAppExecutionRestriction, StartInvestigation.
 
     .OUTPUTS
         PSCustomObject
@@ -223,6 +243,34 @@
     }
 
     process {
+        function Get-ParsedErrorDetail {
+            param([Parameter(Mandatory = $true)]$ErrorRecord)
+
+            $message = $null
+            if ($ErrorRecord -and $ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) {
+                $message = "$($ErrorRecord.ErrorDetails.Message)"
+            } elseif ($ErrorRecord -and $ErrorRecord.Exception -and $ErrorRecord.Exception.Message) {
+                $message = "$($ErrorRecord.Exception.Message)"
+            }
+
+            if ([string]::IsNullOrWhiteSpace($message)) {
+                return $null
+            }
+
+            try {
+                return ($message | ConvertFrom-Json -ErrorAction Stop)
+            } catch {
+                # Some service errors contain non-JSON numeric literals (Infinity/NaN).
+                $sanitized = $message -replace '(:\s*)Infinity(?=[,}\]])', '$1null'
+                $sanitized = $sanitized -replace '(:\s*)-Infinity(?=[,}\]])', '$1null'
+                $sanitized = $sanitized -replace '(:\s*)NaN(?=[,}\]])', '$1null'
+                try {
+                    return ($sanitized | ConvertFrom-Json -ErrorAction Stop)
+                } catch {
+                    return $null
+                }
+            }
+        }
         switch ($PSCmdlet.ParameterSetName) {
             'Scan' {
                 $device = Get-XdrEndpointDevice -DeviceId $DeviceId
@@ -244,7 +292,7 @@
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'pending|already|conflict|concurrent') {
                             Write-Error "A scan is already pending or running on this device. Wait for it to complete or cancel it first. API: $($errorDetail.error.message ?? $errorDetail.Message)"
                         } else {
@@ -275,7 +323,7 @@
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'already isolated|pending isolation') {
                             Write-Error "Device is already isolated or has a pending isolation request. Release isolation first with -ReleaseFromIsolation. API: $($errorDetail.error.message ?? $errorDetail.Message)"
                         } else {
@@ -305,7 +353,7 @@
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'not isolated|not in isolation') {
                             Write-Error "Device is not currently isolated. API: $($errorDetail.Message)"
                         } else {
@@ -336,7 +384,7 @@
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'already restricted|pending') {
                             Write-Error "App execution restriction is already active or pending. Remove restriction first with -RemoveAppExecutionRestriction. API: $($errorDetail.Message)"
                         } else {
@@ -367,7 +415,7 @@
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'not restricted|no restriction') {
                             Write-Error "App execution is not currently restricted. API: $($errorDetail.Message)"
                         } else {
@@ -396,7 +444,7 @@
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists') {
                             Write-Error "An investigation package collection is already in progress on this device. Wait for it to complete first. API: $($errorDetail.error.message)"
                         } else {
@@ -425,7 +473,7 @@
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists') {
                             Write-Error "A support log collection is already in progress on this device. Wait for it to complete first. API: $($errorDetail.error.message)"
                         } else {
@@ -461,7 +509,7 @@
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'already|active|enabled') {
                             Write-Error "Troubleshoot mode is already active. Stop it first with -StopTroubleshoot. API: $($errorDetail.error.message ?? $errorDetail.Message)"
                         } else {
@@ -494,7 +542,7 @@
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'not active|not enabled') {
                             Write-Error "Troubleshoot mode is not currently active on this device. API: $($errorDetail.error.message ?? $errorDetail.Message)"
                         } else {

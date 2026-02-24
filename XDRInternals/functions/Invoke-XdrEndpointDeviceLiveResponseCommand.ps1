@@ -21,12 +21,13 @@
         The Live Response session ID (starts with CLR prefix).
 
     .PARAMETER Command
-        The raw command line to execute (e.g., "dir C:\Windows", "processes", "getfile C:\temp\log.txt").
+        The raw command line to execute (e.g., "dir /Applications", "processes", "getfile /etc/hosts").
         Supports all Live Response command aliases (ls, process, download, etc.).
-        Values containing spaces must be quoted: getfile "C:\path with spaces\file.txt"
+        Values containing spaces must be quoted: getfile "/Applications/Utilities/Activity Monitor.app/Contents/Info.plist"
 
     .PARAMETER CurrentDirectory
-        The current working directory on the remote device. Defaults to "C:\".
+        The current working directory on the remote device. Defaults to "C:\" for Windows sessions.
+        For macOS and Linux sessions, use '/' or the session's reported current directory.
 
     .PARAMETER BackgroundMode
         Run the command in background mode if supported.
@@ -48,24 +49,33 @@
         Lists running processes on the remote device.
 
     .EXAMPLE
-        Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "dir C:\Windows" -CurrentDirectory "C:\"
-        Lists the contents of C:\Windows.
+        Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "dir /Applications" -CurrentDirectory "/"
+        Lists the contents of /Applications on a macOS device.
 
     .EXAMPLE
         Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "dir -full_path"
         Lists all files with full paths. The -full_path flag is correctly sent in the flags[] array.
 
     .EXAMPLE
-        Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "process -name SenseIR.exe"
-        Filters processes by name using the 'process' alias and a named -name parameter.
+        Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "process -name launchd"
+        Filters processes by name using the 'process' alias and a named -name parameter on macOS.
 
     .EXAMPLE
-        Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "getfile C:\temp\log.txt" -TimeoutSeconds 120
-        Downloads a file with a 2-minute timeout.
+        Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "getfile /etc/hosts" -TimeoutSeconds 120
+        Downloads a file from a macOS device with a 2-minute timeout.
 
     .EXAMPLE
         Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb" -Command "ls"
         Lists files using the 'ls' alias for 'dir'. Alias is preserved in raw_command_line.
+
+    .NOTES
+        macOS validation baseline: February 24, 2026.
+
+        Use POSIX-style paths for macOS sessions (for example: /, /Applications, /etc/hosts, /tmp).
+
+        Some Live Response commands are platform-restricted or tenant-policy restricted and can return
+        errors such as "Not allowed to run this command". These responses should be recorded as
+        capability limitations instead of parser failures.
 
     .OUTPUTS
         PSCustomObject

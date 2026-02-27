@@ -119,9 +119,8 @@
                 # Per-device: get current tags, add and/or remove as specified, set resulting list
                 foreach ($machineId in $DeviceId) {
                     try {
-                        $device = Get-XdrEndpointDevice -DeviceId $machineId -Force
                         $deviceTags = Get-XdrEndpointDeviceTag -DeviceId $machineId -Force
-                        $currentTags = @($deviceTags.UserDefinedTags | Where-Object { $_ -ne '' })
+                        $currentTags = @($deviceTags.UserDefinedTags | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
                         $updatedTags = $currentTags
 
                         # Add tags first
@@ -135,7 +134,7 @@
                         }
 
                         if ($updatedTags.Count -eq 0) {
-                            Write-Warning "All tags will be removed from device $($device.ComputerDnsName) ($machineId). Device will have no user-defined tags."
+                            Write-Warning "All tags will be removed from device $machineId. Device will have no user-defined tags."
                             $updatedTags = @()
                         }
 
@@ -152,9 +151,9 @@
                             SenseMachineIds    = @($machineId)
                         } | ConvertTo-Json -Depth 10
 
-                        if ($PSCmdlet.ShouldProcess("Device: $($device.ComputerDnsName) ($machineId)", "$actionDesc (current: $($currentTags -join ', '))")) {
+                        if ($PSCmdlet.ShouldProcess("Device: $machineId", "$actionDesc (current: $($currentTags -join ', '))")) {
                             $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines/editMachineTags"
-                            Write-Verbose "Updating tags on device $($device.ComputerDnsName) - $actionDesc (current: $($currentTags -join ', ') -> result: $($updatedTags -join ', '))"
+                            Write-Verbose "Updating tags on device $machineId - $actionDesc (current: $($currentTags -join ', ') -> result: $($updatedTags -join ', '))"
                             $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
                             $result
                         }

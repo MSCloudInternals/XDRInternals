@@ -243,34 +243,6 @@ function Invoke-XdrEndpointDeviceAction {
     }
 
     process {
-        function Get-ParsedErrorDetail {
-            param([Parameter(Mandatory = $true)]$ErrorRecord)
-
-            $message = $null
-            if ($ErrorRecord -and $ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) {
-                $message = "$($ErrorRecord.ErrorDetails.Message)"
-            } elseif ($ErrorRecord -and $ErrorRecord.Exception -and $ErrorRecord.Exception.Message) {
-                $message = "$($ErrorRecord.Exception.Message)"
-            }
-
-            if ([string]::IsNullOrWhiteSpace($message)) {
-                return $null
-            }
-
-            try {
-                return ($message | ConvertFrom-Json -ErrorAction Stop)
-            } catch {
-                # Some service errors contain non-JSON numeric literals (Infinity/NaN).
-                $sanitized = $message -replace '(:\s*)Infinity(?=[,}\]])', '$1null'
-                $sanitized = $sanitized -replace '(:\s*)-Infinity(?=[,}\]])', '$1null'
-                $sanitized = $sanitized -replace '(:\s*)NaN(?=[,}\]])', '$1null'
-                try {
-                    return ($sanitized | ConvertFrom-Json -ErrorAction Stop)
-                } catch {
-                    return $null
-                }
-            }
-        }
         switch ($PSCmdlet.ParameterSetName) {
             'Scan' {
                 $device = Get-XdrEndpointDevice -DeviceId $DeviceId
@@ -292,7 +264,7 @@ function Invoke-XdrEndpointDeviceAction {
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
+                        $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'pending|already|conflict|concurrent') {
                             Write-Error "A scan is already pending or running on this device. Wait for it to complete or cancel it first. API: $($errorDetail.error.message ?? $errorDetail.Message)"
                         } else {
@@ -323,7 +295,7 @@ function Invoke-XdrEndpointDeviceAction {
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
+                        $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'already isolated|pending isolation') {
                             Write-Error "Device is already isolated or has a pending isolation request. Release isolation first with -ReleaseFromIsolation. API: $($errorDetail.error.message ?? $errorDetail.Message)"
                         } else {
@@ -353,7 +325,7 @@ function Invoke-XdrEndpointDeviceAction {
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
+                        $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'not isolated|not in isolation') {
                             Write-Error "Device is not currently isolated. API: $($errorDetail.Message)"
                         } else {
@@ -384,7 +356,7 @@ function Invoke-XdrEndpointDeviceAction {
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
+                        $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'already restricted|pending') {
                             Write-Error "App execution restriction is already active or pending. Remove restriction first with -RemoveAppExecutionRestriction. API: $($errorDetail.Message)"
                         } else {
@@ -415,7 +387,7 @@ function Invoke-XdrEndpointDeviceAction {
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
+                        $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'not restricted|no restriction') {
                             Write-Error "App execution is not currently restricted. API: $($errorDetail.Message)"
                         } else {
@@ -444,7 +416,7 @@ function Invoke-XdrEndpointDeviceAction {
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
+                        $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists') {
                             Write-Error "An investigation package collection is already in progress on this device. Wait for it to complete first. API: $($errorDetail.error.message)"
                         } else {
@@ -473,7 +445,7 @@ function Invoke-XdrEndpointDeviceAction {
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
+                        $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists') {
                             Write-Error "A support log collection is already in progress on this device. Wait for it to complete first. API: $($errorDetail.error.message)"
                         } else {
@@ -509,7 +481,7 @@ function Invoke-XdrEndpointDeviceAction {
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
+                        $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'already|active|enabled') {
                             Write-Error "Troubleshoot mode is already active. Stop it first with -StopTroubleshoot. API: $($errorDetail.error.message ?? $errorDetail.Message)"
                         } else {
@@ -542,7 +514,7 @@ function Invoke-XdrEndpointDeviceAction {
                         $result.PSObject.TypeNames.Insert(0, 'XdrEndpointDeviceActionResult')
                         return $result
                     } catch {
-                        $errorDetail = Get-ParsedErrorDetail -ErrorRecord $_
+                        $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'not active|not enabled') {
                             Write-Error "Troubleshoot mode is not currently active on this device. API: $($errorDetail.error.message ?? $errorDetail.Message)"
                         } else {

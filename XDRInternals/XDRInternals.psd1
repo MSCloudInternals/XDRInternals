@@ -168,8 +168,8 @@
         "Set-XdrEndpointConfigurationCustomCollectionRule",
         "Set-XdrEndpointDeviceRbacGroup",
         "Set-XdrEndpointDeviceTag",
-        "Stop-XdrEndpointDeviceAction",
         "Set-XdrIdentityConfigurationRemediationActionAccount",
+        "Stop-XdrEndpointDeviceAction",
         "Update-XdrConnectionSettings"
     )
 

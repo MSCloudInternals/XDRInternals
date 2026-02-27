@@ -5,14 +5,17 @@
 
     .DESCRIPTION
         Creates global session and headers variables for XDR API calls using the provided
-        sccauth and XSRF token values. This function sets up the necessary authentication
-        context for other XDR cmdlets to interact with the Microsoft Defender XDR portal.
+        sccauth value and optionally an XSRF token value. If xsrf is not provided, the
+        function will bootstrap the session against security.microsoft.com to obtain
+        XSRF-TOKEN automatically.
 
     .PARAMETER sccauth
         The sccauth cookie value from an authenticated session to security.microsoft.com.
 
     .PARAMETER xsrf
         The XSRF-TOKEN cookie value from an authenticated session to security.microsoft.com.
+        If not provided, XSRF-TOKEN is obtained automatically using the provided sccauth
+        and an initial request to security.microsoft.com.
 
     .PARAMETER TenantId
         The Tenant ID to use for XDR API requests. If not provided, the Tenant ID will be
@@ -30,6 +33,10 @@
         Set-XdrConnectionSettings -sccauth "your_sccauth_value" -xsrf "your_xsrf_value"
         Creates XDR connection settings using the provided authentication cookies.
 
+    .EXAMPLE
+        Set-XdrConnectionSettings -sccauth "your_sccauth_value" -TenantId "your_tenant_id"
+        Creates XDR connection settings and automatically obtains XSRF-TOKEN.
+
     .OUTPUTS
         String
         Returns a confirmation message when connection settings are created.
@@ -42,7 +49,7 @@
         [Parameter(Mandatory, ParameterSetName = 'Manual')]
         $SccAuth,
 
-        [Parameter(Mandatory, ParameterSetName = 'Manual')]
+        [Parameter(ParameterSetName = 'Manual')]
         $Xsrf,
 
         $TenantId,
@@ -68,22 +75,36 @@
         } else {
             $SccAuthValue = $SccAuth
         }
-        if ($Xsrf -is [System.Security.SecureString]) {
-            Write-Verbose "Xsrf is secure string, converting to plain text"
-            $ssPtr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Xsrf)
-            try {
-                $XsrfValue = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ssPtr)
-            } finally {
-                [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ssPtr)
-            }
-        } else {
-            $XsrfValue = $Xsrf
-        }
-
         # Create session and cookies
         $script:session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
         $script:session.Cookies.Add((New-Object System.Net.Cookie("sccauth", $SccAuthValue, "/", "security.microsoft.com")))
-        $script:session.Cookies.Add((New-Object System.Net.Cookie("XSRF-TOKEN", $XsrfValue, "/", "security.microsoft.com")))
+
+        if ($PSBoundParameters.ContainsKey('Xsrf')) {
+            if ($Xsrf -is [System.Security.SecureString]) {
+                Write-Verbose "Xsrf is secure string, converting to plain text"
+                $ssPtr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Xsrf)
+                try {
+                    $XsrfValue = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ssPtr)
+                } finally {
+                    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ssPtr)
+                }
+            } else {
+                $XsrfValue = $Xsrf
+            }
+            $script:session.Cookies.Add((New-Object System.Net.Cookie("XSRF-TOKEN", $XsrfValue, "/", "security.microsoft.com")))
+        } else {
+            if ($TenantId) {
+                $SecurityPortalUri = "https://security.microsoft.com/" + "?tid=$TenantId"
+            } else {
+                $SecurityPortalUri = "https://security.microsoft.com/"
+            }
+            Write-Verbose "Obtaining XSRF token from $SecurityPortalUri"
+            $null = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $script:session -Method Get -Uri $SecurityPortalUri -Verbose:$false
+            $XsrfValue = $script:session.Cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value
+            if ([string]::IsNullOrWhiteSpace($XsrfValue)) {
+                throw "Failed to obtain XSRF-TOKEN cookie from security.microsoft.com. Verify the provided sccauth value."
+            }
+        }
     }
 
 

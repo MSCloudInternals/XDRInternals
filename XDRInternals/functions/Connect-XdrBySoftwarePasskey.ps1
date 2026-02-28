@@ -1,10 +1,10 @@
 ﻿function Connect-XdrBySoftwarePasskey {
     <#
     .SYNOPSIS
-        Authenticates to Microsoft Defender XDR using a software FIDO2 passkey.
+        Authenticates to Microsoft Defender XDR using a software passkey.
 
     .DESCRIPTION
-        Performs FIDO2 WebAuthn authentication against Microsoft Entra ID using a passkey credential
+        Performs passkey (FIDO2/WebAuthn) authentication against Microsoft Entra ID using a credential
         stored in a JSON file, then establishes an authenticated session to the Defender XDR portal.
 
         Two passkey types are supported, auto-detected from the credential file:
@@ -40,6 +40,9 @@
     .PARAMETER KeyVaultClientId
         Client ID of a user-assigned managed identity for Key Vault access via IMDS.
         When not provided and IMDS is used, the system-assigned managed identity is used.
+
+    .PARAMETER KeyVaultApiVersion
+        Azure Key Vault REST API version to use for the Sign operation. Defaults to '7.4'.
 
     .PARAMETER UserAgent
         User-Agent string for HTTP requests. Defaults to Edge browser user agent.
@@ -77,6 +80,7 @@
 
         [string]$KeyVaultTenantId,
         [string]$KeyVaultClientId,
+        [string]$KeyVaultApiVersion = '7.4',
 
         [string]$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
     )
@@ -84,14 +88,15 @@
     process {
         Write-Host "Authenticating with software passkey: $KeyFilePath"
 
-        $fido2Params = @{
-            KeyFilePath = $KeyFilePath
-            UserAgent   = $UserAgent
+        $passkeyParams = @{
+            KeyFilePath        = $KeyFilePath
+            KeyVaultApiVersion = $KeyVaultApiVersion
+            UserAgent          = $UserAgent
         }
-        if ($KeyVaultTenantId) { $fido2Params.KeyVaultTenantId = $KeyVaultTenantId }
-        if ($KeyVaultClientId) { $fido2Params.KeyVaultClientId = $KeyVaultClientId }
+        if ($KeyVaultTenantId) { $passkeyParams.KeyVaultTenantId = $KeyVaultTenantId }
+        if ($KeyVaultClientId) { $passkeyParams.KeyVaultClientId = $KeyVaultClientId }
 
-        $estsAuth = Invoke-XdrFido2Authentication @fido2Params
+        $estsAuth = Invoke-XdrPasskeyAuthentication @passkeyParams
 
         $connectParams = @{
             EstsAuthCookieValue = $estsAuth

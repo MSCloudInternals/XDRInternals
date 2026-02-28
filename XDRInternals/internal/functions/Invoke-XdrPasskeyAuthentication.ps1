@@ -61,8 +61,8 @@ function ConvertTo-XdrPEMPrivateKey {
     return "-----BEGIN PRIVATE KEY-----`n$wrappedKey`n-----END PRIVATE KEY-----"
 }
 
-function New-XdrFidoAuthenticatorData {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper for FIDO2 data construction, not a state-changing cmdlet')]
+function New-XdrPasskeyAuthenticatorData {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper for passkey data construction, not a state-changing cmdlet')]
     param(
         [Parameter(Mandatory)][string]$RpId,
         [int]$SignCount = 0,
@@ -79,15 +79,16 @@ function New-XdrFidoAuthenticatorData {
     return $authData
 }
 
-function New-XdrFidoSignature {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper for FIDO2 signature generation, not a state-changing cmdlet')]
+function New-XdrPasskeySignature {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper for passkey signature generation, not a state-changing cmdlet')]
     param(
         [Parameter(Mandatory)][string]$Challenge,
         [Parameter(Mandatory)][string]$Origin,
         [Parameter(Mandatory)][byte[]]$AuthDataBytes,
         [string]$PrivateKeyPem,
         $KeyVaultInfo,
-        [string]$KeyVaultToken
+        [string]$KeyVaultToken,
+        [string]$KeyVaultApiVersion = '7.4'
     )
     $clientData = [ordered]@{
         challenge   = $Challenge
@@ -103,9 +104,9 @@ function New-XdrFidoSignature {
     Write-Verbose "Data to sign: $($dataToSign.Length) bytes, pre-hashed to $($dataHash.Length) bytes"
 
     if ($KeyVaultInfo -and $KeyVaultToken) {
-        Write-Verbose "Signing with Azure Key Vault ($($KeyVaultInfo.vaultName)/$($KeyVaultInfo.keyName))"
+        Write-Verbose "Signing with Azure Key Vault ($($KeyVaultInfo.vaultName)/$($KeyVaultInfo.keyName), api-version=$KeyVaultApiVersion)"
         $dataBase64Url = ConvertTo-XdrBase64Url -Bytes $dataHash
-        $signUri = "https://$($KeyVaultInfo.vaultName).vault.azure.net/keys/$($KeyVaultInfo.keyName)/sign?api-version=7.4"
+        $signUri = "https://$($KeyVaultInfo.vaultName).vault.azure.net/keys/$($KeyVaultInfo.keyName)/sign?api-version=$KeyVaultApiVersion"
         $kvHeaders = @{ "Authorization" = "Bearer $KeyVaultToken"; "Content-Type" = "application/json" }
         $body = @{ alg = "ES256"; value = $dataBase64Url } | ConvertTo-Json
 
@@ -205,6 +206,8 @@ function Get-XdrKeyVaultAccessToken {
     }
 
     # 3. Try IMDS (managed identity)
+    # Not providing -KeyVaultClientId uses system-assigned MI.
+    # Providing -KeyVaultClientId uses user-assigned MI with that client ID.
     Write-Verbose "Attempting IMDS managed identity ($modeDescription)..."
     try {
         $imdsUrl = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=$([uri]::EscapeDataString($resource))"
@@ -230,7 +233,36 @@ Could not obtain an Azure Key Vault access token. Ensure one of the following:
 
 #endregion
 
-function Invoke-XdrFido2Authentication {
+# JSON credential file format:
+#
+# Local passkey (private key embedded in file):
+# {
+#   "credentialId":  "<base64url or UUID>",       Required: FIDO2 credential ID
+#   "privateKey":    "-----BEGIN PRIVATE KEY...",  Required: EC private key in PEM format
+#   "userHandle":    "<base64url>",                Required: FIDO2 user handle
+#   "username":      "user@domain.com",            Required: user principal name
+#   "relyingParty":  "login.microsoft.com",        Optional: defaults to login.microsoft.com
+#   "url":           "https://login.microsoft.com" Optional: authentication server URL
+# }
+#
+# Azure Key Vault passkey (private key secured in HSM):
+# {
+#   "credentialId":  "<base64url or UUID>",        Required: FIDO2 credential ID
+#   "keyVault": {                                  Required: replaces privateKey
+#     "vaultName": "kv-name",                      Required: Azure Key Vault name
+#     "keyName":   "key-name",                     Required: key name within the vault
+#     "keyId":     "https://..."                   Optional: full key ID URL (informational)
+#   },
+#   "userHandle":    "<base64url>",                Required: FIDO2 user handle
+#   "username":      "user@domain.com",            Required: user principal name
+#   "relyingParty":  "login.microsoft.com",        Optional: defaults to login.microsoft.com
+#   "url":           "https://login.microsoft.com" Optional: authentication server URL
+# }
+#
+# Legacy field aliases accepted:  userName -> username,  rpId -> relyingParty,
+#   methodId -> credentialId,  keyValue -> privateKey,  counter -> signCount
+
+function Invoke-XdrPasskeyAuthentication {
     <#
     .SYNOPSIS
         Performs FIDO2 passkey authentication against Entra ID and returns the ESTSAUTH cookie value.
@@ -240,34 +272,37 @@ function Invoke-XdrFido2Authentication {
         passkey credential. Supports both local passkeys (PEM private key in JSON) and Azure Key Vault
         backed passkeys (private key secured in HSM, referenced by vault/key name in JSON).
 
-        For Key Vault passkeys, authentication is obtained automatically via (in order):
-          1. Az module (Get-AzAccessToken) if Az.Accounts is loaded and user is signed in
-          2. Azure CLI (az account get-access-token) if az is on PATH and user is signed in
-          3. IMDS managed identity (system-assigned if no -KeyVaultClientId, user-assigned if provided)
+        For Key Vault passkeys, a Bearer token for vault.azure.net is obtained automatically via
+        (in order): Az module (Get-AzAccessToken), Azure CLI (az account get-access-token), or IMDS
+        managed identity. Providing -KeyVaultClientId selects user-assigned managed identity for IMDS;
+        omitting it uses system-assigned managed identity.
 
         This is an internal function used by Connect-XdrBySoftwarePasskey.
+        Requires PowerShell 7.0 or later for ECDsa PEM key support.
 
     .PARAMETER KeyFilePath
-        Path to a JSON credential file. For local passkeys the file contains a privateKey field
-        (PEM format). For Key Vault passkeys the file contains a keyVault object with vaultName
-        and keyName fields.
+        Path to a JSON credential file. See the schema comment above this function for valid formats.
 
     .PARAMETER KeyVaultTenantId
         Azure AD tenant ID to scope the Key Vault access token. Used with Az module or Azure CLI.
         Not required when using IMDS managed identity.
 
     .PARAMETER KeyVaultClientId
-        Client ID of a user-assigned managed identity to use for Key Vault access.
-        When not provided, system-assigned managed identity is used for IMDS auth.
+        Client ID of a user-assigned managed identity for Key Vault access via IMDS.
+        When not provided and IMDS is used, the system-assigned managed identity is used instead.
+
+    .PARAMETER KeyVaultApiVersion
+        Azure Key Vault REST API version to use for the Sign operation. Defaults to '7.4'.
+        Update this if a newer stable API version is available and required.
 
     .PARAMETER UserAgent
         User-Agent string for HTTP requests.
 
     .EXAMPLE
-        $estsAuth = Invoke-XdrFido2Authentication -KeyFilePath ".github\secadmin.passkey"
+        $estsAuth = Invoke-XdrPasskeyAuthentication -KeyFilePath ".github\secadmin.passkey"
         Connect-XdrByEstsCookie -EstsAuthCookieValue $estsAuth
 
-        Performs FIDO2 authentication with a local passkey and uses the result to connect.
+        Performs passkey authentication with a local key and uses the result to connect.
 
     .OUTPUTS
         String — the ESTSAUTH cookie value suitable for passing to Connect-XdrByEstsCookie.
@@ -279,12 +314,13 @@ function Invoke-XdrFido2Authentication {
 
         [string]$KeyVaultTenantId,
         [string]$KeyVaultClientId,
+        [string]$KeyVaultApiVersion = '7.4',
         [string]$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
     )
 
     #region Validate PowerShell version
     if ($PSVersionTable.PSVersion.Major -lt 7) {
-        throw "Connect-XdrBySoftwarePasskey requires PowerShell 7 or later (for ECDsa PEM support). Current version: $($PSVersionTable.PSVersion)"
+        throw "Passkey authentication requires PowerShell 7 or later (for ECDsa PEM support). Current version: $($PSVersionTable.PSVersion)"
     }
     #endregion
 
@@ -299,18 +335,21 @@ function Invoke-XdrFido2Authentication {
         throw "Invalid JSON in credential file '$KeyFilePath': $($_.Exception.Message)"
     }
 
-    $targetUser = $keyData.username ?? $keyData.userName
+    $targetUser = if ($null -ne $keyData.username) { $keyData.username } else { $keyData.userName }
     if (-not $targetUser) { throw "Credential file is missing 'username' or 'userName' field" }
 
-    $rpId = $keyData.relyingParty ?? $keyData.rpId ?? "login.microsoft.com"
-    $rawUrl = $keyData.url ?? "https://$rpId"
+    $rpId = $keyData.relyingParty
+    if ($null -eq $rpId) { $rpId = $keyData.rpId }
+    if ($null -eq $rpId) { $rpId = "login.microsoft.com" }
+
+    $rawUrl = if ($null -ne $keyData.url) { $keyData.url } else { "https://$rpId" }
     $origin = "https://$([uri]$rawUrl | Select-Object -ExpandProperty Host)"
 
     $userHandle = $keyData.userHandle
     if (-not $userHandle) { throw "Credential file is missing 'userHandle' field" }
     $userHandle = $userHandle.TrimEnd('=') -replace '\+', '-' -replace '/', '_'
 
-    $credentialId = $keyData.credentialId ?? $keyData.methodId
+    $credentialId = if ($null -ne $keyData.credentialId) { $keyData.credentialId } else { $keyData.methodId }
     if (-not $credentialId) { throw "Credential file is missing 'credentialId' field" }
     $credentialId = ($credentialId.TrimEnd('=') -replace '\+', '-' -replace '/', '_') | ForEach-Object { ConvertFrom-XdrUuidToBase64Url $_ }
 
@@ -323,7 +362,11 @@ function Invoke-XdrFido2Authentication {
     $kvInfo = $null
     $kvToken = $null
     $privateKeyPem = $null
-    $signCount = [int]($keyData.signCount ?? $keyData.counter ?? 0)
+
+    $signCount = $keyData.signCount
+    if ($null -eq $signCount) { $signCount = $keyData.counter }
+    if ($null -eq $signCount) { $signCount = 0 }
+    $signCount = [int]$signCount
 
     if ($useKeyVault) {
         Write-Verbose "Key Vault passkey detected (vault: $($keyData.keyVault.vaultName), key: $($keyData.keyVault.keyName))"
@@ -337,7 +380,7 @@ function Invoke-XdrFido2Authentication {
         Write-Verbose "Key Vault access token obtained"
     } else {
         Write-Verbose "Local passkey detected"
-        $privateKeySource = $keyData.privateKey ?? $keyData.keyValue
+        $privateKeySource = if ($null -ne $keyData.privateKey) { $keyData.privateKey } else { $keyData.keyValue }
         if (-not $privateKeySource) { throw "Credential file is missing 'privateKey' field (required for local passkeys)" }
         try {
             $privateKeyPem = ConvertTo-XdrPEMPrivateKey -PrivateKey $privateKeySource
@@ -370,33 +413,34 @@ function Invoke-XdrFido2Authentication {
     if (-not $sessionInfo.oGetCredTypeResult.Credentials.HasFido -or -not $sessionInfo.sFidoChallenge) {
         $hasFido = $sessionInfo.oGetCredTypeResult.Credentials.HasFido
         $hasChallenge = [bool]$sessionInfo.sFidoChallenge
-        throw "FIDO2 authentication not available for '$targetUser'. HasFido: $hasFido, Challenge present: $hasChallenge. Verify the account has a passkey registered."
+        throw "Passkey authentication not available for '$targetUser'. HasFido: $hasFido, Challenge present: $hasChallenge. Verify the account has a passkey registered."
     }
 
     $serverChallenge = [System.Text.Encoding]::ASCII.GetBytes($sessionInfo.sFidoChallenge)
-    Write-Verbose "FIDO2 challenge received"
+    Write-Verbose "Passkey challenge received"
     #endregion
 
-    #region Generate FIDO2 assertion
-    Write-Verbose "Generating FIDO2 authenticator data and signature..."
-    $authData = New-XdrFidoAuthenticatorData -RpId $rpId -SignCount $signCount
+    #region Generate passkey assertion
+    Write-Verbose "Generating passkey authenticator data and signature..."
+    $authData = New-XdrPasskeyAuthenticatorData -RpId $rpId -SignCount $signCount
 
     $cryptoParams = @{
-        Challenge     = ConvertTo-XdrBase64Url -Bytes $serverChallenge
-        Origin        = $origin
-        AuthDataBytes = $authData
+        Challenge          = ConvertTo-XdrBase64Url -Bytes $serverChallenge
+        Origin             = $origin
+        AuthDataBytes      = $authData
+        KeyVaultApiVersion = $KeyVaultApiVersion
     }
     if ($useKeyVault) {
-        $cryptoParams.KeyVaultInfo = $kvInfo
+        $cryptoParams.KeyVaultInfo  = $kvInfo
         $cryptoParams.KeyVaultToken = $kvToken
     } else {
         $cryptoParams.PrivateKeyPem = $privateKeyPem
     }
 
     try {
-        $crypto = New-XdrFidoSignature @cryptoParams
+        $crypto = New-XdrPasskeySignature @cryptoParams
     } catch {
-        throw "FIDO2 assertion generation failed: $($_.Exception.Message)"
+        throw "Passkey assertion generation failed: $($_.Exception.Message)"
     }
 
     $fidoPayload = [ordered]@{
@@ -407,7 +451,7 @@ function Invoke-XdrFido2Authentication {
         userHandle        = $userHandle
     }
     $credentialsJson = $sessionInfo.oGetCredTypeResult.Credentials.FidoParams.AllowList -join ','
-    Write-Verbose "FIDO2 assertion generated successfully"
+    Write-Verbose "Passkey assertion generated successfully"
     #endregion
 
     #region Submit pre-verification request
@@ -443,7 +487,7 @@ function Invoke-XdrFido2Authentication {
     }
     #endregion
 
-    #region Submit FIDO2 assertion
+    #region Submit passkey assertion
     $loginUri = "https://login.microsoftonline.com/common/login"
     $payload = @{
         type         = 23
@@ -456,7 +500,7 @@ function Invoke-XdrFido2Authentication {
         flowToken    = $responseInfo.sFT
     }
 
-    Write-Verbose "Submitting FIDO2 assertion..."
+    Write-Verbose "Submitting passkey assertion..."
     $null = Invoke-WebRequest -UseBasicParsing -Uri $loginUri -Method Post -Body $payload -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck -Verbose:$false
 
     if ($useKeyVault) { Start-Sleep -Milliseconds 500 }
@@ -505,7 +549,7 @@ function Invoke-XdrFido2Authentication {
             } }
         }
         "ConvergedSignIn" = @{
-            Uri    = { "$($debug.urlLogin)&sessionid=$(($debug.arrSessions[0].id ?? $debug.sessionId))" }
+            Uri    = { $sessionId = if ($null -ne $debug.arrSessions -and $null -ne $debug.arrSessions[0].id) { $debug.arrSessions[0].id } else { $debug.sessionId }; "$($debug.urlLogin)&sessionid=$sessionId" }
             Method = "Get"
         }
     }
@@ -526,13 +570,13 @@ function Invoke-XdrFido2Authentication {
         Write-Verbose "Handling interrupt: $currentPageId"
 
         $reqParams = @{
-            Uri               = if ($handler.Uri -is [scriptblock]) { & $handler.Uri } else { $handler.Uri }
-            Method            = $handler.Method
-            WebSession        = $session
-            UseBasicParsing   = $true
+            Uri                = if ($handler.Uri -is [scriptblock]) { & $handler.Uri } else { $handler.Uri }
+            Method             = $handler.Method
+            WebSession         = $session
+            UseBasicParsing    = $true
             SkipHttpErrorCheck = $true
             MaximumRedirection = 10
-            Verbose           = $false
+            Verbose            = $false
         }
         if ($handler.Body) { $reqParams.Body = & $handler.Body }
 
@@ -543,7 +587,7 @@ function Invoke-XdrFido2Authentication {
         if ($respFinalize.Content -match '{(.*)}') {
             try {
                 $debug = $Matches[0] | ConvertFrom-Json
-                if (-not $debug.pgid) { break }  # No page ID = interrupts done
+                if (-not $debug.pgid) { break }  # No page ID means interrupts are done
             } catch {
                 break
             }
@@ -556,9 +600,9 @@ function Invoke-XdrFido2Authentication {
         $hint = if ($useKeyVault) {
             "Key Vault signature validation failed. Verify Key Vault permissions (Crypto User / Sign), key name, and vault name."
         } else {
-            "FIDO2 signature validation failed. Verify the credential ID and private key in the credential file."
+            "Passkey signature validation failed. Verify the credential ID and private key in the credential file."
         }
-        throw "Authentication failed during FIDO2 validation. $hint"
+        throw "Authentication failed during passkey validation. $hint"
     }
     #endregion
 
@@ -574,12 +618,11 @@ function Invoke-XdrFido2Authentication {
     }
 
     # Pick the longest cookie (ESTSAUTHPERSISTENT is preferred when available)
-    $bestCookie = @($allCookies | Where-Object Name -EQ "ESTSAUTH";
-                    $allCookies | Where-Object Name -EQ "ESTSAUTHPERSISTENT";
-                    $allCookies | Where-Object Name -EQ "ESTSAUTHLIGHT") |
-                  Where-Object { $_ } |
-                  Sort-Object { $_.Value.Length } -Descending |
-                  Select-Object -First 1
+    $bestCookie = @(
+        $allCookies | Where-Object Name -EQ "ESTSAUTH"
+        $allCookies | Where-Object Name -EQ "ESTSAUTHPERSISTENT"
+        $allCookies | Where-Object Name -EQ "ESTSAUTHLIGHT"
+    ) | Where-Object { $_ } | Sort-Object { $_.Value.Length } -Descending | Select-Object -First 1
 
     Write-Verbose "Obtained $($bestCookie.Name) cookie (length: $($bestCookie.Value.Length))"
     return $bestCookie.Value

@@ -1,4 +1,4 @@
-function Get-XdrParsedErrorDetail {
+﻿function Get-XdrParsedErrorDetail {
     <#
     .SYNOPSIS
         Parses structured error details from an ErrorRecord.
@@ -10,6 +10,14 @@ function Get-XdrParsedErrorDetail {
 
     .PARAMETER ErrorRecord
         The ErrorRecord to parse.
+
+    .EXAMPLE
+        try {
+            Invoke-RestMethod -Uri "https://example.test/api" -ErrorAction Stop
+        } catch {
+            $detail = Get-XdrParsedErrorDetail -ErrorRecord $_
+        }
+        Parses structured JSON error details from a caught error when available.
 
     .OUTPUTS
         Object

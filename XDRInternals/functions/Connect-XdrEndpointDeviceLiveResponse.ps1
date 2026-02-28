@@ -225,7 +225,9 @@
                             try {
                                 $linkData = $Matches[1] | ConvertFrom-Json
                                 $existingSessionId = $linkData.id
-                            } catch { }
+                            } catch {
+                                Write-Verbose "Failed to parse existing session portal link details: $_"
+                            }
                             $deviceUser = if ($errText -match 'created by\s+(?:another user:\s*)?(\S+@\S+|\S+)') { $Matches[1] } else { 'another user' }
 
                             Write-Host ''
@@ -241,7 +243,11 @@
                             Write-Error "Session connect failed (status: $cmdStatus).$(if ($errText) { " $errText" })"
                         }
 
-                        try { Disconnect-XdrEndpointDeviceLiveResponse -SessionId $sessionId -ErrorAction SilentlyContinue } catch { }
+                        try {
+                            Disconnect-XdrEndpointDeviceLiveResponse -SessionId $sessionId -ErrorAction SilentlyContinue
+                        } catch {
+                            Write-Verbose "Failed to disconnect session $sessionId after connection failure: $_"
+                        }
                         return
                     }
                 } catch {

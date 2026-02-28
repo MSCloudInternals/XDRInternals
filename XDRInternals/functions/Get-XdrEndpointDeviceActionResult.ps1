@@ -124,7 +124,7 @@
                     $fileName = [System.IO.Path]::GetFileName(([System.Uri]$downloadUri).LocalPath)
                     if (-not $fileName) { $fileName = "InvestigationPackage-$RequestGuid.zip" }
                     $outFile = Join-Path $PWD $fileName
-                    Write-Host "Downloading from:`n`n$downloadUri"
+                    Write-Verbose "Downloading from:`n`n$downloadUri"
                     Invoke-WebRequest -Uri $downloadUri -OutFile $outFile
                     return Get-Item $outFile
                 }
@@ -146,7 +146,7 @@
                     $fileName = [System.IO.Path]::GetFileName(([System.Uri]$downloadUri).LocalPath)
                     if (-not $fileName) { $fileName = "SupportLogs-$RequestGuid.zip" }
                     $outFile = Join-Path $PWD $fileName
-                    Write-Host "Downloading from:`n`n$downloadUri"
+                    Write-Verbose "Downloading from:`n`n$downloadUri"
                     Invoke-WebRequest -Uri $downloadUri -OutFile $outFile
                     return Get-Item $outFile
                 }

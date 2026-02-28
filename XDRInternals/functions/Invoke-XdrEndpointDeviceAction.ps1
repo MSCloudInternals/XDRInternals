@@ -1,4 +1,4 @@
-function Invoke-XdrEndpointDeviceAction {
+﻿function Invoke-XdrEndpointDeviceAction {
     <#
     .SYNOPSIS
         Invokes response actions on an endpoint device in Microsoft Defender XDR.

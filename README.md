@@ -172,6 +172,8 @@ Import-Module .\XDRInternals\XDRInternals.psd1
 Connect-XdrByEstsCookie
 ```
 
+Or alternatively:
+
 ```powershell
 # Configure connection settings with SCC auth (XSRF token is obtained automatically)
 Set-XdrConnectionSettings -SccAuth $scc -TenantId $tenantId -Verbose

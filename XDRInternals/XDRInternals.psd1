@@ -116,6 +116,7 @@
         "Get-XdrStreamingApiConfiguration",
         "Get-XdrSuppressionRule",
         "Get-XdrTenantContext",
+        "Get-XdrMDCADeanonymizedEntity",
         "Get-XdrMtoTenantList",
         "Get-XdrTenantWorkloadStatus",
         "Get-XdrThreatAnalyticsOutbreaks",

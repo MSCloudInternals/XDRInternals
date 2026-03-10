@@ -97,6 +97,7 @@ Get-XdrTenantContext -Force
 | Get-XdrIdentityStatistic                                        | Get identity statistics                                             |
 | Get-XdrIncident                                                 | Retrieve incidents with filtering and pagination                    |
 | Get-XdrIncidentAssociatedAlert                                  | Retrieve alerts associated with a specific incident                 |
+| Get-XdrMDCADeanonymizedEntity                                   | Deanonymize Cloud Discovery entity names in Defender for Cloud Apps |
 | Get-XdrMtoTenantList                                            | Get list of tenants in MTO multi-tenant view                        |
 | Get-XdrStreamingApiConfiguration                                | Get Streaming API configuration                                     |
 | Get-XdrSuppressionRule                                          | Retrieve alert suppression rules                                    |

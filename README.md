@@ -46,6 +46,7 @@ Get-XdrTenantContext -Force
 | Cmdlet                                                          | Description                                                         |
 | --------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Connect-XdrByEstsCookie                                         | Authenticate to Microsoft Defender XDR using ESTS cookie            |
+| Connect-XdrBySoftwarePasskey                                    | Authenticate to Microsoft Defender XDR using a software FIDO2 passkey (local or Azure Key Vault) |
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encode Advanced Hunting queries for URL/API usage                   |
 | Get-XdrActionsCenterHistory                                     | Retrieve historical actions from the Action Center                  |
 | Get-XdrActionsCenterPending                                     | Retrieve pending actions from the Action Center                     |

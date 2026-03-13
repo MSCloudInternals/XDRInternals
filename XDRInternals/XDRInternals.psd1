@@ -64,6 +64,7 @@
     FunctionsToExport = @(
         "Connect-XdrByEstsCookie",
         "Connect-XdrEndpointDeviceLiveResponse",
+        "Connect-XdrBySoftwarePasskey",
         "ConvertTo-XdrEncodedAdvancedHuntingQuery",
         "Get-XdrActionsCenterHistory",
         "Get-XdrActionsCenterPending",
@@ -116,6 +117,8 @@
         "Get-XdrIdentityOnboardingStatus",
         "Get-XdrIdentityServiceAccount",
         "Get-XdrIdentityStatistic",
+        "Get-XdrIdentityUser",
+        "Get-XdrIdentityUserTimeline",
         "Get-XdrIncident",
         "Get-XdrIncidentAssociatedAlert",
         "Get-XdrStreamingApiConfiguration",

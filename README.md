@@ -47,6 +47,7 @@ Get-XdrTenantContext -Force
 | --------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Connect-XdrByEstsCookie                                         | Authenticate to Microsoft Defender XDR using ESTS cookie            |
 | Connect-XdrEndpointDeviceLiveResponse                           | Start an interactive Live Response session on a device              |
+| Connect-XdrBySoftwarePasskey                                    | Authenticate to Microsoft Defender XDR using a software FIDO2 passkey (local or Azure Key Vault) |
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encode Advanced Hunting queries for URL/API usage                   |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Close an active Live Response session                               |
 | Get-XdrActionsCenterHistory                                     | Retrieve historical actions from the Action Center                  |
@@ -188,9 +189,11 @@ Import-Module .\XDRInternals\XDRInternals.psd1
 Connect-XdrByEstsCookie
 ```
 
+Or alternatively:
+
 ```powershell
 # Configure connection settings with SCC auth (XSRF token is obtained automatically)
-Set-XdrConnectionSettings -SccAuth $scc -TenantId $tenantId -Verbose
+Set-XdrConnectionSettings -SccAuth $sccauth
 ```
 
 ### Examples

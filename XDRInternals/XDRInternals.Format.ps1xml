@@ -202,9 +202,6 @@
             <Name>XdrEndpointDeviceActionResult</Name>
             <ViewSelectedBy>
                 <TypeName>XdrEndpointDeviceActionResult</TypeName>
-            <Name>XdrIdentityUser</Name>
-            <ViewSelectedBy>
-                <TypeName>XdrIdentityUser</TypeName>
             </ViewSelectedBy>
             <TableControl>
                 <TableHeaders>
@@ -222,6 +219,39 @@
                     </TableColumnHeader>
                     <TableColumnHeader>
                         <Label>RequestorComment</Label>
+                    </TableColumnHeader>
+                </TableHeaders>
+                <TableRowEntries>
+                    <TableRowEntry>
+                        <TableColumnItems>
+                            <TableColumnItem>
+                                <PropertyName>Type</PropertyName>
+                            </TableColumnItem>
+                            <TableColumnItem>
+                                <PropertyName>DeviceId</PropertyName>
+                            </TableColumnItem>
+                            <TableColumnItem>
+                                <PropertyName>Status</PropertyName>
+                            </TableColumnItem>
+                            <TableColumnItem>
+                                <PropertyName>Id</PropertyName>
+                            </TableColumnItem>
+                            <TableColumnItem>
+                                <PropertyName>RequestorComment</PropertyName>
+                            </TableColumnItem>
+                        </TableColumnItems>
+                    </TableRowEntry>
+                </TableRowEntries>
+            </TableControl>
+        </View>
+        <View>
+            <Name>XdrIdentityUser</Name>
+            <ViewSelectedBy>
+                <TypeName>XdrIdentityUser</TypeName>
+            </ViewSelectedBy>
+            <TableControl>
+                <TableHeaders>
+                    <TableColumnHeader>
                         <Label>DisplayName</Label>
                         <Width>25</Width>
                     </TableColumnHeader>
@@ -254,19 +284,6 @@
                     <TableRowEntry>
                         <TableColumnItems>
                             <TableColumnItem>
-                                <PropertyName>Type</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>DeviceId</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>Status</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>Id</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>RequestorComment</PropertyName>
                                 <PropertyName>displayName</PropertyName>
                             </TableColumnItem>
                             <TableColumnItem>
@@ -299,9 +316,6 @@
             <Name>XdrEndpointDeviceLiveResponseCommand</Name>
             <ViewSelectedBy>
                 <TypeName>XdrEndpointDeviceLiveResponseCommand</TypeName>
-            <Name>XdrIdentityUserTimelineEvent</Name>
-            <ViewSelectedBy>
-                <TypeName>XdrIdentityUserTimelineEvent</TypeName>
             </ViewSelectedBy>
             <TableControl>
                 <TableHeaders>
@@ -316,6 +330,36 @@
                     </TableColumnHeader>
                     <TableColumnHeader>
                         <Label>Duration</Label>
+                    </TableColumnHeader>
+                </TableHeaders>
+                <TableRowEntries>
+                    <TableRowEntry>
+                        <TableColumnItems>
+                            <TableColumnItem>
+                                <PropertyName>command_id</PropertyName>
+                            </TableColumnItem>
+                            <TableColumnItem>
+                                <PropertyName>raw_command_line</PropertyName>
+                            </TableColumnItem>
+                            <TableColumnItem>
+                                <PropertyName>status</PropertyName>
+                            </TableColumnItem>
+                            <TableColumnItem>
+                                <PropertyName>duration_seconds</PropertyName>
+                            </TableColumnItem>
+                        </TableColumnItems>
+                    </TableRowEntry>
+                </TableRowEntries>
+            </TableControl>
+        </View>
+        <View>
+            <Name>XdrIdentityUserTimelineEvent</Name>
+            <ViewSelectedBy>
+                <TypeName>XdrIdentityUserTimelineEvent</TypeName>
+            </ViewSelectedBy>
+            <TableControl>
+                <TableHeaders>
+                    <TableColumnHeader>
                         <Label>Timestamp</Label>
                         <Width>24</Width>
                     </TableColumnHeader>
@@ -348,16 +392,6 @@
                     <TableRowEntry>
                         <TableColumnItems>
                             <TableColumnItem>
-                                <PropertyName>command_id</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>raw_command_line</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>status</PropertyName>
-                            </TableColumnItem>
-                            <TableColumnItem>
-                                <PropertyName>duration_seconds</PropertyName>
                                 <PropertyName>Timestamp</PropertyName>
                             </TableColumnItem>
                             <TableColumnItem>

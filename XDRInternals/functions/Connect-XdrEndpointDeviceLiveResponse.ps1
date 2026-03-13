@@ -58,7 +58,7 @@
         In interactive mode, no output is returned.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '', Justification = 'Parameters required by Register-ArgumentCompleter scriptblock signature')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '', Justification = 'Parameters required by PSReadLine key handler scriptblock signature')]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
@@ -213,7 +213,7 @@
                         $errText = ''
                         if ($cmdResult.errors) {
                             $errText = @($cmdResult.errors | ForEach-Object {
-                                if ($_ -is [string]) { $_ } else { $_.message ?? ($_ | ConvertTo-Json -Compress) }
+                                if ($_ -is [string]) { $_ } elseif ($null -ne $_.message) { $_.message } else { $_ | ConvertTo-Json -Compress }
                             }) -join ' '
                         }
                         if (-not $errText -and $cmdResult.error_message) { $errText = "$($cmdResult.error_message)" }
@@ -323,11 +323,28 @@
             return $sessionObj
         }
 
-        # Step 5: Register tab completion for the interactive session
-        Register-ArgumentCompleter -CommandName 'Read-Host' -ScriptBlock {
-            param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
-            $script:LiveResponseSession.AvailableCommands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
-                [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+        # Step 5: Set up tab completion via PSReadLine for the interactive session.
+        # We replace the Tab key handler for the duration of the session and restore it on exit.
+        $lrPreviousTabHandler = $null
+        if (Get-Command -Name 'Set-PSReadLineKeyHandler' -ErrorAction SilentlyContinue) {
+            $lrPreviousTabHandler = Get-PSReadLineKeyHandler -Key Tab -ErrorAction SilentlyContinue
+            Set-PSReadLineKeyHandler -Key Tab -ScriptBlock {
+                param($key, $arg)
+                $line = $null
+                $cursor = $null
+                [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+                $wordToComplete = if ($line -match '(\S+)$') { $Matches[1] } else { '' }
+                $completions = @($script:LiveResponseSession.AvailableCommands |
+                    Where-Object { $_ -like "$wordToComplete*" } | Sort-Object)
+                if ($completions.Count -eq 0) {
+                    [Microsoft.PowerShell.PSConsoleReadLine]::Insert([char]9)
+                } elseif ($completions.Count -eq 1) {
+                    [Microsoft.PowerShell.PSConsoleReadLine]::Replace(
+                        $cursor - $wordToComplete.Length, $wordToComplete.Length, $completions[0])
+                } else {
+                    Write-Host "`n$($completions -join '  ')" -ForegroundColor DarkGray
+                    [Microsoft.PowerShell.PSConsoleReadLine]::InvokePrompt()
+                }
             }
         }
 
@@ -341,10 +358,11 @@
         Write-Host "========================================" -ForegroundColor Green
         Write-Host ""
 
-        # Step 6: Interactive command loop
+        # Step 6: Interactive command loop (try/finally ensures Tab handler is restored on any exit)
         $currentDir = $initialDirectory
         $running = $true
 
+        try {
         while ($running) {
             # Display prompt
             $prompt = "[LR: $deviceName] $currentDir> "
@@ -403,7 +421,7 @@
                         }
                         if ($helpDef.flags) {
                             foreach ($f in $helpDef.flags) {
-                                $fid = if ($f -is [string]) { $f } else { $f.flag_id ?? $f.id ?? $f.name }
+                                $fid = if ($f -is [string]) { $f } elseif ($null -ne $f.flag_id) { $f.flag_id } elseif ($null -ne $f.id) { $f.id } else { $f.name }
                                 if ($fid) { $syntaxParts += "[-$fid]" }
                             }
                         }
@@ -425,7 +443,7 @@
                         if ($helpDef.flags -and @($helpDef.flags).Count -gt 0) {
                             Write-Host "Flags:" -ForegroundColor Cyan
                             foreach ($f in $helpDef.flags) {
-                                $fid = if ($f -is [string]) { $f } else { $f.flag_id ?? $f.id ?? $f.name }
+                                $fid = if ($f -is [string]) { $f } elseif ($null -ne $f.flag_id) { $f.flag_id } elseif ($null -ne $f.id) { $f.id } else { $f.name }
                                 $fdesc = if ($f -is [string]) { '' } else { $f.description }
                                 if ($fid) {
                                     Write-Host "  -$fid" -ForegroundColor White -NoNewline
@@ -505,7 +523,7 @@
                                 # Handle both forms so column selection always works.
                                 if ($outputItem.keys) {
                                     $columns = @($outputItem.keys | ForEach-Object {
-                                        if ($_ -is [string]) { $_ } else { $_.id ?? $_.name }
+                                        if ($_ -is [string]) { $_ } elseif ($null -ne $_.id) { $_.id } else { $_.name }
                                     }) | Where-Object { $_ }
                                     if ($columns.Count -gt 0) {
                                         $data | Select-Object -Property $columns | Format-Table -AutoSize | Out-Host
@@ -551,7 +569,8 @@
                 if ($cmdResult.errors -and $cmdResult.errors.Count -gt 0) {
                     foreach ($err in $cmdResult.errors) {
                         $errMsg = if ($err -is [string]) { $err } `
-                            else { $err.message ?? ($err | ConvertTo-Json -Compress) }
+                            elseif ($null -ne $err.message) { $err.message } `
+                            else { $err | ConvertTo-Json -Compress }
                         Write-Host "Error: $errMsg" -ForegroundColor Red
                     }
                 }
@@ -581,7 +600,7 @@
                         $dlUri = "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/download_file?token=$([System.Uri]::EscapeDataString($downloadToken))&session_id=$sessionId&useV2Api=false&useV3Api=true"
                         Write-Host "Downloading..." -ForegroundColor Cyan
                         $dlResponse = Invoke-WebRequest -Uri $dlUri -Method Get -WebSession $script:session -Headers $script:headers
-                        [System.IO.File]::WriteAllBytes($savePath, $dlResponse.Content)
+                        [System.IO.File]::WriteAllBytes($savePath, $dlResponse.RawContentStream.ToArray())
                         Write-Host "Saved to: $savePath" -ForegroundColor Green
                     } catch {
                         Write-Host "Download failed: $_" -ForegroundColor Red
@@ -610,8 +629,17 @@
             Write-Host ""
         }
 
-        # Cleanup
-        $script:LiveResponseSession = $null
+        } finally {
+            # Restore previous Tab key handler and clean up session state
+            if ($null -ne $lrPreviousTabHandler) {
+                if ($lrPreviousTabHandler.ScriptBlock) {
+                    Set-PSReadLineKeyHandler -Key Tab -ScriptBlock $lrPreviousTabHandler.ScriptBlock
+                } elseif ($lrPreviousTabHandler.Function) {
+                    Set-PSReadLineKeyHandler -Key Tab -Function $lrPreviousTabHandler.Function
+                }
+            }
+            $script:LiveResponseSession = $null
+        }
     }
 
     end {

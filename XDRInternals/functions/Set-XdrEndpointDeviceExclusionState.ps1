@@ -62,6 +62,11 @@
     }
 
     process {
+        if ($ExclusionState -eq 'Excluded' -and [string]::IsNullOrWhiteSpace($Justification)) {
+            Write-Error "-Justification is required when ExclusionState is 'Excluded'."
+            return
+        }
+
         $body = @{
             ExclusionState  = $ExclusionState
             SenseMachineIds = $DeviceId

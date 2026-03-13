@@ -195,7 +195,7 @@
         if ($cmdDef) {
             if ($cmdDef.flags) {
                 foreach ($f in $cmdDef.flags) {
-                    $fid = if ($f -is [string]) { $f } else { $f.flag_id ?? $f.id ?? $f.name }
+                    $fid = if ($f -is [string]) { $f } elseif ($null -ne $f.flag_id) { $f.flag_id } elseif ($null -ne $f.id) { $f.id } else { $f.name }
                     if ($fid) { $null = $knownFlagIds.Add($fid) }
                 }
             }

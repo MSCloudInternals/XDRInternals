@@ -266,7 +266,7 @@
                     } catch {
                         $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'pending|already|conflict|concurrent') {
-                            Write-Error "A scan is already pending or running on this device. Wait for it to complete or cancel it first. API: $($errorDetail.error.message ?? $errorDetail.Message)"
+                            Write-Error "A scan is already pending or running on this device. Wait for it to complete or cancel it first. API: $(if ($null -ne $errorDetail.error.message) { $errorDetail.error.message } else { $errorDetail.Message })"
                         } else {
                             Write-Error "Failed to submit $Scan scan: $_"
                         }
@@ -297,7 +297,7 @@
                     } catch {
                         $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'already isolated|pending isolation') {
-                            Write-Error "Device is already isolated or has a pending isolation request. Release isolation first with -ReleaseFromIsolation. API: $($errorDetail.error.message ?? $errorDetail.Message)"
+                            Write-Error "Device is already isolated or has a pending isolation request. Release isolation first with -ReleaseFromIsolation. API: $(if ($null -ne $errorDetail.error.message) { $errorDetail.error.message } else { $errorDetail.Message })"
                         } else {
                             Write-Error "Failed to isolate device: $_"
                         }
@@ -483,7 +483,7 @@
                     } catch {
                         $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'already|active|enabled') {
-                            Write-Error "Troubleshoot mode is already active. Stop it first with -StopTroubleshoot. API: $($errorDetail.error.message ?? $errorDetail.Message)"
+                            Write-Error "Troubleshoot mode is already active. Stop it first with -StopTroubleshoot. API: $(if ($null -ne $errorDetail.error.message) { $errorDetail.error.message } else { $errorDetail.Message })"
                         } else {
                             Write-Error "Failed to start troubleshoot mode: $_"
                         }
@@ -516,7 +516,7 @@
                     } catch {
                         $errorDetail = Get-XdrParsedErrorDetail -ErrorRecord $_
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'not active|not enabled') {
-                            Write-Error "Troubleshoot mode is not currently active on this device. API: $($errorDetail.error.message ?? $errorDetail.Message)"
+                            Write-Error "Troubleshoot mode is not currently active on this device. API: $(if ($null -ne $errorDetail.error.message) { $errorDetail.error.message } else { $errorDetail.Message })"
                         } else {
                             Write-Error "Failed to stop troubleshoot mode: $_"
                         }

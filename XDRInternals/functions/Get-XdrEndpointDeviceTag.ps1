@@ -39,7 +39,7 @@
         When using -DeviceId, returns an object with BuiltInTags, UserDefinedTags, and DynamicRulesTags.
         When using default mode, returns an array of all device tag strings in the tenant.
     #>
-    [OutputType([object[]])]
+    [OutputType([object])]
     [CmdletBinding(DefaultParameterSetName = 'All')]
     param (
         [Parameter(ParameterSetName = 'DeviceId', Mandatory = $true)]

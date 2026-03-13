@@ -826,7 +826,7 @@
                                     }
                                     $chunkEvents = $keptEvents
 
-                                    Write-Warning "Chunk $chunkIndex : More than $($maxSkip + $pageSize) events at timestamp $($boundaryTimestamp.ToString('o')); dropped $droppedCount events at this second due API pagination limits"
+                                    Write-Warning "Chunk $chunkIndex : More than $($maxSkip + $pageSize) events at timestamp $($boundaryTimestamp.ToString('o')); dropped $droppedCount events at this second due to API pagination limits"
 
                                     # Move to older data and skip this second entirely.
                                     $currentToUnix = [int]($boundaryTimestamp.AddSeconds(-1) - $unixEpoch).TotalSeconds
@@ -1195,15 +1195,12 @@
                     return
                 }
 
-                foreach ($unstableProperty in @('Id', 'RowNumber', 'EventId', 'ReportId')) {
-                    if ($eventObject.PSObject.Properties[$unstableProperty]) {
-                        [void]$eventObject.PSObject.Properties.Remove($unstableProperty)
-                    }
-                }
-
+                $unstableProperties = @('Id', 'RowNumber', 'EventId', 'ReportId')
                 $stablePayload = [ordered]@{}
                 foreach ($property in ($eventObject.PSObject.Properties | Sort-Object Name)) {
-                    $stablePayload[$property.Name] = $property.Value
+                    if ($unstableProperties -notcontains $property.Name) {
+                        $stablePayload[$property.Name] = $property.Value
+                    }
                 }
 
                 $stableJson = $stablePayload | ConvertTo-Json -Depth 20 -Compress
@@ -1227,6 +1224,10 @@
                 if ($null -ne $chunkData.Events -and $chunkData.Events.Count -gt 0) {
                     foreach ($timelineEvent in $chunkData.Events) {
                         $timelineEvent.PSObject.TypeNames.Insert(0, 'XdrIdentityUserTimelineEvent')
+                        $sourceTableProperty = $timelineEvent.PSObject.Properties['SourceTable']
+                        if ($null -eq $sourceTableProperty -or -not $sourceTableProperty.Value) {
+                            $timelineEvent | Add-Member -NotePropertyName 'SourceTable' -NotePropertyValue 'MDI' -Force
+                        }
                         & $addDedupedEvent -eventObject $timelineEvent
                     }
                 }

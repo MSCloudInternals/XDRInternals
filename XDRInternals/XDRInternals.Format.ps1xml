@@ -309,7 +309,7 @@
                                 <PropertyName>Timestamp</PropertyName>
                             </TableColumnItem>
                             <TableColumnItem>
-                                <PropertyName>ActionType</PropertyName>
+                                <ScriptBlock>if ($_.ActionType) { $_.ActionType } elseif ($_.Type) { $_.Type } elseif ($_.EventType) { $_.EventType }</ScriptBlock>
                             </TableColumnItem>
                             <TableColumnItem>
                                 <PropertyName>Application</PropertyName>

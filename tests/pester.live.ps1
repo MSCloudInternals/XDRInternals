@@ -74,7 +74,7 @@ foreach ($file in (Get-ChildItem "$PSScriptRoot\live" -Recurse -File | Where-Obj
 	}
 }
 
-$testresults | Sort-Object Describe, Context, Name, Result, Message | Format-List
+$testresults | Sort-Object Block, Name, Result, Message | Format-List
 
 if ($totalFailed -eq 0) { Write-Host "All $totalRun live tests executed without a single failure!" }
 else { Write-Host "$totalFailed live tests out of $totalRun tests failed!" }

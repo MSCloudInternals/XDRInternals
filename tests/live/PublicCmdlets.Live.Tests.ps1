@@ -27,6 +27,7 @@ Describe 'Public cmdlet live smoke tests' -Tag 'Functions', 'PublicSurface', 'Li
 
         if ($execution.Status -eq 'Skipped') {
             Set-ItResult -Skipped -Because $execution.Reason
+            return
         }
 
         $execution.Status | Should -Be 'Passed'

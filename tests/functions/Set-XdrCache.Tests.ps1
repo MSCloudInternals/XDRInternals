@@ -1,4 +1,4 @@
-$helperPath = Join-Path $PSScriptRoot '..\helpers\Xdr.TestHelpers.ps1'
+﻿$helperPath = Join-Path $PSScriptRoot '..\helpers\Xdr.TestHelpers.ps1'
 . $helperPath
 
 Describe 'Set-XdrCache behavior' -Tag 'Functions', 'Cache' {

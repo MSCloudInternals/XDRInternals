@@ -1,4 +1,4 @@
-$script:helperPath = Join-Path $PSScriptRoot '..\helpers\Xdr.TestHelpers.ps1'
+﻿$script:helperPath = Join-Path $PSScriptRoot '..\helpers\Xdr.TestHelpers.ps1'
 . $script:helperPath
 
 $script:testSettings = Get-XdrTestSettings

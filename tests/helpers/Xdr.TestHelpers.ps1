@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 $script:XdrTestSettings = $null
 $script:XdrTestSettingsPath = $null

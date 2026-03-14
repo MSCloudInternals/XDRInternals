@@ -1,4 +1,4 @@
-param (
+﻿param (
 	[string]$LiveConfigurationPath,
 
 	[switch]$EnableLiveTests,

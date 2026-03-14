@@ -1,4 +1,4 @@
-$helperPath = Join-Path $PSScriptRoot '..\helpers\Xdr.TestHelpers.ps1'
+﻿$helperPath = Join-Path $PSScriptRoot '..\helpers\Xdr.TestHelpers.ps1'
 . $helperPath
 
 $script:repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path

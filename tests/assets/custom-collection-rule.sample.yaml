@@ -1,0 +1,11 @@
+name: PesterSmokeCustomCollection
+description: Pester validation rule
+platform: Windows
+scope: Organization
+table: DeviceProcessEvents
+actionType: ProcessCreated
+filters:
+  InitiatingProcessFileName:
+    operator: equals
+    value:
+      - pester-smoke.exe

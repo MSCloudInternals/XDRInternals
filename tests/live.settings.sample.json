@@ -1,0 +1,84 @@
+{
+  "liveTests": {
+    "enabled": false
+  },
+  "authentication": {
+    "mode": "SoftwarePasskey",
+    "keyFilePath": "./path/to/file.passkey",
+    "tenantId": "",
+    "keyVaultTenantId": "",
+    "keyVaultClientId": "",
+    "keyVaultApiVersion": "7.4",
+    "userAgent": ""
+  },
+  "execution": {
+    "enableMutationTests": false,
+    "requireFullParameterCoverage": false,
+    "defaultTop": 1,
+    "defaultPageSize": 1,
+    "skipCmdlets": []
+  },
+  "fixtures": {
+    "Upn": "",
+    "AadId": "",
+    "Sid": "",
+    "RadiusUserId": "",
+    "DeviceId": "",
+    "MachineDnsName": "",
+    "IncidentId": 0,
+    "AlertIds": [],
+    "IncidentIds": [],
+    "TargetIncidentId": 0,
+    "RecommendationId": "",
+    "ProfileId": ""
+  },
+  "scenarios": {
+    "Get-XdrIdentityUser": [
+      {
+        "name": "ByUpn",
+        "parameterSetName": "ByUpn",
+        "parameters": {
+          "Upn": "user@contoso.com"
+        }
+      }
+    ],
+    "Get-XdrIdentityUserTimeline": [
+      {
+        "name": "ByUpnLastNDays",
+        "parameterSetName": "ByUpnLastNDays",
+        "parameters": {
+          "Upn": "user@contoso.com",
+          "LastNDays": 7
+        }
+      }
+    ],
+    "Move-XdrAlertToIncident": [
+      {
+        "name": "WhatIfExistingIncident",
+        "parameterSetName": "__AllParameterSets",
+        "parameters": {
+          "AlertIds": [
+            "alert-id-here"
+          ],
+          "TargetIncidentId": 12345,
+          "Comment": "Pester validation",
+          "WhatIf": true
+        }
+      }
+    ],
+    "Merge-XdrIncident": [
+      {
+        "name": "WhatIfMerge",
+        "parameterSetName": "__AllParameterSets",
+        "parameters": {
+          "IncidentIds": [
+            12345,
+            12346
+          ],
+          "Comment": "Pester validation",
+          "WhatIf": true
+        }
+      }
+    ]
+  }
+}

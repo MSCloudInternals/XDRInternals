@@ -1,4 +1,4 @@
-function Set-XdrSentinelConnection {
+﻿function Set-XdrSentinelConnection {
     <#
     .SYNOPSIS
         Configures the Sentinel (Log Analytics) workspace connection for data export.
@@ -20,6 +20,13 @@ function Set-XdrSentinelConnection {
         Optional Data Collection Endpoint URI. When set, uses the DCR/DCE ingestion API
         instead of the legacy HTTP Data Collector API. Not required for most use cases.
 
+    .PARAMETER Confirm
+        Prompts for confirmation before updating the module's Sentinel connection settings.
+
+    .PARAMETER WhatIf
+        Shows what would happen if the command runs without updating the module's
+        Sentinel connection settings.
+
     .EXAMPLE
         Set-XdrSentinelConnection -WorkspaceId "12345678-abcd-1234-abcd-123456789012" -SharedKey "base64key=="
 
@@ -27,7 +34,7 @@ function Set-XdrSentinelConnection {
         $key = Read-Host -AsSecureString "Shared Key"
         Set-XdrSentinelConnection -WorkspaceId "12345678-abcd-1234-abcd-123456789012" -SharedKey ([System.Net.NetworkCredential]::new('', $key).Password)
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param (
         [Parameter(Mandatory)]
         [string]$WorkspaceId,
@@ -39,12 +46,14 @@ function Set-XdrSentinelConnection {
     )
 
     process {
-        $script:SentinelWorkspaceId = $WorkspaceId
-        $script:SentinelSharedKey = $SharedKey
-        if ($DceEndpoint) {
-            $script:SentinelDceEndpoint = $DceEndpoint
-        }
+        if ($PSCmdlet.ShouldProcess($WorkspaceId, 'Configure Sentinel connection settings')) {
+            $script:SentinelWorkspaceId = $WorkspaceId
+            $script:SentinelSharedKey = $SharedKey
+            if ($DceEndpoint) {
+                $script:SentinelDceEndpoint = $DceEndpoint
+            }
 
-        Write-Host "Sentinel connection configured for workspace: $WorkspaceId"
+            Write-Verbose "Configured Sentinel connection for workspace: $WorkspaceId"
+        }
     }
 }

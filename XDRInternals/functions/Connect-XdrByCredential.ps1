@@ -1,4 +1,4 @@
-function Connect-XdrByCredential {
+﻿function Connect-XdrByCredential {
     <#
     .SYNOPSIS
         Authenticates to Microsoft Defender XDR using username, password, and optional TOTP MFA.
@@ -107,12 +107,10 @@ function Connect-XdrByCredential {
         if ($PSCmdlet.ParameterSetName -eq 'Credential' -and $Credential) {
             $resolvedUsername = $Credential.UserName
             $resolvedPassword = $Credential.Password
-        }
-        elseif ($PSCmdlet.ParameterSetName -eq 'Explicit' -and $Username -and $Password) {
+        } elseif ($PSCmdlet.ParameterSetName -eq 'Explicit' -and $Username -and $Password) {
             $resolvedUsername = $Username
             $resolvedPassword = $Password
-        }
-        else {
+        } else {
             # Interactive: prompt for credentials
             Write-Host "Enter credentials for Defender XDR authentication:"
             $cred = Get-Credential -Message "Enter your Entra ID credentials for Defender XDR"
@@ -125,27 +123,18 @@ function Connect-XdrByCredential {
 
         Write-Host "Authenticating as $resolvedUsername with credential flow..."
 
-        # Convert SecureString to plain text for the internal function
-        $plainPassword = [System.Net.NetworkCredential]::new('', $resolvedPassword).Password
-
         $credParams = @{
             Username  = $resolvedUsername
-            Password  = $plainPassword
+            Password  = $resolvedPassword
             UserAgent = $UserAgent
         }
         if ($TotpSecret) { $credParams.TotpSecret = $TotpSecret }
         if ($MfaMethod) { $credParams.MfaMethod = $MfaMethod }
 
-        try {
-            $estsAuth = Invoke-XdrCredentialAuthentication @credParams
-        }
-        finally {
-            # Clear plain text password from memory
-            $plainPassword = $null
-        }
+        $estsAuth = Invoke-XdrCredentialAuthentication @credParams
 
         if (-not $estsAuth) {
-            throw "Credential authentication failed — no ESTS cookie was returned."
+            throw "Credential authentication failed - no ESTS cookie was returned."
         }
 
         $connectParams = @{

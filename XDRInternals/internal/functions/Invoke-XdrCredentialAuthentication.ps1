@@ -1,4 +1,4 @@
-#region Private Helper Functions
+﻿#region Private Helper Functions
 
 function Get-XdrTotpCode {
     <#
@@ -35,17 +35,16 @@ function Get-XdrTotpCode {
     $hmac = New-Object System.Security.Cryptography.HMACSHA1(, $keyBytes)
     try {
         $hash = $hmac.ComputeHash($counterBytes)
-    }
-    finally {
+    } finally {
         $hmac.Dispose()
     }
 
     # Dynamic truncation
     $offset = $hash[$hash.Length - 1] -band 0x0F
     $code = (($hash[$offset] -band 0x7F) -shl 24) -bor
-             ($hash[$offset + 1] -shl 16) -bor
-             ($hash[$offset + 2] -shl 8) -bor
-              $hash[$offset + 3]
+    ($hash[$offset + 1] -shl 16) -bor
+    ($hash[$offset + 2] -shl 8) -bor
+    $hash[$offset + 3]
 
     return ($code % [Math]::Pow(10, $Digits)).ToString().PadLeft($Digits, '0')
 }
@@ -73,7 +72,8 @@ function Invoke-XdrCredentialAuthentication {
         The user principal name (e.g., admin@contoso.com).
 
     .PARAMETER Password
-        The password as a plain string. Use Connect-XdrByCredential for SecureString support.
+        The password as a SecureString. The plain-text value is materialized only
+        immediately before it is submitted to the Entra ID sign-in form.
 
     .PARAMETER TotpSecret
         Base32-encoded TOTP secret for automatic MFA code generation.
@@ -90,8 +90,14 @@ function Invoke-XdrCredentialAuthentication {
     .PARAMETER UserAgent
         User-Agent string for HTTP requests.
 
+    .EXAMPLE
+        $password = ConvertTo-SecureString "MyPassword" -AsPlainText -Force
+        Invoke-XdrCredentialAuthentication -Username "admin@contoso.com" -Password $password -TotpSecret "JBSWY3DPEHPK3PXP"
+
+        Authenticates with a SecureString password and returns the ESTSAUTH cookie value.
+
     .OUTPUTS
-        String — the ESTSAUTH cookie value suitable for passing to Connect-XdrByEstsCookie.
+        String - the ESTSAUTH cookie value suitable for passing to Connect-XdrByEstsCookie.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
@@ -100,7 +106,7 @@ function Invoke-XdrCredentialAuthentication {
         [string]$Username,
 
         [Parameter(Mandatory)]
-        [string]$Password,
+        [SecureString]$Password,
 
         [string]$TotpSecret,
 
@@ -112,12 +118,12 @@ function Invoke-XdrCredentialAuthentication {
 
     #region Establish session and initiate authentication flow
     $authUrl = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize" +
-               "?response_type=code" +
-               "&redirect_uri=msauth.com.msauth.unsignedapp://auth" +
-               "&scope=https://graph.microsoft.com/.default" +
-               "&client_id=04b07795-8ddb-461a-bbee-02f9e1bf7b46" +
-               "&sso_reload=true" +
-               "&login_hint=$([uri]::EscapeDataString($Username))"
+    "?response_type=code" +
+    "&redirect_uri=msauth.com.msauth.unsignedapp://auth" +
+    "&scope=https://graph.microsoft.com/.default" +
+    "&client_id=04b07795-8ddb-461a-bbee-02f9e1bf7b46" +
+    "&sso_reload=true" +
+    "&login_hint=$([uri]::EscapeDataString($Username))"
 
     $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
     $session.UserAgent = $UserAgent
@@ -141,21 +147,27 @@ function Invoke-XdrCredentialAuthentication {
 
     #region Submit credentials (type=11 = password)
     Write-Host "Submitting credentials for $Username..."
-    $credBody = @{
-        login         = $Username
-        passwd        = $Password
-        type          = 11
-        ps            = 2
-        flowToken     = $sessionInfo.sFT
-        ctx           = $sessionInfo.sCtx
-        canary        = $sessionInfo.canary
-        hpgrequestid  = $sessionInfo.correlationId
-    }
+    $plainPassword = [System.Net.NetworkCredential]::new('', $Password).Password
 
-    $credResponse = Invoke-WebRequest -UseBasicParsing -Method Post `
-        -Uri $sessionInfo.urlPost `
-        -Body $credBody `
-        -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck -Verbose:$false
+    try {
+        $credBody = @{
+            login        = $Username
+            passwd       = $plainPassword
+            type         = 11
+            ps           = 2
+            flowToken    = $sessionInfo.sFT
+            ctx          = $sessionInfo.sCtx
+            canary       = $sessionInfo.canary
+            hpgrequestid = $sessionInfo.correlationId
+        }
+
+        $credResponse = Invoke-WebRequest -UseBasicParsing -Method Post `
+            -Uri $sessionInfo.urlPost `
+            -Body $credBody `
+            -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck -Verbose:$false
+    } finally {
+        $plainPassword = $null
+    }
 
     if (-not ($credResponse.Content -match '{(.*)}')) {
         throw "Unexpected response after credential submission."
@@ -190,18 +202,15 @@ function Invoke-XdrCredentialAuthentication {
         if (-not $selectedMethod) {
             if ($TotpSecret) {
                 $selectedMethod = 'PhoneAppOTP'
-            }
-            elseif ($authState.arrUserProofs) {
+            } elseif ($authState.arrUserProofs) {
                 # Use the default method from available proofs
                 $defaultProof = $authState.arrUserProofs | Where-Object { $_.isDefault -eq $true } | Select-Object -First 1
                 if ($defaultProof) {
                     $selectedMethod = $defaultProof.authMethodId
-                }
-                else {
+                } else {
                     $selectedMethod = $authState.arrUserProofs[0].authMethodId
                 }
-            }
-            else {
+            } else {
                 $selectedMethod = 'PhoneAppOTP'
             }
         }
@@ -237,8 +246,7 @@ function Invoke-XdrCredentialAuthentication {
                 if ($TotpSecret) {
                     $verificationCode = Get-XdrTotpCode -Secret $TotpSecret
                     Write-Verbose "Computed TOTP code: $verificationCode"
-                }
-                else {
+                } else {
                     Write-Host "Enter the code from your authenticator app:"
                     $verificationCode = Read-Host "Code"
                 }
@@ -249,13 +257,12 @@ function Invoke-XdrCredentialAuthentication {
                 $verificationCode = Read-Host "Code"
             }
             'PhoneAppNotification' {
-                # Push notification — poll for approval
+                # Push notification - poll for approval
                 $entropy = $beginAuth.Entropy
                 if ($entropy -and $entropy -gt 0) {
                     Write-Host "Approve the sign-in request in your Authenticator app."
                     Write-Host "Number to match: $entropy" -ForegroundColor Yellow
-                }
-                else {
+                } else {
                     Write-Host "Approve the sign-in request in your Authenticator app."
                 }
 
@@ -288,8 +295,7 @@ function Invoke-XdrCredentialAuthentication {
                         $pushApproved = $true
                         $beginAuth = $pollResult  # Carry forward for ProcessAuth
                         break
-                    }
-                    elseif ($pollResult.ResultValue -ne 'AuthenticationPending') {
+                    } elseif ($pollResult.ResultValue -ne 'AuthenticationPending') {
                         throw "Push notification denied or failed: $($pollResult.ResultValue) - $($pollResult.Message)"
                     }
 
@@ -306,7 +312,7 @@ function Invoke-XdrCredentialAuthentication {
             }
         }
 
-        # EndAuth — submit verification code (for OTP and SMS methods)
+        # EndAuth - submit verification code (for OTP and SMS methods)
         if ($selectedMethod -ne 'PhoneAppNotification') {
             if (-not $verificationCode) {
                 throw "No verification code provided for MFA method $selectedMethod."
@@ -337,7 +343,7 @@ function Invoke-XdrCredentialAuthentication {
             $beginAuth = $endAuth  # Carry forward FlowToken for ProcessAuth
         }
 
-        # ProcessAuth — finalize MFA and continue the login flow
+        # ProcessAuth - finalize MFA and continue the login flow
         $processBody = @{
             type      = 22
             FlowToken = $beginAuth.FlowToken
@@ -353,15 +359,14 @@ function Invoke-XdrCredentialAuthentication {
 
         if ($processResponse.Content -match '{(.*)}') {
             try { $authState = $Matches[0] | ConvertFrom-Json } catch { $authState = $null }
-        }
-        else {
+        } else {
             $authState = $null
         }
 
         Write-Verbose "ProcessAuth completed (pgid: $($authState.pgid))"
     }
 
-    # Handle ConvergedProofUpRedirect (MFA registration prompt — skip it)
+    # Handle ConvergedProofUpRedirect (MFA registration prompt - skip it)
     if ($authState -and $authState.pgid -eq 'ConvergedProofUpRedirect') {
         Write-Verbose "MFA registration prompt detected, attempting to skip..."
         if ($authState.iRemainingDaysToSkipMfaRegistration -and $authState.iRemainingDaysToSkipMfaRegistration -gt 0) {
@@ -379,8 +384,7 @@ function Invoke-XdrCredentialAuthentication {
             if ($skipResponse.Content -match '{(.*)}') {
                 try { $authState = $Matches[0] | ConvertFrom-Json } catch { $authState = $null }
             }
-        }
-        else {
+        } else {
             throw "MFA registration is required for this account and cannot be skipped."
         }
     }
@@ -391,31 +395,31 @@ function Invoke-XdrCredentialAuthentication {
     $debug = $authState
 
     $interruptHandlers = @{
-        "CmsiInterrupt" = @{
+        "CmsiInterrupt"   = @{
             Uri    = "https://login.microsoftonline.com/appverify"
             Method = "Post"
             Body   = { @{
-                ContinueAuth    = "true"
-                i19             = Get-Random -Minimum 1000 -Maximum 9999
-                canary          = $debug.canary
-                iscsrfspeedbump = "false"
-                flowToken       = $debug.sFT
-                hpgrequestid    = $debug.correlationId
-                ctx             = $debug.sCtx
-            } }
+                    ContinueAuth    = "true"
+                    i19             = Get-Random -Minimum 1000 -Maximum 9999
+                    canary          = $debug.canary
+                    iscsrfspeedbump = "false"
+                    flowToken       = $debug.sFT
+                    hpgrequestid    = $debug.correlationId
+                    ctx             = $debug.sCtx
+                } }
         }
-        "KmsiInterrupt" = @{
+        "KmsiInterrupt"   = @{
             Uri    = "https://login.microsoftonline.com/kmsi"
             Method = "Post"
             Body   = { @{
-                LoginOptions = 1
-                type         = 28
-                ctx          = $debug.sCtx
-                hpgrequestid = $debug.correlationId
-                flowToken    = $debug.sFT
-                canary       = $debug.canary
-                i19          = 4130
-            } }
+                    LoginOptions = 1
+                    type         = 28
+                    ctx          = $debug.sCtx
+                    hpgrequestid = $debug.correlationId
+                    flowToken    = $debug.sFT
+                    canary       = $debug.canary
+                    i19          = 4130
+                } }
         }
         "ConvergedSignIn" = @{
             Uri    = { $sessionId = if ($null -ne $debug.arrSessions -and $null -ne $debug.arrSessions[0].id) { $debug.arrSessions[0].id } else { $debug.sessionId }; "$($debug.urlLogin)&sessionid=$sessionId" }

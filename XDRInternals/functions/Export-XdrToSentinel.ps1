@@ -1,4 +1,4 @@
-function Export-XdrToSentinel {
+﻿function Export-XdrToSentinel {
     <#
     .SYNOPSIS
         Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table.
@@ -91,7 +91,7 @@ function Export-XdrToSentinel {
             $totalSent += Send-XdrSentinelBatch -Records $collected -LogType $LogType -TimestampField $TimestampField
         }
 
-        Write-Host "Exported $totalSent records to ${LogType}_CL"
+        Write-Verbose "Exported $totalSent records to ${LogType}_CL"
     }
 }
 
@@ -101,6 +101,7 @@ function Send-XdrSentinelBatch {
         Internal function that posts a batch of records to Log Analytics HTTP Data Collector API.
     #>
     [CmdletBinding()]
+    [OutputType([int])]
     param (
         [Parameter(Mandatory)]
         [System.Collections.Generic.List[object]]$Records,

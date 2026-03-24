@@ -139,14 +139,14 @@
             Write-Error "Failed to retrieve endpoint devices: $_"
             return
         }
-        
+
         # Add custom type name for formatting
         if ($result) {
             foreach ($machine in $result) {
                 $machine.PSObject.TypeNames.Insert(0, 'XdrEndpointDevice')
             }
         }
-        
+
         return $result
     }
 

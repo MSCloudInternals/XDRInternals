@@ -63,6 +63,7 @@
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(
         "Connect-XdrByEstsCookie",
+        "Connect-XdrBySoftwarePasskey",
         "ConvertTo-XdrEncodedAdvancedHuntingQuery",
         "Get-XdrActionsCenterHistory",
         "Get-XdrActionsCenterPending",
@@ -111,6 +112,8 @@
         "Get-XdrIdentityOnboardingStatus",
         "Get-XdrIdentityServiceAccount",
         "Get-XdrIdentityStatistic",
+        "Get-XdrIdentityUser",
+        "Get-XdrIdentityUserTimeline",
         "Get-XdrIncident",
         "Get-XdrIncidentAssociatedAlert",
         "Get-XdrStreamingApiConfiguration",

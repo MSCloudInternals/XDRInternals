@@ -135,6 +135,7 @@
 
     begin {
         Update-XdrConnectionSettings
+        $mdiHeaders = Get-XdrIdentityHeaders
     }
 
     process {
@@ -228,10 +229,14 @@
 
                 try {
                     $Uri = "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities"
-                    $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers
+                    $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $mdiHeaders
                     $pageData = $result | Select-Object -ExpandProperty data
                 } catch {
-                    Write-Error "Failed to retrieve identities: $_"
+                    Write-Error -Exception $_.Exception `
+                        -ErrorId 'XdrIdentityIdentityRequestFailed' `
+                        -Category ConnectionError `
+                        -TargetObject $body `
+                        -Message "Failed to retrieve identities: $($_.Exception.Message)"
                     return
                 }
 
@@ -304,10 +309,14 @@
         try {
             $Uri = "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities"
             Write-Verbose "Retrieving XDR identities (SortBy: $SortByField $SortDirection, PageSize: $PageSize, Skip: $Skip, SearchText: '$SearchText', IdentityProvider: '$identityProviderKey', IdentityEnvironment: '$primaryIdentityProviderKey')"
-            $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers
+            $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $mdiHeaders
             $result = $result | Select-Object -ExpandProperty data
         } catch {
-            Write-Error "Failed to retrieve identities: $_"
+            Write-Error -Exception $_.Exception `
+                -ErrorId 'XdrIdentityIdentityRequestFailed' `
+                -Category ConnectionError `
+                -TargetObject $body `
+                -Message "Failed to retrieve identities: $($_.Exception.Message)"
             return
         }
 

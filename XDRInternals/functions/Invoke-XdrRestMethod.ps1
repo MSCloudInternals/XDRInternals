@@ -49,7 +49,7 @@
         [string]$ContentType = "application/json",
 
         [Parameter(Mandatory = $false)]
-        [Microsoft.PowerShell.Commands.WebRequestSession]$WebSession = $script:session,
+        $WebSession = $script:session,
 
         [Parameter(Mandatory = $false)]
         [Hashtable]$Headers = $script:headers,

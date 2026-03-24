@@ -55,7 +55,7 @@
         $TenantId,
 
         [Parameter(Mandatory, ParameterSetName = 'Websession')]
-        [Microsoft.PowerShell.Commands.WebRequestSession]$WebSession,
+        $WebSession,
 
         [Parameter(Mandatory, ParameterSetName = 'ResetWebSession')]
         [switch]$ResetWebSession

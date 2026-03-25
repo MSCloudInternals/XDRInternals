@@ -44,14 +44,20 @@
 
     .PARAMETER MfaMethod
         Preferred MFA method. Valid values: PhoneAppOTP, PhoneAppNotification, OneWaySMS.
-        If not specified, auto-selects: PhoneAppOTP when TotpSecret is provided,
-        otherwise uses the default method from the tenant's MFA configuration.
+        If not specified, the function auto-selects PhoneAppOTP only when -TotpSecret is provided
+        and that method is actually offered. When multiple supported inline methods are available,
+        you are prompted to choose.
 
     .PARAMETER TenantId
         The Defender XDR tenant ID to connect to. If not provided, the default tenant is used.
 
     .PARAMETER UserAgent
         User-Agent string for HTTP requests. Defaults to Edge browser user agent.
+
+    .PARAMETER DebugCaptureDirectory
+        Optional directory for writing detailed credential-auth debug captures.
+        When provided, request bodies, response bodies, headers, parsed state, and cookie snapshots
+        are written under the specified path for each major authentication stage.
 
     .EXAMPLE
         Connect-XdrByCredential
@@ -99,19 +105,39 @@
 
         [string]$TenantId,
 
+        [string]$DebugCaptureDirectory,
+
         [string]$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
     )
 
     process {
-        # Resolve credentials from whichever input method was used
+        # Resolve credentials from whichever input method was used.
+        # Prompt only for values the caller did not supply.
         if ($PSCmdlet.ParameterSetName -eq 'Credential' -and $Credential) {
             $resolvedUsername = $Credential.UserName
             $resolvedPassword = $Credential.Password
-        } elseif ($PSCmdlet.ParameterSetName -eq 'Explicit' -and $Username -and $Password) {
+        } elseif ($PSCmdlet.ParameterSetName -eq 'Explicit') {
             $resolvedUsername = $Username
             $resolvedPassword = $Password
+
+            if (-not $resolvedUsername -and -not $resolvedPassword) {
+                Write-Host "Enter credentials for Defender XDR authentication:"
+                $cred = Get-Credential -Message "Enter your Entra ID credentials for Defender XDR"
+                if (-not $cred) {
+                    throw "No credentials provided."
+                }
+
+                $resolvedUsername = $cred.UserName
+                $resolvedPassword = $cred.Password
+            } else {
+                if (-not $resolvedUsername) {
+                    $resolvedUsername = Read-Host "Username"
+                }
+                if (-not $resolvedPassword) {
+                    $resolvedPassword = Read-Host -AsSecureString "Password for $resolvedUsername"
+                }
+            }
         } else {
-            # Interactive: prompt for credentials
             Write-Host "Enter credentials for Defender XDR authentication:"
             $cred = Get-Credential -Message "Enter your Entra ID credentials for Defender XDR"
             if (-not $cred) {
@@ -119,6 +145,13 @@
             }
             $resolvedUsername = $cred.UserName
             $resolvedPassword = $cred.Password
+        }
+
+        if (-not $resolvedUsername) {
+            throw "No username provided."
+        }
+        if (-not $resolvedPassword) {
+            throw "No password provided."
         }
 
         Write-Host "Authenticating as $resolvedUsername with credential flow..."
@@ -130,6 +163,7 @@
         }
         if ($TotpSecret) { $credParams.TotpSecret = $TotpSecret }
         if ($MfaMethod) { $credParams.MfaMethod = $MfaMethod }
+        if ($DebugCaptureDirectory) { $credParams.DebugCaptureDirectory = $DebugCaptureDirectory }
 
         $estsAuth = Invoke-XdrCredentialAuthentication @credParams
 

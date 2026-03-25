@@ -4,18 +4,18 @@
         Establishes an authenticated session to the Microsoft Defender XDR portal.
 
     .DESCRIPTION
-        Connects to security.microsoft.com using an ESTSAUTHPERSISTENT cookie value to establish
+        Connects to security.microsoft.com using an ESTSAUTH cookie value to establish
         an authenticated web session. This function creates global session and headers variables
         that can be used by other XDR cmdlets to interact with the portal APIs.
 
         You can provide the cookie value as either a plain string or as a secure string.
 
     .PARAMETER EstsAuthCookieValue
-        The ESTSAUTHPERSISTENT cookie value from an authenticated browser session as a plain string.
+        The ESTSAUTH cookie value from an authenticated browser session as a plain string.
         Use this parameter set when you have the cookie as a plain text value.
 
     .PARAMETER SecureEstsAuthCookieValue
-        The ESTSAUTHPERSISTENT cookie value from an authenticated browser session as a secure string.
+        The ESTSAUTH cookie value from an authenticated browser session as a secure string.
         Use this parameter set when you want to pass the cookie value securely (e.g., from credential object).
 
     .PARAMETER TenantId
@@ -34,7 +34,7 @@
         Connects to the XDR portal using the provided authentication cookie as a secure string.
 
     .EXAMPLE
-        Read-Host -AsSecureString "Enter ESTSAUTHPERSISTENT cookie" | Connect-XdrByEstsCookie
+        Read-Host -AsSecureString "Enter ESTSAUTH cookie" | Connect-XdrByEstsCookie
         Prompts for the cookie value securely via pipeline and connects to the XDR portal.
 
     .OUTPUTS
@@ -71,8 +71,7 @@
             $ssPtr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureEstsAuthCookieValue)
             try {
                 $EstsAuthCookieValue = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ssPtr)
-            }
-            finally {
+            } finally {
                 [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ssPtr)
             }
         }
@@ -82,8 +81,10 @@
         # Bootstrap the session by making an initial request to login.microsoftonline.com
         $null = Invoke-WebRequest -UseBasicParsing -MaximumRedirection 99 -ErrorAction SilentlyContinue -WebSession $session -Method Get -Uri "https://login.microsoftonline.com/error" -Verbose:$false
 
-        $cookie = [System.Net.Cookie]::new("ESTSAUTHPERSISTENT", $EstsAuthCookieValue)
-        $session.Cookies.Add('https://login.microsoftonline.com/', $cookie)
+        foreach ($cookieName in @('ESTSAUTH', 'ESTSAUTHPERSISTENT')) {
+            $cookie = [System.Net.Cookie]::new($cookieName, $EstsAuthCookieValue)
+            $session.Cookies.Add('https://login.microsoftonline.com/', $cookie)
+        }
         $SessionCookies = $session.Cookies.GetCookies('https://login.microsoftonline.com') | Select-Object -ExpandProperty Name
         Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
 
@@ -91,8 +92,7 @@
         if ($TenantId) {
             $SecurityPortalUri = "https://security.microsoft.com/" + "?tid=$TenantId"
             Set-XdrCache -CacheKey "XdrTenantId" -Value $TenantId -TTLMinutes 3660
-        }
-        else {
+        } else {
             $SecurityPortalUri = "https://security.microsoft.com/"
         }
         Write-Verbose "Initiating authentication flow to $SecurityPortalUri"
@@ -103,18 +103,15 @@
             try {
                 $SecurityPortal.Content -match '{(.*)}' | Out-Null
                 $SessionInformation_SecurityPortal = $Matches[0] | ConvertFrom-Json
-            }
-            catch {
-                throw "Failed to complete authentication flow. Please verify the ESTSAUTHPERSISTENT cookie value."
+            } catch {
+                throw "Failed to complete authentication flow. Please verify the ESTSAUTH cookie value."
             }
             if ($SessionInformation_SecurityPortal.sErrorCode -eq "50058") {
-                throw "Session information is not sufficient for single-sign-on. Please use a incognito/private browsing session to obtain a new ESTSAUTHPERSISTENT cookie value."
-            }
-            elseif ($SessionInformation_SecurityPortal.sErrorCode) {
-                throw "Authentication flow failed with error code: $($SessionInformation_SecurityPortal.sErrorCode). Please verify the ESTSAUTHPERSISTENT cookie value."
-            }
-            else {
-                throw "Authentication flow failed. Please verify the ESTSAUTHPERSISTENT cookie value."
+                throw "Session information is not sufficient for single-sign-on. Please use a incognito/private browsing session to obtain a new ESTSAUTH cookie value."
+            } elseif ($SessionInformation_SecurityPortal.sErrorCode) {
+                throw "Authentication flow failed with error code: $($SessionInformation_SecurityPortal.sErrorCode). Please verify the ESTSAUTH cookie value."
+            } else {
+                throw "Authentication flow failed. Please verify the ESTSAUTH cookie value."
             }
         }
 
@@ -132,7 +129,7 @@
         }
         $SessionCookies = $session.Cookies.GetCookies('https://security.microsoft.com') | Select-Object -ExpandProperty Name
         Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
-        Write-Host "Successfully signed into to XDR portal using ESTSAUTHPERSISTENT cookie."
+        Write-Host "Successfully signed into to XDR portal using ESTSAUTH cookie."
         Write-Host "Exchange the received authorization code for session cookies."
 
         # Invoke a POST request to get the session cookies for security.microsoft.com

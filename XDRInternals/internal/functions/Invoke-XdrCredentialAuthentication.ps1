@@ -356,6 +356,67 @@ function Get-XdrResponseLocation {
     return $null
 }
 
+function Invoke-XdrRedirectCapturingWebRequest {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Uri,
+        [Parameter(Mandatory)]
+        [string]$Method,
+        [Microsoft.PowerShell.Commands.WebRequestSession]$Session,
+        $Body,
+        $Headers,
+        [string]$ContentType
+    )
+
+    $requestParams = @{
+        Uri                = $Uri
+        Method             = $Method
+        UseBasicParsing    = $true
+        SkipHttpErrorCheck = $true
+        MaximumRedirection = 0
+        Verbose            = $false
+        ErrorAction        = 'SilentlyContinue'
+    }
+
+    if ($PSBoundParameters.ContainsKey('Session')) {
+        $requestParams['WebSession'] = $Session
+    }
+
+    if ($PSBoundParameters.ContainsKey('Body') -and $null -ne $Body) {
+        $requestParams['Body'] = $Body
+    }
+
+    if ($PSBoundParameters.ContainsKey('Headers') -and $null -ne $Headers) {
+        $requestParams['Headers'] = $Headers
+    }
+
+    if ($PSBoundParameters.ContainsKey('ContentType') -and -not [string]::IsNullOrWhiteSpace($ContentType)) {
+        $requestParams['ContentType'] = $ContentType
+    }
+
+    $redirectErrors = @()
+    $response = Invoke-WebRequest @requestParams -ErrorVariable +redirectErrors
+    if ($null -ne $response) {
+        return $response
+    }
+
+    foreach ($errorRecord in $redirectErrors) {
+        $redirectResponse = if ($errorRecord.Exception) { $errorRecord.Exception.Response } else { $null }
+        if ($null -ne $redirectResponse -and (Get-XdrResponseLocation -Response $redirectResponse)) {
+            return $redirectResponse
+        }
+
+        if ($errorRecord.Exception -and $errorRecord.Exception.Message -match 'maximum redirection count has been exceeded') {
+            Write-Verbose "Captured redirect response from $Method $Uri after PowerShell reported the redirection limit."
+            continue
+        }
+
+        throw $errorRecord
+    }
+
+    throw "Web request to '$Uri' did not return a usable response."
+}
+
 function Test-XdrSecurityPortalFormPostResponse {
     param($Response)
 
@@ -433,6 +494,11 @@ function Resolve-XdrAuthenticationResponse {
         }
 
         $nextUri = [uri]::new($baseUri, $location)
+        if ($nextUri.Scheme -notin @('http', 'https')) {
+            Write-Verbose "Authentication redirect reached native callback URI $nextUri; stopping redirect resolution."
+            break
+        }
+
         Write-Verbose "Following authentication redirect to $nextUri"
         $currentResponse = Invoke-WebRequest -UseBasicParsing -Method Get -Uri $nextUri -WebSession $Session -MaximumRedirection 10 -SkipHttpErrorCheck -Verbose:$false
     }
@@ -971,11 +1037,13 @@ function Invoke-XdrCredentialAuthentication {
         }
 
         Write-Verbose "Calling SAS/ProcessAuth..."
-        $processResponse = Invoke-WebRequest -UseBasicParsing -Method Post `
+        $processResponse = Invoke-XdrRedirectCapturingWebRequest `
+            -Method Post `
             -Uri "https://login.microsoftonline.com/common/SAS/ProcessAuth" `
-            -Body $processBody -ContentType $processContentType `
+            -Body $processBody `
+            -ContentType $processContentType `
             -Headers $sasHeaders `
-            -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck -Verbose:$false
+            -Session $session
 
         $processResponseState = Get-XdrAuthStateFromResponse -Response $processResponse
 
@@ -1011,11 +1079,13 @@ function Invoke-XdrCredentialAuthentication {
             }
 
             Write-Verbose 'ProcessAuth returned a retryable request parsing error. Retrying with login-form style field names.'
-            $processResponse = Invoke-WebRequest -UseBasicParsing -Method Post `
+            $processResponse = Invoke-XdrRedirectCapturingWebRequest `
+                -Method Post `
                 -Uri "https://login.microsoftonline.com/common/SAS/ProcessAuth" `
-                -Body $formProcessBody -ContentType 'application/x-www-form-urlencoded' `
+                -Body $formProcessBody `
+                -ContentType 'application/x-www-form-urlencoded' `
                 -Headers $sasHeaders `
-                -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck -Verbose:$false
+                -Session $session
 
             $processBody = $formProcessBody
             $processBodyForDebug = [pscustomobject]$formProcessBody
@@ -1050,11 +1120,13 @@ function Invoke-XdrCredentialAuthentication {
                 request   = $authState.sProofUpAuthState
                 ctx       = $authState.sProofUpAuthState
             } | ConvertTo-Json
-            $skipResponse = Invoke-WebRequest -UseBasicParsing -Method Post `
+            $skipResponse = Invoke-XdrRedirectCapturingWebRequest `
+                -Method Post `
                 -Uri "https://login.microsoftonline.com/common/SAS/ProcessAuth" `
-                -Body $skipBody -ContentType "application/json" `
+                -Body $skipBody `
+                -ContentType "application/json" `
                 -Headers (Get-XdrEstsApiHeaderSet -AuthState $authState) `
-                -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck -Verbose:$false
+                -Session $session
 
             $skipResponseState = Get-XdrAuthStateFromResponse -Response $skipResponse
 
@@ -1073,10 +1145,11 @@ function Invoke-XdrCredentialAuthentication {
                 }
 
                 Write-Verbose 'Proof-up skip ProcessAuth returned a retryable request parsing error. Retrying with login-form style field names.'
-                $skipResponse = Invoke-WebRequest -UseBasicParsing -Method Post `
+                $skipResponse = Invoke-XdrRedirectCapturingWebRequest `
+                    -Method Post `
                     -Uri "https://login.microsoftonline.com/common/SAS/ProcessAuth" `
                     -Body $formSkipBody `
-                    -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck -Verbose:$false
+                    -Session $session
 
                 $skipBody = $formSkipBody | ConvertTo-Json
                 $skipResponseState = Get-XdrAuthStateFromResponse -Response $skipResponse

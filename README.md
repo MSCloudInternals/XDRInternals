@@ -46,10 +46,10 @@ Get-XdrTenantContext -Force
 | Cmdlet                                                          | Description                                                         |
 | --------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Connect-XdrByEstsCookie                                         | Authenticate to Microsoft Defender XDR using ESTS cookie            |
-| Connect-XdrEndpointDeviceLiveResponse                           | Start an interactive Live Response session on a device              |
+| Connect-XdrEndpointDeviceLiveResponse                           | Start interactive or non-interactive Live Response sessions         |
 | Connect-XdrBySoftwarePasskey                                    | Authenticate to Microsoft Defender XDR using a software FIDO2 passkey (local or Azure Key Vault) |
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encode Advanced Hunting queries for URL/API usage                   |
-| Disconnect-XdrEndpointDeviceLiveResponse                        | Close an active Live Response session                               |
+| Disconnect-XdrEndpointDeviceLiveResponse                        | Close one or more active Live Response sessions                     |
 | Get-XdrActionsCenterHistory                                     | Retrieve historical actions from the Action Center                  |
 | Get-XdrActionsCenterPending                                     | Retrieve pending actions from the Action Center                     |
 | Get-XdrAdvancedHuntingFunction                                  | Get saved Advanced Hunting functions                                |
@@ -125,7 +125,7 @@ Get-XdrTenantContext -Force
 | Get-XdrXspmTopTarget                                            | Get top targets from attack paths                                   |
 | Invoke-XdrEndpointDeviceAction                                  | Unified cmdlet for all endpoint device actions                      |
 | Invoke-XdrEndpointDeviceAutomatedInvestigation                  | Start an automated investigation on a device                        |
-| Invoke-XdrEndpointDeviceLiveResponseCommand                     | Execute a command in a Live Response session programmatically       |
+| Invoke-XdrEndpointDeviceLiveResponseCommand                     | Execute Live Response commands programmatically with optional row expansion |
 | Invoke-XdrEndpointDevicePolicySync                              | Force a policy sync on a device                                     |
 | Invoke-XdrHuntingQueryValidation                                | Validate an Advanced Hunting query for custom detection rules       |
 | Invoke-XdrMtoAdvancedHunting                                    | Execute Advanced Hunting queries across multiple tenants            |
@@ -253,6 +253,36 @@ Get-XdrXspmTopTarget
 # Execute custom XSPM hunting queries
 Invoke-XdrXspmHuntingQuery -Query "AttackPathsV2 | where RiskLevel == 'High'" -ScenarioName "CustomQuery"
 ```
+
+#### Live Response
+
+```powershell
+# Open an interactive Live Response shell
+Connect-XdrEndpointDeviceLiveResponse -DeviceId $deviceId
+
+# Create one or more non-interactive sessions for automation
+$sessions = Get-XdrEndpointDevice -MachineSearchPrefix sml |
+	Select-Object -First 2 |
+	Connect-XdrEndpointDeviceLiveResponse -NonInteractive
+
+# Run a command and get PowerShell-native row output for common table responses
+$sessions |
+	Invoke-XdrEndpointDeviceLiveResponseCommand -Command 'processes' -ExpandTableOutput |
+	Select-Object DeviceName, Name, Pid, MemoryKB
+
+# Keep the original API wrapper object instead of expanding table rows
+$sessions[0] |
+	Invoke-XdrEndpointDeviceLiveResponseCommand -Command 'drivers -name cdd.dll' -RawCommandResult
+
+# Disconnect sessions through the pipeline
+$sessions | Disconnect-XdrEndpointDeviceLiveResponse
+```
+
+Notes:
+
+- `Connect-XdrEndpointDeviceLiveResponse -NonInteractive` accepts pipeline input from `Get-XdrEndpointDevice` and supports `-NoStatusTable` when connecting to multiple devices.
+- `Invoke-XdrEndpointDeviceLiveResponseCommand` expands common table outputs such as `processes`, `services`, `drivers`, `connections`, `dir`, and `persistence` into typed row objects by default. Use `-RawCommandResult` to keep the original API response shape, or `-IncludeCommandResult` together with `-ExpandTableOutput` to emit both forms.
+- `Disconnect-XdrEndpointDeviceLiveResponse` accepts session objects or raw session IDs from the pipeline.
 
 ## License
 

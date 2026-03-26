@@ -15,6 +15,10 @@
         Disconnect-XdrEndpointDeviceLiveResponse -SessionId "CLR0c33ce1c-1665-4e00-9059-8fa39da9e2cb"
         Closes the specified Live Response session.
 
+    .EXAMPLE
+        $sessions | Disconnect-XdrEndpointDeviceLiveResponse
+        Closes Live Response sessions passed through the pipeline.
+
     .OUTPUTS
         Object
         Returns the API response.
@@ -22,7 +26,7 @@
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
         [string]$SessionId
     )
 
@@ -41,7 +45,7 @@
             $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
 
             # Clear script-scoped session if it matches
-            if ($script:LiveResponseSession -and $script:LiveResponseSession.SessionId -eq $SessionId) {
+            if ((Test-Path variable:script:LiveResponseSession) -and $script:LiveResponseSession -and $script:LiveResponseSession.SessionId -eq $SessionId) {
                 $script:LiveResponseSession = $null
             }
 

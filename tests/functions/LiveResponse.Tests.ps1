@@ -5,57 +5,63 @@
 
     Describe 'Invoke-XdrRateLimitedBatch' {
         It 'does not warn when all items fit in a single batch' {
-            $warnings = @()
-            $result = @(Invoke-XdrRateLimitedBatch -Items @(1..5) -OperationName 'Example' -ItemScript {
-                    param($Item, $SharedParameters)
-                    $Item
-                } -WarningVariable warnings)
+            InModuleScope XDRInternals {
+                $warnings = @()
+                $result = @(Invoke-XdrRateLimitedBatch -Items @(1..5) -OperationName 'Example' -ItemScript {
+                        param($Item, $SharedParameters)
+                        $Item
+                    } -WarningVariable warnings)
 
-            $result.Count | Should -Be 5
-            $warnings.Count | Should -Be 0
+                $result.Count | Should -Be 5
+                $warnings.Count | Should -Be 0
+            }
         }
 
         It 'warns when multiple batches are required' {
-            $warnings = @()
-            $result = @(Invoke-XdrRateLimitedBatch -Items @(1..11) -OperationName 'Example' -ItemScript {
-                    param($Item, $SharedParameters)
-                    $Item
-                } -BatchDelaySeconds 0 -WarningVariable warnings)
+            InModuleScope XDRInternals {
+                $warnings = @()
+                $result = @(Invoke-XdrRateLimitedBatch -Items @(1..11) -OperationName 'Example' -ItemScript {
+                        param($Item, $SharedParameters)
+                        $Item
+                    } -BatchDelaySeconds 0 -WarningVariable warnings)
 
-            $result.Count | Should -Be 11
-            $warnings.Count | Should -Be 1
-            $warnings[0].ToString() | Should -Match '11 items in 2 minute\(s\)'
+                $result.Count | Should -Be 11
+                $warnings.Count | Should -Be 1
+                $warnings[0].ToString() | Should -Match '11 items in 2 minute\(s\)'
+            }
         }
 
         It 'invokes batch and completion callbacks' {
-            $startedBatches = [System.Collections.Generic.List[object]]::new()
-            $completedItems = [System.Collections.Generic.List[int]]::new()
+            InModuleScope XDRInternals {
+                $startedBatches = [System.Collections.Generic.List[object]]::new()
+                $completedItems = [System.Collections.Generic.List[int]]::new()
 
-            $null = Invoke-XdrRateLimitedBatch -Items @(1..11) -OperationName 'Example' -ItemScript {
-                param($Item, $SharedParameters)
-                $Item
-            } -BatchDelaySeconds 0 -BatchStartedScript {
-                param($BatchNumber, $TotalBatches, $Items)
+                $null = Invoke-XdrRateLimitedBatch -Items @(1..11) -OperationName 'Example' -ItemScript {
+                    param($Item, $SharedParameters)
+                    $Item
+                } -BatchDelaySeconds 0 -BatchStartedScript {
+                    param($BatchNumber, $TotalBatches, $Items)
 
-                $startedBatches.Add([PSCustomObject]@{
-                        BatchNumber = $BatchNumber
-                        TotalBatches = $TotalBatches
-                        Count = @($Items).Count
-                    }) | Out-Null
-            } -ItemCompletedScript {
-                param($BatchNumber, $TotalBatches, $Result)
+                    $startedBatches.Add([PSCustomObject]@{
+                            BatchNumber  = $BatchNumber
+                            TotalBatches = $TotalBatches
+                            Count        = @($Items).Count
+                        }) | Out-Null
+                } -ItemCompletedScript {
+                    param($BatchNumber, $TotalBatches, $Result)
 
-                if ($Result.Success) {
-                    $completedItems.Add([int]$Result.Item) | Out-Null
+                    if ($Result.Success) {
+                        $completedItems.Add([int]$Result.Item) | Out-Null
+                    }
                 }
-            }
 
-            $startedBatches.Count | Should -Be 2
-            $startedBatches[0].BatchNumber | Should -Be 1
-            $startedBatches[0].TotalBatches | Should -Be 2
-            $startedBatches[0].Count | Should -Be 10
-            $startedBatches[1].Count | Should -Be 1
-            @($completedItems | Sort-Object) | Should -Be @(1..11)
+                $startedBatches.Count | Should -Be 2
+                $startedBatches[0].BatchNumber | Should -Be 1
+                $startedBatches[0].TotalBatches | Should -Be 2
+                $startedBatches[0].Count | Should -Be 10
+                $startedBatches[1].Count | Should -Be 1
+                @($completedItems | Sort-Object) | Should -Be @(1..11)
+            }
         }
     }
 
@@ -228,8 +234,8 @@
             $result = @($devices | Connect-XdrEndpointDeviceLiveResponse -NonInteractive -WarningAction SilentlyContinue)
 
             $result.Count | Should -Be 2
-            @($hostLines | Where-Object { $_ -like 'Connecting Live Response sessions:*' }) | Should -Contain 'Connecting Live Response sessions: 1/2 completed'
-            @($hostLines | Where-Object { $_ -like 'Connecting Live Response sessions:*' }) | Should -Contain 'Connecting Live Response sessions: 2/2 completed'
+            @($hostLines | Where-Object { $_ -like 'Connecting Live Response sessions:*' } | ForEach-Object { $_.TrimEnd() }) | Should -Contain 'Connecting Live Response sessions: 1/2 completed'
+            @($hostLines | Where-Object { $_ -like 'Connecting Live Response sessions:*' } | ForEach-Object { $_.TrimEnd() }) | Should -Contain 'Connecting Live Response sessions: 2/2 completed'
         }
     }
 
@@ -276,9 +282,9 @@
                         aliases               = @('ls')
                         params                = @(
                             [PSCustomObject]@{
-                                param_id  = 'path'
-                                optional  = $true
-                                isHidden  = $false
+                                param_id = 'path'
+                                optional = $true
+                                isHidden = $false
                             }
                         )
                         flags                 = @()
@@ -375,34 +381,32 @@
         }
 
         It 'can expand table output rows with stamped metadata' {
-            Mock Invoke-XdrRateLimitedBatch {
-                param($Items)
+            Mock Invoke-RestMethod {
+                if ($Uri -like '*create_command*') {
+                    return [PSCustomObject]@{ command_id = 'cmd-1' }
+                }
 
-                @($Items | ForEach-Object {
-                        [PSCustomObject]@{
-                            Success   = $true
-                            Item      = $_
-                            ErrorText = $null
-                            Result    = [PSCustomObject]@{
-                                SessionId        = $_.SessionId
-                                session_id       = $_.SessionId
-                                Status           = 1
-                                status           = 1
-                                completed_on     = '2026-03-25T12:34:56Z'
-                                raw_command_line = 'processes'
-                                duration_seconds = 2.5
-                                outputs          = @(
-                                    [PSCustomObject]@{
-                                        data_type = 'table'
-                                        data      = @(
-                                            [PSCustomObject]@{ name = 'proc1'; pid = 100 },
-                                            [PSCustomObject]@{ name = 'proc2'; pid = 200 }
-                                        )
-                                    }
+                if ($Uri -like '*commands/cmd-1*') {
+                    return [PSCustomObject]@{
+                        SessionId        = 'CLR1'
+                        session_id       = 'CLR1'
+                        status           = 1
+                        completed_on     = '2026-03-25T12:34:56Z'
+                        raw_command_line = 'processes'
+                        duration_seconds = 2.5
+                        outputs          = @(
+                            [PSCustomObject]@{
+                                data_type = 'table'
+                                data      = @(
+                                    [PSCustomObject]@{ name = 'proc1'; pid = 100 },
+                                    [PSCustomObject]@{ name = 'proc2'; pid = 200 }
                                 )
                             }
-                        }
-                    })
+                        )
+                    }
+                }
+
+                throw "Unexpected Uri: $Uri"
             } -ModuleName XDRInternals
 
             $sessions = @(
@@ -428,34 +432,33 @@
         }
 
         It 'auto-expands structured command results by default' {
-            Mock Invoke-XdrRateLimitedBatch {
-                param($Items)
+            Mock Invoke-RestMethod {
+                if ($Uri -like '*create_command*') {
+                    return [PSCustomObject]@{ command_id = 'cmd-1' }
+                }
 
-                @($Items | ForEach-Object {
-                        [PSCustomObject]@{
-                            Success   = $true
-                            Item      = $_
-                            ErrorText = $null
-                            Result    = [PSCustomObject]@{
-                                SessionId             = $_.SessionId
-                                session_id            = $_.SessionId
-                                command_definition_id = 'processes'
-                                status                = 1
-                                completed_on          = '2026-03-25T12:34:56Z'
-                                raw_command_line      = 'processes'
-                                duration_seconds      = 2.5
-                                outputs               = @(
-                                    [PSCustomObject]@{
-                                        data_type = 'table'
-                                        data      = @(
-                                            [PSCustomObject]@{ name = 'proc2'; pid = 200; parent_id = 1; user_name = 'user2'; status = 'Running'; 'memory (K)' = 100; 'cpu_cycles (K)' = 2 },
-                                            [PSCustomObject]@{ name = 'proc1'; pid = 100; parent_id = 1; user_name = 'user1'; status = 'Running'; 'memory (K)' = 500; 'cpu_cycles (K)' = 10 }
-                                        )
-                                    }
+                if ($Uri -like '*commands/cmd-1*') {
+                    return [PSCustomObject]@{
+                        SessionId             = 'CLR1'
+                        session_id            = 'CLR1'
+                        command_definition_id = 'processes'
+                        status                = 1
+                        completed_on          = '2026-03-25T12:34:56Z'
+                        raw_command_line      = 'processes'
+                        duration_seconds      = 2.5
+                        outputs               = @(
+                            [PSCustomObject]@{
+                                data_type = 'table'
+                                data      = @(
+                                    [PSCustomObject]@{ name = 'proc2'; pid = 200; parent_id = 1; user_name = 'user2'; status = 'Running'; 'memory (K)' = 100; 'cpu_cycles (K)' = 2 },
+                                    [PSCustomObject]@{ name = 'proc1'; pid = 100; parent_id = 1; user_name = 'user1'; status = 'Running'; 'memory (K)' = 500; 'cpu_cycles (K)' = 10 }
                                 )
                             }
-                        }
-                    })
+                        )
+                    }
+                }
+
+                throw "Unexpected Uri: $Uri"
             } -ModuleName XDRInternals
 
             $session = [PSCustomObject]@{
@@ -475,33 +478,32 @@
         }
 
         It 'can return the raw command result without structured expansion' {
-            Mock Invoke-XdrRateLimitedBatch {
-                param($Items)
+            Mock Invoke-RestMethod {
+                if ($Uri -like '*create_command*') {
+                    return [PSCustomObject]@{ command_id = 'cmd-1' }
+                }
 
-                @($Items | ForEach-Object {
-                        [PSCustomObject]@{
-                            Success   = $true
-                            Item      = $_
-                            ErrorText = $null
-                            Result    = [PSCustomObject]@{
-                                SessionId             = $_.SessionId
-                                session_id            = $_.SessionId
-                                command_definition_id = 'processes'
-                                status                = 1
-                                completed_on          = '2026-03-25T12:34:56Z'
-                                raw_command_line      = 'processes'
-                                duration_seconds      = 2.5
-                                outputs               = @(
-                                    [PSCustomObject]@{
-                                        data_type = 'table'
-                                        data      = @(
-                                            [PSCustomObject]@{ name = 'proc1'; pid = 100 }
-                                        )
-                                    }
+                if ($Uri -like '*commands/cmd-1*') {
+                    return [PSCustomObject]@{
+                        SessionId             = 'CLR1'
+                        session_id            = 'CLR1'
+                        command_definition_id = 'processes'
+                        status                = 1
+                        completed_on          = '2026-03-25T12:34:56Z'
+                        raw_command_line      = 'processes'
+                        duration_seconds      = 2.5
+                        outputs               = @(
+                            [PSCustomObject]@{
+                                data_type = 'table'
+                                data      = @(
+                                    [PSCustomObject]@{ name = 'proc1'; pid = 100 }
                                 )
                             }
-                        }
-                    })
+                        )
+                    }
+                }
+
+                throw "Unexpected Uri: $Uri"
             } -ModuleName XDRInternals
 
             $session = [PSCustomObject]@{
@@ -563,53 +565,52 @@
         }
 
         It 'flattens persistence object output into rows' {
-            Mock Invoke-XdrRateLimitedBatch {
-                param($Items)
+            Mock Invoke-RestMethod {
+                if ($Uri -like '*create_command*') {
+                    return [PSCustomObject]@{ command_id = 'cmd-1' }
+                }
 
-                @($Items | ForEach-Object {
-                        [PSCustomObject]@{
-                            Success   = $true
-                            Item      = $_
-                            ErrorText = $null
-                            Result    = [PSCustomObject]@{
-                                SessionId             = $_.SessionId
-                                session_id            = $_.SessionId
-                                command_definition_id = 'persistence'
-                                status                = 1
-                                completed_on          = '2026-03-25T12:34:56Z'
-                                raw_command_line      = 'persistence'
-                                duration_seconds      = 2.5
-                                outputs               = @(
-                                    [PSCustomObject]@{
-                                        data_type = 'object'
-                                        data      = [PSCustomObject]@{
-                                            autoruns = [PSCustomObject]@{
-                                                startup_folders = @(
-                                                    [PSCustomObject]@{ filePath = 'C:\\Startup\\a.lnk'; executablePath = 'C:\\App\\a.exe'; category = '.lnk file' }
-                                                )
-                                                registry        = @(
-                                                    [PSCustomObject]@{ reg_path = 'HKLM\\Software\\Run'; display_name = 'Run -> App'; value_name = 'App'; value_type = 'REG_SZ'; value = 'C:\\App\\a.exe' }
-                                                )
-                                                schedule_tasks  = @(
-                                                    [PSCustomObject]@{
-                                                        id         = '\\TaskA'
-                                                        is_enabled = $true
-                                                        task       = [PSCustomObject]@{
-                                                            registrationInfo = [PSCustomObject]@{ uri = '\\TaskA' }
-                                                            principals       = [PSCustomObject]@{ principal = [PSCustomObject]@{ userId = 'SYSTEM'; id = 'Author' } }
-                                                            actions          = [PSCustomObject]@{
-                                                                exec = @([PSCustomObject]@{ command = 'cmd.exe'; arguments = '/c whoami' })
-                                                            }
-                                                        }
+                if ($Uri -like '*commands/cmd-1*') {
+                    return [PSCustomObject]@{
+                        SessionId             = 'CLR1'
+                        session_id            = 'CLR1'
+                        command_definition_id = 'persistence'
+                        status                = 1
+                        completed_on          = '2026-03-25T12:34:56Z'
+                        raw_command_line      = 'persistence'
+                        duration_seconds      = 2.5
+                        outputs               = @(
+                            [PSCustomObject]@{
+                                data_type = 'object'
+                                data      = [PSCustomObject]@{
+                                    autoruns = [PSCustomObject]@{
+                                        startup_folders = @(
+                                            [PSCustomObject]@{ filePath = 'C:\\Startup\\a.lnk'; executablePath = 'C:\\App\\a.exe'; category = '.lnk file' }
+                                        )
+                                        registry        = @(
+                                            [PSCustomObject]@{ reg_path = 'HKLM\\Software\\Run'; display_name = 'Run -> App'; value_name = 'App'; value_type = 'REG_SZ'; value = 'C:\\App\\a.exe' }
+                                        )
+                                        schedule_tasks  = @(
+                                            [PSCustomObject]@{
+                                                id         = '\\TaskA'
+                                                is_enabled = $true
+                                                task       = [PSCustomObject]@{
+                                                    registrationInfo = [PSCustomObject]@{ uri = '\\TaskA' }
+                                                    principals       = [PSCustomObject]@{ principal = [PSCustomObject]@{ userId = 'SYSTEM'; id = 'Author' } }
+                                                    actions          = [PSCustomObject]@{
+                                                        exec = @([PSCustomObject]@{ command = 'cmd.exe'; arguments = '/c whoami' })
                                                     }
-                                                )
+                                                }
                                             }
-                                        }
+                                        )
                                     }
-                                )
+                                }
                             }
-                        }
-                    })
+                        )
+                    }
+                }
+
+                throw "Unexpected Uri: $Uri"
             } -ModuleName XDRInternals
 
             $session = [PSCustomObject]@{
@@ -629,33 +630,32 @@
         }
 
         It 'can include the command result alongside expanded table rows' {
-            Mock Invoke-XdrRateLimitedBatch {
-                param($Items)
+            Mock Invoke-RestMethod {
+                if ($Uri -like '*create_command*') {
+                    return [PSCustomObject]@{ command_id = 'cmd-1' }
+                }
 
-                @($Items | ForEach-Object {
-                        [PSCustomObject]@{
-                            Success   = $true
-                            Item      = $_
-                            ErrorText = $null
-                            Result    = [PSCustomObject]@{
-                                SessionId        = $_.SessionId
-                                session_id       = $_.SessionId
-                                status           = 1
-                                completed_on     = '2026-03-25T12:34:56Z'
-                                raw_command_line = 'processes'
-                                duration_seconds = 2.5
-                                outputs          = @(
-                                    [PSCustomObject]@{
-                                        data_type = 'table'
-                                        data      = @(
-                                            [PSCustomObject]@{ name = 'proc1'; pid = 100 },
-                                            [PSCustomObject]@{ name = 'proc2'; pid = 200 }
-                                        )
-                                    }
+                if ($Uri -like '*commands/cmd-1*') {
+                    return [PSCustomObject]@{
+                        SessionId        = 'CLR1'
+                        session_id       = 'CLR1'
+                        status           = 1
+                        completed_on     = '2026-03-25T12:34:56Z'
+                        raw_command_line = 'processes'
+                        duration_seconds = 2.5
+                        outputs          = @(
+                            [PSCustomObject]@{
+                                data_type = 'table'
+                                data      = @(
+                                    [PSCustomObject]@{ name = 'proc1'; pid = 100 },
+                                    [PSCustomObject]@{ name = 'proc2'; pid = 200 }
                                 )
                             }
-                        }
-                    })
+                        )
+                    }
+                }
+
+                throw "Unexpected Uri: $Uri"
             } -ModuleName XDRInternals
 
             $session = [PSCustomObject]@{

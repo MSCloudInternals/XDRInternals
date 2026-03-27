@@ -338,6 +338,85 @@ function Get-XdrAuthStateFromResponse {
     return $null
 }
 
+function Resolve-XdrAuthAbsoluteUri {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Uri,
+        [string]$BaseUri = 'https://login.microsoftonline.com/'
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Uri)) {
+        return $null
+    }
+
+    return [uri]::new([uri]$BaseUri, $Uri).AbsoluteUri
+}
+
+function Get-XdrBestEstsCookieValue {
+    param(
+        [Parameter(Mandatory)]
+        [Microsoft.PowerShell.Commands.WebRequestSession]$Session
+    )
+
+    $allCookies = @($Session.Cookies.GetCookies('https://login.microsoftonline.com'))
+    $estsCookies = @($allCookies | Where-Object Name -Like 'ESTS*')
+    if (-not $estsCookies) {
+        return $null
+    }
+
+    $bestCookie = @(
+        $allCookies | Where-Object Name -EQ 'ESTSAUTH'
+        $allCookies | Where-Object Name -EQ 'ESTSAUTHPERSISTENT'
+        $allCookies | Where-Object Name -EQ 'ESTSAUTHLIGHT'
+        $estsCookies
+    ) | Where-Object { $_ } | Sort-Object { $_.Value.Length } -Descending | Select-Object -First 1
+
+    return $bestCookie.Value
+}
+
+function ConvertTo-XdrFormUrlEncodedBody {
+    param(
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]$Data
+    )
+
+    return (@(
+            foreach ($entry in $Data.GetEnumerator()) {
+                "$([uri]::EscapeDataString([string]$entry.Key))=$([uri]::EscapeDataString([string]$entry.Value))"
+            }
+        ) -join '&')
+}
+
+function Get-XdrHtmlFormPost {
+    param($Response)
+
+    if ($null -eq $Response -or [string]::IsNullOrWhiteSpace($Response.Content)) {
+        return $null
+    }
+
+    $actionMatch = [regex]::Match($Response.Content, 'action="([^"]+)"')
+    if (-not $actionMatch.Success) {
+        return $null
+    }
+
+    $action = $actionMatch.Groups[1].Value
+
+    $fields = [ordered]@{}
+    foreach ($match in [regex]::Matches($Response.Content, '<input[^>]+name="([^"]+)"[^>]+value="([^"]*)"')) {
+        $fields[$match.Groups[1].Value] = $match.Groups[2].Value
+    }
+
+    if ($fields.Count -eq 0) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        Action = $action
+        Fields = $fields
+        Body   = ConvertTo-XdrFormUrlEncodedBody -Data $fields
+    }
+}
+
 function Get-XdrResponseLocation {
     param($Response)
 
@@ -425,7 +504,7 @@ function Test-XdrSecurityPortalFormPostResponse {
     }
 
     $requiredFields = @('code', 'id_token', 'state', 'session_state', 'correlation_id')
-    $inputNames = @($Response.InputFields | Select-Object -ExpandProperty name)
+    $inputNames = @($Response.InputFields | Where-Object { $_.name } | Select-Object -ExpandProperty name)
 
     foreach ($field in $requiredFields) {
         if ($inputNames -notcontains $field) {

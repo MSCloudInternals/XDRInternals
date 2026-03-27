@@ -45,9 +45,12 @@ Get-XdrTenantContext -Force
 
 | Cmdlet                                                          | Description                                                         |
 | --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Connect-XdrByBrowser                                            | Authenticate to Microsoft Defender XDR using an interactive browser sign-in |
 | Connect-XdrByEstsCookie                                         | Authenticate to Microsoft Defender XDR using ESTS cookie            |
-| Connect-XdrEndpointDeviceLiveResponse                           | Start interactive or non-interactive Live Response sessions         |
+| Connect-XdrByPhoneSignIn                                        | Authenticate to Microsoft Defender XDR using Microsoft Authenticator phone sign-in |
 | Connect-XdrBySoftwarePasskey                                    | Authenticate to Microsoft Defender XDR using a software FIDO2 passkey (local or Azure Key Vault) |
+| Connect-XdrByTemporaryAccessPass                                | Authenticate to Microsoft Defender XDR using a Temporary Access Pass |
+| Connect-XdrEndpointDeviceLiveResponse                           | Start interactive or non-interactive Live Response sessions         |
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encode Advanced Hunting queries for URL/API usage                   |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Close one or more active Live Response sessions                     |
 | Get-XdrActionsCenterHistory                                     | Retrieve historical actions from the Action Center                  |
@@ -188,6 +191,24 @@ Import-Module .\XDRInternals\XDRInternals.psd1
 # Connect to Microsoft Defender XDR using ESTSAUTH cookie
 Connect-XdrByEstsCookie
 ```
+
+```powershell
+# Connect to Microsoft Defender XDR using an interactive browser sign-in
+Connect-XdrByBrowser -Username 'admin@contoso.com'
+```
+
+```powershell
+# Connect to Microsoft Defender XDR using a Temporary Access Pass
+$tap = ConvertTo-SecureString '+&YZuead' -AsPlainText -Force
+Connect-XdrByTemporaryAccessPass -Username 'admin@contoso.com' -TemporaryAccessPass $tap -TenantId '847b5907-ca15-40f4-b171-eb18619dbfab'
+```
+
+```powershell
+# Connect to Microsoft Defender XDR using Microsoft Authenticator phone sign-in
+Connect-XdrByPhoneSignIn -Username 'admin@contoso.com'
+```
+
+Phone sign-in starts the Defender portal flow directly and shows the number returned by Entra ID when the service exposes it through the resume URL. Some tenants or accounts currently land in a `login.microsoft.com` passkey/native-bridge interstitial instead of inline `PhoneAppNotification`; in that case the cmdlet fails fast and `Connect-XdrByBrowser` remains the supported fallback.
 
 Or alternatively:
 

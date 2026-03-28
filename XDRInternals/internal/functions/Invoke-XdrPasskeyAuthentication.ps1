@@ -315,9 +315,12 @@ function Invoke-XdrPasskeyAuthentication {
         [string]$KeyVaultTenantId,
         [string]$KeyVaultClientId,
         [string]$KeyVaultApiVersion = '7.4',
-        [string]$UserAgent = (Get-XdrDefaultUserAgent)
+        [string]$UserAgent
     )
 
+    if (-not $PSBoundParameters.ContainsKey('UserAgent') -or -not $UserAgent) {
+        $UserAgent = Get-XdrDefaultUserAgent
+    }
     #region Validate PowerShell version
     if ($PSVersionTable.PSVersion.Major -lt 7) {
         throw "Passkey authentication requires PowerShell 7 or later (for ECDsa PEM support). Current version: $($PSVersionTable.PSVersion)"

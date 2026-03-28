@@ -22,7 +22,7 @@
         The Tenant ID to use for the connection. If not provided, the default tenant will be used.
 
     .PARAMETER UserAgent
-        The User-Agent string to use for the web requests. Defaults to a browser-compatible Edge user agent.
+        The User-Agent string to use for the web requests. By default, uses the value returned by Get-XdrDefaultUserAgent.
 
     .EXAMPLE
         Connect-XdrByEstsCookie -EstsAuthCookieValue "your_cookie_value_here"

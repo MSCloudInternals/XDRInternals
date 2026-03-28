@@ -29,7 +29,7 @@
 
     .EXAMPLE
         $tap = ConvertTo-SecureString 'ABC12345' -AsPlainText -Force
-        Invoke-XdrTemporaryAccessPassAuthentication -Username 'admin@contoso.com' -TemporaryAccessPass $tap -TenantId '847b5907-ca15-40f4-b171-eb18619dbfab'
+        Invoke-XdrTemporaryAccessPassAuthentication -Username 'admin@contoso.com' -TemporaryAccessPass $tap -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
 
         Performs the internal TAP sign-in flow and returns the ESTSAUTH cookie value.
     #>
@@ -44,7 +44,7 @@
         [Parameter(Mandatory)]
         [string]$TenantId,
 
-        [string]$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
+        [string]$UserAgent = (Get-XdrDefaultUserAgent)
     )
 
     $clientId = '19db86c3-b2b9-44cc-b339-36da233a3be2'

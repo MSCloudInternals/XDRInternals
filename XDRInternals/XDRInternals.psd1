@@ -67,6 +67,7 @@
         "Connect-XdrByEstsCookie",
         "Connect-XdrByPhoneSignIn",
         "Connect-XdrBySoftwarePasskey",
+        "Connect-XdrBySSO",
         "Connect-XdrByTemporaryAccessPass",
         "Connect-XdrEndpointDeviceLiveResponse",
         "ConvertTo-XdrEncodedAdvancedHuntingQuery",

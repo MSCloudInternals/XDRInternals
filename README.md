@@ -49,6 +49,7 @@ Get-XdrTenantContext -Force
 | Connect-XdrByEstsCookie                                         | Authenticate to Microsoft Defender XDR using ESTS cookie            |
 | Connect-XdrByPhoneSignIn                                        | Authenticate to Microsoft Defender XDR using Microsoft Authenticator phone sign-in |
 | Connect-XdrBySoftwarePasskey                                    | Authenticate to Microsoft Defender XDR using a software FIDO2 passkey (local or Azure Key Vault) |
+| Connect-XdrBySSO                                                | Authenticate to Microsoft Defender XDR using browser-based single sign-on |
 | Connect-XdrByTemporaryAccessPass                                | Authenticate to Microsoft Defender XDR using a Temporary Access Pass |
 | Connect-XdrEndpointDeviceLiveResponse                           | Start interactive or non-interactive Live Response sessions         |
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encode Advanced Hunting queries for URL/API usage                   |
@@ -194,13 +195,20 @@ Connect-XdrByEstsCookie
 
 ```powershell
 # Connect to Microsoft Defender XDR using an interactive browser sign-in
+# Uses a dedicated secondary browser profile by default
+# Useful for passkey/FIDO2 or Temporary Access Pass flows
 Connect-XdrByBrowser -Username 'admin@contoso.com'
+```
+
+```powershell
+# Connect to Microsoft Defender XDR using Windows/browser single sign-on
+Connect-XdrBySSO
 ```
 
 ```powershell
 # Connect to Microsoft Defender XDR using a Temporary Access Pass
 $tap = ConvertTo-SecureString '+&YZuead' -AsPlainText -Force
-Connect-XdrByTemporaryAccessPass -Username 'admin@contoso.com' -TemporaryAccessPass $tap -TenantId '847b5907-ca15-40f4-b171-eb18619dbfab'
+Connect-XdrByTemporaryAccessPass -Username 'admin@contoso.com' -TemporaryAccessPass $tap -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
 ```
 
 ```powershell

@@ -529,34 +529,10 @@ function Invoke-XdrPhoneSignInSasAuthentication {
         $sasHeaders[$headerName] = $browserHeaders[$headerName]
     }
 
-    $beginBody = @{
-        AuthMethodId = $selectedMethod
-        Method       = 'BeginAuth'
-        ctx          = $AuthState.sCtx
-        flowToken    = $AuthState.sFT
-    } | ConvertTo-Json
-
-    $beginAuth = Invoke-RestMethod -Method Post `
-        -Uri (Resolve-XdrAuthAbsoluteUri -Uri $AuthState.urlBeginAuth) `
-        -Body $beginBody -ContentType 'application/json' `
-        -Headers $sasHeaders `
-        -WebSession $Session -Verbose:$false
-
-    $isDuplicateBeginAuth = (
-        $beginAuth -and
-        $beginAuth.ErrCode -eq 500121 -and
-        $beginAuth.ResultValue -eq 'UserAuthFailedDuplicateRequest' -and
-        $beginAuth.FlowToken -and
-        $beginAuth.Ctx
-    )
-
-    if ($isDuplicateBeginAuth) {
-        if (-not $beginAuth.SessionId -or $beginAuth.SessionId -eq '00000000-0000-0000-0000-000000000000') {
-            $beginAuth.SessionId = $AuthState.sessionId
-        }
-    } elseif (-not $beginAuth.Success -and $beginAuth.ErrCode -ne 0) {
-        throw "Phone sign-in BeginAuth failed (ErrCode: $($beginAuth.ErrCode)): $($beginAuth.Message)"
-    }
+    $beginAuthUri = Resolve-XdrAuthAbsoluteUri -Uri $AuthState.urlBeginAuth
+    $endAuthUri = Resolve-XdrAuthAbsoluteUri -Uri $AuthState.urlEndAuth
+    $processUri = Resolve-XdrAuthAbsoluteUri -Uri $AuthState.urlPost
+    $beginAuth = Invoke-XdrSasBeginAuth -SelectedMethod $selectedMethod -AuthState $AuthState -Session $Session -Headers $sasHeaders -BeginAuthUri $beginAuthUri -FailureLabel 'Phone sign-in'
 
     $displayNumber = if ($beginAuth.Entropy -and $beginAuth.Entropy -gt 0) {
         Get-XdrPhoneSignInDisplayNumber -Value $beginAuth.Entropy
@@ -572,182 +548,17 @@ function Invoke-XdrPhoneSignInSasAuthentication {
         Write-Host 'Approve the phone sign-in in Microsoft Authenticator.'
     }
 
-    $pollCount = 0
-    $pushApproved = $false
-    $useGetForPushPolling = [bool]$AuthState.fSasEndAuthPostToGetSwitch
-    $lastPollStart = $null
-    $lastPollEnd = $null
-    $processAuthPollStart = $null
-    $processAuthPollEnd = $null
-
-    while ((Get-Date) -lt $Deadline) {
-        $pollCount++
-        Start-Sleep -Seconds 3
-
-        $pollStarted = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-
-        if ($useGetForPushPolling) {
-            $pollParams = @(
-                "authMethodId=$([uri]::EscapeDataString($selectedMethod))",
-                "pollCount=$pollCount"
-            )
-            if ($lastPollStart) {
-                $pollParams += "lastPollStart=$lastPollStart"
-            }
-            if ($lastPollEnd) {
-                $pollParams += "lastPollEnd=$lastPollEnd"
-            }
-
-            $pollUri = (Resolve-XdrAuthAbsoluteUri -Uri $AuthState.urlEndAuth) + '?' + ($pollParams -join '&')
-            $pollBody = $null
-            $pollResult = Invoke-RestMethod -Method Get `
-                -Uri $pollUri `
-                -WebSession $Session -Verbose:$false
-
-            $shouldFallbackToPostPolling = (
-                $pollResult -and
-                $pollResult.ErrCode -eq 500121 -and
-                -not $pollResult.FlowToken -and
-                -not $pollResult.SessionId -and
-                -not $pollResult.Ctx
-            )
-
-            if ($shouldFallbackToPostPolling) {
-                $useGetForPushPolling = $false
-                $pollBody = @{
-                    AuthMethodId = $selectedMethod
-                    Method       = 'EndAuth'
-                    SessionId    = $beginAuth.SessionId
-                    FlowToken    = $beginAuth.FlowToken
-                    Ctx          = $beginAuth.Ctx
-                    PollCount    = $pollCount
-                } | ConvertTo-Json
-
-                $pollUri = Resolve-XdrAuthAbsoluteUri -Uri $AuthState.urlEndAuth
-                $pollResult = Invoke-RestMethod -Method Post `
-                    -Uri $pollUri `
-                    -Body $pollBody -ContentType 'application/json' `
-                    -Headers $sasHeaders `
-                    -WebSession $Session -Verbose:$false
-            }
-        } else {
-            $pollBody = @{
-                AuthMethodId = $selectedMethod
-                Method       = 'EndAuth'
-                SessionId    = $beginAuth.SessionId
-                FlowToken    = $beginAuth.FlowToken
-                Ctx          = $beginAuth.Ctx
-                PollCount    = $pollCount
-            } | ConvertTo-Json
-
-            $pollUri = Resolve-XdrAuthAbsoluteUri -Uri $AuthState.urlEndAuth
-            $pollResult = Invoke-RestMethod -Method Post `
-                -Uri $pollUri `
-                -Body $pollBody -ContentType 'application/json' `
-                -Headers $sasHeaders `
-                -WebSession $Session -Verbose:$false
-        }
-
-        $pollEnded = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-        if ($null -eq $processAuthPollStart) {
-            $processAuthPollStart = $pollStarted
-            $processAuthPollEnd = $pollEnded
-        }
-        $lastPollStart = $pollStarted
-        $lastPollEnd = $pollEnded
-
-        if (Test-XdrMfaAuthSucceeded -Response $pollResult) {
-            $pushApproved = $true
-            $beginAuth = $pollResult
-            break
-        }
-
-        if ($pollResult.ResultValue -ne 'AuthenticationPending') {
-            throw "Phone sign-in denied or failed: $($pollResult.ResultValue) - $($pollResult.Message)"
-        }
-
-        if (-not $pollResult.Retry) {
-            throw 'Phone sign-in polling timed out. Retry is false.'
-        }
-    }
-
-    if (-not $pushApproved) {
-        throw 'Phone sign-in did not complete before the timeout expired.'
-    }
+    $pollOutcome = Invoke-XdrSasPushNotificationPolling -SelectedMethod $selectedMethod -BeginAuth $beginAuth -AuthState $AuthState -Session $Session -Headers $sasHeaders -EndAuthUri $endAuthUri -Deadline $Deadline -FailureLabel 'Phone sign-in' -TimeoutMessage 'Phone sign-in did not complete before the timeout expired.'
+    $beginAuth = $pollOutcome.BeginAuth
+    $processAuthPollStart = $pollOutcome.ProcessAuthPollStart
+    $processAuthPollEnd = $pollOutcome.ProcessAuthPollEnd
 
     Write-Host 'Phone sign-in approved.'
 
-    $processRequest = if ($beginAuth.Ctx) {
-        $beginAuth.Ctx
-    } elseif ($beginAuth.MobileAppAuthDetails -and $beginAuth.MobileAppAuthDetails.AuthAppState) {
-        $beginAuth.MobileAppAuthDetails.AuthAppState
-    } elseif ($AuthState.sCtx) {
-        $AuthState.sCtx
-    } else {
-        throw 'Phone sign-in approval completed, but no ProcessAuth request state was returned.'
-    }
-
-    $processBody = Get-XdrProcessAuthRequestBody `
-        -SelectedMethod $selectedMethod `
-        -Username $Username `
-        -ProcessRequest $processRequest `
-        -BeginAuth $beginAuth `
-        -AuthState $AuthState `
-        -MfaLastPollStart $processAuthPollStart `
-        -MfaLastPollEnd $processAuthPollEnd
-
-    $processContentType = if ($processBody -is [string]) {
-        'application/json'
-    } else {
-        'application/x-www-form-urlencoded'
-    }
-
-    $processUri = Resolve-XdrAuthAbsoluteUri -Uri $AuthState.urlPost
-    $processResponse = Invoke-XdrRedirectCapturingWebRequest `
-        -Method Post `
-        -Uri $processUri `
-        -Body $processBody `
-        -ContentType $processContentType `
-        -Headers $sasHeaders `
-        -Session $Session
-
-    $processResponseState = Get-XdrAuthStateFromResponse -Response $processResponse
-    if (Test-XdrProcessAuthRetryableError -ParsedState $processResponseState) {
-        $formProcessBody = [ordered]@{
-            type               = 22
-            request            = $processRequest
-            mfaAuthMethod      = $selectedMethod
-            login              = $Username
-            flowToken          = $beginAuth.FlowToken
-            hpgrequestid       = $AuthState.correlationId
-            sacxt              = ''
-            hideSmsInMfaProofs = 'false'
-            canary             = $AuthState.canary
-        }
-
-        if ($null -ne $processAuthPollStart) {
-            $formProcessBody['mfaLastPollStart'] = [string]$processAuthPollStart
-        }
-
-        if ($null -ne $processAuthPollEnd) {
-            $formProcessBody['mfaLastPollEnd'] = [string]$processAuthPollEnd
-        }
-
-        if ($null -ne $AuthState.i19) {
-            $formProcessBody['i19'] = [string]$AuthState.i19
-        }
-
-        $processResponse = Invoke-XdrRedirectCapturingWebRequest `
-            -Method Post `
-            -Uri $processUri `
-            -Body $formProcessBody `
-            -ContentType 'application/x-www-form-urlencoded' `
-            -Headers $sasHeaders `
-            -Session $Session
-    }
+    $processOutcome = Invoke-XdrSasProcessAuth -SelectedMethod $selectedMethod -Username $Username -BeginAuth $beginAuth -AuthState $AuthState -Session $Session -Headers $sasHeaders -ProcessAuthUri $processUri -MfaLastPollStart $processAuthPollStart -MfaLastPollEnd $processAuthPollEnd -MissingProcessRequestMessage 'Phone sign-in approval completed, but no ProcessAuth request state was returned.'
 
     return [pscustomobject]@{
-        Outcome       = Resolve-XdrAuthenticationResponse -Response $processResponse -Session $Session
+        Outcome       = $processOutcome.Outcome
         DisplayNumber = $displayNumber
     }
 }
@@ -930,7 +741,7 @@ function Invoke-XdrPhoneSignInAuthentication {
         [ValidateRange(30, 1800)]
         [int]$TimeoutSeconds = 300,
 
-        [string]$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0'
+        [string]$UserAgent = (Get-XdrDefaultUserAgent)
     )
 
     if (-not $Username) {

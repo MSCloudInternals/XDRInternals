@@ -20,7 +20,7 @@
         Maximum time to wait for the browser sign-in to complete.
 
     .PARAMETER UserAgent
-        User-Agent string for HTTP requests. Defaults to Edge browser user agent.
+        User-Agent string for HTTP requests. Defaults to a browser-compatible Edge user agent.
 
     .EXAMPLE
         Connect-XdrByPhoneSignIn -Username 'admin@contoso.com'
@@ -28,7 +28,7 @@
         Starts the headless phone sign-in flow and connects to Defender XDR.
 
     .EXAMPLE
-        Connect-XdrByPhoneSignIn -Username 'admin@contoso.com' -TenantId '847b5907-ca15-40f4-b171-eb18619dbfab'
+        Connect-XdrByPhoneSignIn -Username 'admin@contoso.com' -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
 
         Starts the headless phone sign-in flow and connects to the specified tenant.
     #>
@@ -42,7 +42,7 @@
         [ValidateRange(30, 1800)]
         [int]$TimeoutSeconds = 300,
 
-        [string]$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
+        [string]$UserAgent = (Get-XdrDefaultUserAgent)
     )
 
     process {
@@ -60,11 +60,6 @@
             throw 'Phone sign-in failed - no ESTS cookie was returned.'
         }
 
-        $connectParams = @{ EstsAuthCookieValue = $estsAuth }
-        if ($TenantId) {
-            $connectParams.TenantId = $TenantId
-        }
-
-        Connect-XdrByEstsCookie @connectParams
+        Connect-XdrAuthArtifactSet -EstsAuthCookieValue $estsAuth -TenantId $TenantId -UserAgent $UserAgent -FailureLabel 'Phone sign-in'
     }
 }

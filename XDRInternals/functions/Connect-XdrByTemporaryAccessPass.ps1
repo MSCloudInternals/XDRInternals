@@ -8,8 +8,8 @@
         extracts the ESTSAUTH cookie, and then passes it to Connect-XdrByEstsCookie to
         establish an authenticated Defender XDR session.
 
-        TAP sign-in is tenant-scoped, so TenantId is required and is used both for the Entra
-        authorize request and for the Defender XDR tenant bootstrap.
+        TAP sign-in is tenant-scoped. If TenantId is omitted, the cmdlet attempts to resolve the
+        tenant automatically from the supplied username before starting the Entra authorize flow.
 
     .PARAMETER Username
         The user principal name (e.g., admin@contoso.com).
@@ -21,20 +21,27 @@
 
     .PARAMETER TenantId
         The Entra tenant ID used for TAP authentication and the Defender XDR connection.
+        If omitted, the cmdlet resolves the tenant from Username.
 
     .PARAMETER UserAgent
-        User-Agent string for HTTP requests. Defaults to Edge browser user agent.
+        User-Agent string for HTTP requests. Defaults to a browser-compatible Edge user agent.
 
     .EXAMPLE
         $tap = ConvertTo-SecureString '+&YZuead' -AsPlainText -Force
-        Connect-XdrByTemporaryAccessPass -Username 'admin@contoso.com' -TemporaryAccessPass $tap -TenantId '847b5907-ca15-40f4-b171-eb18619dbfab'
+        Connect-XdrByTemporaryAccessPass -Username 'admin@contoso.com' -TemporaryAccessPass $tap -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
 
         Authenticates using the supplied TAP and connects to Defender XDR.
 
     .EXAMPLE
-        Connect-XdrByTemporaryAccessPass -TenantId '847b5907-ca15-40f4-b171-eb18619dbfab'
+        Connect-XdrByTemporaryAccessPass -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
 
         Prompts for username and TAP, then authenticates and connects.
+
+    .EXAMPLE
+        Connect-XdrByTemporaryAccessPass -Username 'admin@contoso.com'
+
+        Prompts for the TAP, resolves the tenant automatically from the username, then authenticates
+        and connects.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
@@ -44,10 +51,9 @@
         [Alias('TAP')]
         [SecureString]$TemporaryAccessPass,
 
-        [Parameter(Mandatory)]
         [string]$TenantId,
 
-        [string]$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
+        [string]$UserAgent = (Get-XdrDefaultUserAgent)
     )
 
     process {
@@ -70,12 +76,17 @@
             throw 'No Temporary Access Pass provided.'
         }
 
+        $resolvedTenantId = $TenantId
+        if (-not $resolvedTenantId) {
+            $resolvedTenantId = Resolve-XdrTenantIdFromUsername -Username $resolvedUsername -UserAgent $UserAgent
+        }
+
         Write-Host "Authenticating as $resolvedUsername with Temporary Access Pass..."
 
         $tapParams = @{
             Username            = $resolvedUsername
             TemporaryAccessPass = $resolvedTap
-            TenantId            = $TenantId
+            TenantId            = $resolvedTenantId
             UserAgent           = $UserAgent
         }
 
@@ -84,6 +95,6 @@
             throw 'Temporary Access Pass authentication failed - no ESTS cookie was returned.'
         }
 
-        Connect-XdrByEstsCookie -EstsAuthCookieValue $estsAuth -TenantId $TenantId -UserAgent $UserAgent
+        Connect-XdrAuthArtifactSet -EstsAuthCookieValue $estsAuth -TenantId $resolvedTenantId -UserAgent $UserAgent -FailureLabel 'Temporary Access Pass authentication'
     }
 }

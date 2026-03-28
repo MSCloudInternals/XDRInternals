@@ -80,7 +80,6 @@ function Get-XdrSsoLaunchArgumentList {
     if (-not $Visible) {
         $arguments = @(
             '--headless=new',
-            '--disable-logging',
             '--log-level=3',
             '--disable-gpu',
             '--disable-extensions',
@@ -188,7 +187,6 @@ function Resolve-XdrSsoTenantSelection {
     if ($RequestedTenant) {
         $match = @(
             $Tenants | Where-Object { $_.tenantId -eq $RequestedTenant }
-            $Tenants | Where-Object { $_.name -like "*$RequestedTenant*" }
         ) | Where-Object { $_ } | Select-Object -First 1
 
         if ($match) {
@@ -198,14 +196,10 @@ function Resolve-XdrSsoTenantSelection {
             }
         }
 
-        if ($RequestedTenant -match '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') {
-            return [pscustomobject]@{
-                TenantId   = $RequestedTenant
-                TenantName = $null
-            }
+        return [pscustomobject]@{
+            TenantId   = $RequestedTenant
+            TenantName = $null
         }
-
-        throw "Requested tenant '$RequestedTenant' was not found in the accessible tenant list."
     }
 
     if (-not $Tenants -or $Tenants.Count -eq 0) {
@@ -255,7 +249,7 @@ function Invoke-XdrSsoAuthentication {
         operating systems later.
 
     .PARAMETER TenantId
-        Optional tenant identifier or partial tenant name used to select the final tenant after sign-in.
+        Optional tenant ID (GUID) used to select the final tenant after sign-in.
 
     .PARAMETER Visible
         Shows the browser window instead of using a headless launch.
@@ -292,6 +286,7 @@ function Invoke-XdrSsoAuthentication {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
     param(
+        [ValidatePattern('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')]
         [string]$TenantId,
 
         [switch]$Visible,
@@ -363,10 +358,8 @@ function Invoke-XdrSsoAuthentication {
                 continue
             }
 
-            $estsAuthCookieValue = Get-XdrBrowserCookieValue -Cookies $cookies -Name 'ESTSAUTH' -DomainLike '*.login.microsoftonline.com'
-            if (-not $estsAuthCookieValue) {
-                $estsAuthCookieValue = Get-XdrBrowserCookieValue -Cookies $cookies -Name 'ESTSAUTHPERSISTENT' -DomainLike '*.login.microsoftonline.com'
-            }
+            $selectedEstsCookie = Get-XdrBestBrowserEstsCookie -Cookies $cookies
+            $estsAuthCookieValue = if ($selectedEstsCookie) { $selectedEstsCookie.value } else { $null }
 
             $sccAuthCookieValue = Get-XdrBrowserCookieValue -Cookies $cookies -Name 'sccauth' -DomainLike 'security.microsoft.com'
             $xsrfToken = Get-XdrBrowserCookieValue -Cookies $cookies -Name 'XSRF-TOKEN' -DomainLike 'security.microsoft.com'
@@ -390,10 +383,6 @@ function Invoke-XdrSsoAuthentication {
                 $tenants = Get-XdrSsoTenantList -SccAuthCookieValue $sccAuthCookieValue -XsrfToken $xsrfToken -TenantId $TenantId -UserAgent $UserAgent
                 $selectedTenant = Resolve-XdrSsoTenantSelection -Tenants $tenants -RequestedTenant $TenantId -SkipTenantSelection:$SkipTenantSelection
             } catch {
-                if ($TenantId -and $TenantId -notmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') {
-                    throw
-                }
-
                 Write-Verbose "Tenant selection skipped: $($_.Exception.Message)"
             }
         }
@@ -402,7 +391,7 @@ function Invoke-XdrSsoAuthentication {
             EstsAuthCookieValue = $estsAuthCookieValue
             SccAuthCookieValue  = $sccAuthCookieValue
             XsrfToken           = $xsrfToken
-            SelectedTenantId    = if ($selectedTenant) { $selectedTenant.TenantId } else { if ($TenantId -match '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') { $TenantId } else { $null } }
+            SelectedTenantId    = if ($selectedTenant) { $selectedTenant.TenantId } else { $TenantId }
             SelectedTenantName  = if ($selectedTenant) { $selectedTenant.TenantName } else { $null }
             ProfilePath         = $resolvedProfilePath
         }

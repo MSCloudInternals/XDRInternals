@@ -10,7 +10,7 @@
         interactive browser cmdlets focused on explicit sign-in flows.
 
     .PARAMETER TenantId
-        Optional tenant identifier or partial tenant name used to select the final tenant.
+        Optional tenant ID (GUID) used to select the final tenant.
 
     .PARAMETER Visible
         Shows the browser window instead of using the default headless launch.
@@ -42,6 +42,7 @@
     #>
     [CmdletBinding()]
     param(
+        [ValidatePattern('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')]
         [string]$TenantId,
 
         [switch]$Visible,

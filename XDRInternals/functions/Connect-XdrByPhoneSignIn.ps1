@@ -17,7 +17,7 @@
         Optional tenant ID to use when bootstrapping the Defender XDR session.
 
     .PARAMETER TimeoutSeconds
-        Maximum time to wait for the browser sign-in to complete.
+        Maximum time to wait for the phone sign-in approval to complete.
 
     .PARAMETER UserAgent
         User-Agent string for HTTP requests. Defaults to a browser-compatible Edge user agent.

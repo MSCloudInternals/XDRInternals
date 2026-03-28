@@ -139,6 +139,16 @@ Describe 'Connect-XdrByBrowser' {
         }
     }
 
+    It 'allows account selection when Username is omitted' {
+        $result = Connect-XdrByBrowser
+
+        $result | Should -Be 'connected'
+        Should -Invoke Invoke-XdrBrowserAuthentication -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            -not $PSBoundParameters.ContainsKey('Username')
+        }
+        Should -Invoke Read-Host -ModuleName XDRInternals -Times 0 -Exactly
+    }
+
     It 'rejects combining explicit profile and private session mode' {
         {
             Connect-XdrByBrowser -Username 'user@contoso.com' -ProfilePath 'C:\Temp\XdrBrowserProfile' -PrivateSession
@@ -267,17 +277,25 @@ Describe 'Connect-XdrBySSO' {
     }
 
     It 'forwards visible and browser options when provided' {
-        $result = Connect-XdrBySSO -TenantId 'Contoso' -Visible -SkipTenantSelection -BrowserPath 'msedge.exe' -ProfilePath 'C:\Temp\XdrSsoProfile' -UserAgent 'Custom-Agent/1.0'
+        $result = Connect-XdrBySSO -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2' -Visible -SkipTenantSelection -BrowserPath 'msedge.exe' -ProfilePath 'C:\Temp\XdrSsoProfile' -UserAgent 'Custom-Agent/1.0'
 
         $result | Should -Be 'connected-via-sso'
         Should -Invoke Invoke-XdrSsoAuthentication -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
-            $TenantId -eq 'Contoso' -and
+            $TenantId -eq '8612f621-73ca-4c12-973c-0da732bc44c2' -and
             $Visible -and
             $SkipTenantSelection -and
             $BrowserPath -eq 'msedge.exe' -and
             $ProfilePath -eq 'C:\Temp\XdrSsoProfile' -and
             $UserAgent -eq 'Custom-Agent/1.0'
         }
+    }
+
+    It 'rejects non-GUID TenantId values before starting SSO' {
+        {
+            Connect-XdrBySSO -TenantId 'Contoso'
+        } | Should -Throw
+
+        Should -Invoke Invoke-XdrSsoAuthentication -ModuleName XDRInternals -Times 0 -Exactly
     }
 
     It 'throws when SSO authentication returns no cookies' {
@@ -296,8 +314,20 @@ InModuleScope XDRInternals {
             Mock Set-XdrConnectionSettings { 'connected-via-sccauth' } -ModuleName XDRInternals
         }
 
-        It 'builds the module default user agent from the manifest version' {
+        It 'returns the module default user agent' {
             Get-XdrDefaultUserAgent | Should -Be 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
+        }
+
+        It 'selects host-only ESTS cookies captured from the browser' {
+            $cookie = Get-XdrBestBrowserEstsCookie -Cookies @(
+                [pscustomobject]@{
+                    name   = 'ESTSAUTH'
+                    value  = 'host-only-cookie'
+                    domain = 'login.microsoftonline.com'
+                }
+            )
+
+            $cookie.value | Should -Be 'host-only-cookie'
         }
 
         It 'resolves a tenant ID from user realm and OpenID discovery metadata' {

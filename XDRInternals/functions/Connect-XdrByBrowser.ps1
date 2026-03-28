@@ -16,7 +16,7 @@
 
     .PARAMETER Username
         Optional username to display while completing the browser sign-in.
-        If omitted, you are prompted interactively.
+        If omitted, the browser sign-in flow lets you choose an account interactively.
 
     .PARAMETER TenantId
         Optional tenant ID to use when bootstrapping the Defender XDR session.
@@ -68,22 +68,15 @@
     )
 
     process {
-        $resolvedUsername = $Username
-        if (-not $resolvedUsername) {
-            $resolvedUsername = Read-Host 'Username'
-        }
-
-        if (-not $resolvedUsername) {
-            throw 'No username provided.'
-        }
-
         if ($PrivateSession -and $ProfilePath) {
             throw 'Do not combine -PrivateSession with -ProfilePath. Private session uses a temporary profile automatically.'
         }
 
         $authParams = @{
-            Username       = $resolvedUsername
             TimeoutSeconds = $TimeoutSeconds
+        }
+        if ($PSBoundParameters.ContainsKey('Username')) {
+            $authParams.Username = $Username
         }
         if ($TenantId) {
             $authParams.TenantId = $TenantId

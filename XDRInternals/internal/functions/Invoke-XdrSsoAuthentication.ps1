@@ -17,6 +17,28 @@
     throw 'Connect-XdrBySSO is not supported on this operating system.'
 }
 
+function Start-XdrSsoBrowserProcess {
+    [OutputType([System.Diagnostics.Process])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$BrowserPath,
+
+        [Parameter(Mandatory)]
+        [string[]]$ArgumentList,
+
+        [switch]$Visible
+    )
+
+    $formattedArgumentList = Format-XdrProcessArgumentList -ArgumentList $ArgumentList
+
+    if ($Visible -or -not $IsWindows) {
+        return Start-Process -FilePath $BrowserPath -ArgumentList $formattedArgumentList -PassThru
+    }
+
+    return Start-Process -FilePath $BrowserPath -ArgumentList $formattedArgumentList -PassThru -WindowStyle Hidden -RedirectStandardError 'NUL'
+}
+
 function Initialize-XdrSsoProfile {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper that prepares the dedicated SSO browser profile.')]
     [CmdletBinding()]
@@ -245,8 +267,8 @@ function Invoke-XdrSsoAuthentication {
     .DESCRIPTION
         Starts a dedicated browser profile, lets the operating system and browser perform silent
         sign-in when possible, and extracts Defender portal cookies through the browser DevTools
-        protocol. This is intended for Windows-first SSO scenarios and may support additional
-        operating systems later.
+        protocol. This is intended for Windows-first SSO scenarios, but can also reuse existing
+        browser session state on macOS and Linux when a supported Chromium-based browser is available.
 
     .PARAMETER TenantId
         Optional tenant ID (GUID) used to select the final tenant after sign-in.
@@ -303,8 +325,8 @@ function Invoke-XdrSsoAuthentication {
         [string]$UserAgent
     )
 
-    if (-not $IsWindows) {
-        throw 'Connect-XdrBySSO currently supports Windows only.'
+    if (-not ($IsWindows -or $IsMacOS -or $IsLinux)) {
+        throw 'Connect-XdrBySSO is not supported on this operating system.'
     }
 
     $browser = Resolve-XdrBrowserPath -BrowserPath $BrowserPath
@@ -324,17 +346,15 @@ function Invoke-XdrSsoAuthentication {
             Write-Host 'Attempting silent browser SSO in headless mode...'
         }
 
-        if ($Visible) {
-            $browserProcess = Start-Process -FilePath $browser.Path -ArgumentList $arguments -PassThru
-        } else {
-            $browserProcess = Start-Process -FilePath $browser.Path -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardError 'NUL'
-        }
+        $browserProcess = Start-XdrSsoBrowserProcess -BrowserPath $browser.Path -ArgumentList $arguments -Visible:$Visible
 
         $versionInfo = Get-XdrBrowserCdpVersion -Port $debugPort -TimeoutSeconds 20
         $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
         $estsAuthCookieValue = $null
         $sccAuthCookieValue = $null
         $xsrfToken = $null
+        $firstEstsCookieObservedAt = $null
+        $lastObservedTargetDescription = $null
 
         do {
             Start-Sleep -Seconds 2
@@ -343,16 +363,32 @@ function Invoke-XdrSsoAuthentication {
                 $browserProcess.Refresh()
                 if ($browserProcess.HasExited) {
                     if ($Visible) {
-                        throw 'The browser window closed before SSO authentication completed.'
+                        $message = 'The browser window closed before SSO authentication completed.'
+                        if ($lastObservedTargetDescription) {
+                            $message += " Last observed browser page: $lastObservedTargetDescription"
+                        }
+
+                        throw $message
                     }
 
-                    throw 'The browser exited before SSO authentication completed. Retry with -Visible to observe the flow on this device.'
+                    $message = 'The browser exited before SSO authentication completed. Retry with -Visible to observe the flow on this device.'
+                    if ($lastObservedTargetDescription) {
+                        $message += " Last observed browser page: $lastObservedTargetDescription"
+                    }
+
+                    throw $message
                 }
             }
 
             try {
-                $cookieWebSocketUrl = Get-XdrBrowserPreferredWebSocketUrl -Port $debugPort -FallbackWebSocketUrl $versionInfo.webSocketDebuggerUrl
-                $cookies = @(Get-XdrBrowserCookieJar -WebSocketUrl $cookieWebSocketUrl)
+                $targetContext = Get-XdrBrowserPreferredTargetContext -Port $debugPort -FallbackWebSocketUrl $versionInfo.webSocketDebuggerUrl
+                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url -Title $targetContext.Title
+                if ($currentTargetDescription -and $currentTargetDescription -ne $lastObservedTargetDescription) {
+                    $lastObservedTargetDescription = $currentTargetDescription
+                    Write-Verbose "Observed browser page: $currentTargetDescription"
+                }
+
+                $cookies = @(Get-XdrBrowserCookieJar -WebSocketUrl $targetContext.WebSocketUrl)
             } catch {
                 Write-Verbose "Cookie polling failed: $($_.Exception.Message)"
                 continue
@@ -364,13 +400,23 @@ function Invoke-XdrSsoAuthentication {
             $sccAuthCookieValue = Get-XdrBrowserCookieValue -Cookies $cookies -Name 'sccauth' -DomainLike 'security.microsoft.com'
             $xsrfToken = Get-XdrBrowserCookieValue -Cookies $cookies -Name 'XSRF-TOKEN' -DomainLike 'security.microsoft.com'
 
-            if ($sccAuthCookieValue -or $estsAuthCookieValue) {
+            if ($selectedEstsCookie -and -not $firstEstsCookieObservedAt) {
+                $firstEstsCookieObservedAt = Get-Date
+                Write-Verbose 'Captured ESTS authentication cookie. Waiting for Defender portal cookies to appear before falling back to ESTS bootstrap.'
+            }
+
+            if (Test-XdrBrowserAuthenticationCompletion -SccAuthCookieValue $sccAuthCookieValue -EstsCookie $selectedEstsCookie -FirstEstsCookieObservedAt $firstEstsCookieObservedAt -Deadline $deadline) {
                 break
             }
         } while ((Get-Date) -lt $deadline)
 
         if (-not $sccAuthCookieValue -and -not $estsAuthCookieValue) {
-            throw 'SSO authentication did not produce Defender portal or ESTS cookies before the timeout expired.'
+            $message = 'SSO authentication did not produce Defender portal or ESTS cookies before the timeout expired.'
+            if ($lastObservedTargetDescription) {
+                $message += " Last observed browser page: $lastObservedTargetDescription"
+            }
+
+            throw $message
         }
 
         $selectedTenant = $null

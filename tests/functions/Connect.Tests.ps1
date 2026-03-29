@@ -330,6 +330,150 @@ InModuleScope XDRInternals {
             $cookie.value | Should -Be 'host-only-cookie'
         }
 
+        It 'includes user application installs in the macOS browser candidate set' {
+            $candidates = @(Get-XdrMacOSBrowserCandidateSet)
+            $userApplicationRoot = Join-Path $HOME 'Applications'
+
+            $candidates.FilePath | Should -Contain (Join-Path $userApplicationRoot 'Microsoft Edge.app/Contents/MacOS/Microsoft Edge')
+            $candidates.FilePath | Should -Contain (Join-Path $userApplicationRoot 'Google Chrome.app/Contents/MacOS/Google Chrome')
+            $candidates.FilePath | Should -Contain (Join-Path $userApplicationRoot 'Brave Browser.app/Contents/MacOS/Brave Browser')
+            $candidates.FilePath | Should -Contain (Join-Path $userApplicationRoot 'Chromium.app/Contents/MacOS/Chromium')
+        }
+
+        It 'resolves a macOS app bundle path to its executable path' {
+            $bundleRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('xdrinternals-browser-bundle-' + [guid]::NewGuid().ToString('N'))
+            $bundlePath = Join-Path $bundleRoot 'Contoso Browser.app'
+            $macOsPath = Join-Path $bundlePath 'Contents/MacOS'
+            $executablePath = Join-Path $macOsPath 'Contoso Browser'
+
+            try {
+                $null = New-Item -ItemType Directory -Path $macOsPath -Force
+                $null = New-Item -ItemType File -Path $executablePath -Force
+
+                $result = Resolve-XdrMacOSAppBundleExecutablePath -BundlePath $bundlePath
+
+                $result.Name | Should -Be 'Contoso Browser'
+                $result.Path | Should -Be $executablePath
+            } finally {
+                Remove-Item -Path $bundleRoot -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It 'quotes process arguments whose values contain spaces' {
+            $arguments = Format-XdrProcessArgumentList -ArgumentList @(
+                '--remote-debugging-port=9222'
+                '--user-data-dir=/Users/test/Library/Application Support/XdrInternals/BrowserProfile'
+                '--user-agent=Mozilla/5.0 Test Agent'
+                'https://security.microsoft.com/'
+            )
+
+            $arguments | Should -Contain '--remote-debugging-port=9222'
+            $arguments | Should -Contain '--user-data-dir="/Users/test/Library/Application Support/XdrInternals/BrowserProfile"'
+            $arguments | Should -Contain '--user-agent="Mozilla/5.0 Test Agent"'
+            $arguments | Should -Contain 'https://security.microsoft.com/'
+        }
+
+        It 'waits for portal cookies while the ESTS grace period is still active' {
+            $result = Test-XdrBrowserAuthenticationCompletion -EstsCookie ([pscustomobject]@{ value = 'ests-cookie' }) -FirstEstsCookieObservedAt (Get-Date).AddSeconds(-10) -Deadline (Get-Date).AddMinutes(2)
+
+            $result | Should -BeFalse
+        }
+
+        It 'falls back to ESTS after the portal-cookie grace period expires' {
+            $result = Test-XdrBrowserAuthenticationCompletion -EstsCookie ([pscustomobject]@{ value = 'ests-cookie' }) -FirstEstsCookieObservedAt (Get-Date).AddSeconds(-50) -Deadline (Get-Date).AddMinutes(2)
+
+            $result | Should -BeTrue
+        }
+
+        It 'completes immediately when Defender portal cookies are available' {
+            $result = Test-XdrBrowserAuthenticationCompletion -SccAuthCookieValue 'sccauth-cookie'
+
+            $result | Should -BeTrue
+        }
+
+        It 'prefers Defender portal pages when selecting the browser target context' {
+            Mock Get-XdrBrowserTargetList {
+                @(
+                    [pscustomobject]@{
+                        type                 = 'page'
+                        title                = 'Microsoft login'
+                        url                  = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize'
+                        webSocketDebuggerUrl = 'ws://login-target'
+                    }
+                    [pscustomobject]@{
+                        type                 = 'page'
+                        title                = 'Microsoft Defender'
+                        url                  = 'https://security.microsoft.com/'
+                        webSocketDebuggerUrl = 'ws://defender-target'
+                    }
+                )
+            } -ModuleName XDRInternals
+
+            $result = Get-XdrBrowserPreferredTargetContext -Port 9222 -FallbackWebSocketUrl 'ws://fallback-target'
+
+            $result.Url | Should -Be 'https://security.microsoft.com/'
+            $result.WebSocketUrl | Should -Be 'ws://defender-target'
+        }
+
+        It 'formats a browser target description from title and URL' {
+            $result = Format-XdrBrowserTargetDescription -Title 'Microsoft Defender' -Url 'https://security.microsoft.com/'
+
+            $result | Should -Be 'Microsoft Defender [https://security.microsoft.com/]'
+        }
+
+        It 'returns the macOS SSO default profile path' {
+            if (-not $IsMacOS) {
+                Set-ItResult -Skipped -Because 'macOS-specific path assertion.'
+                return
+            }
+
+            Get-XdrSsoDefaultProfilePath | Should -Be (Join-Path $HOME 'Library/Application Support/XdrInternals/SsoBrowserProfile')
+        }
+
+        It 'launches the SSO browser without Windows-only process options on non-Windows platforms' {
+            if ($IsWindows) {
+                Set-ItResult -Skipped -Because 'Non-Windows launch behavior is not applicable on Windows.'
+                return
+            }
+
+            Mock Start-Process {
+                [pscustomobject]@{
+                    Id       = 1234
+                    HasExited = $false
+                }
+            } -ModuleName XDRInternals
+
+            $null = Start-XdrSsoBrowserProcess -BrowserPath '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' -ArgumentList @('--headless=new', 'https://security.microsoft.com/')
+
+            Should -Invoke Start-Process -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $FilePath -eq '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' -and
+                -not $PSBoundParameters.ContainsKey('WindowStyle') -and
+                -not $PSBoundParameters.ContainsKey('RedirectStandardError')
+            }
+        }
+
+        It 'launches the SSO browser hidden on Windows when not visible' {
+            if (-not $IsWindows) {
+                Set-ItResult -Skipped -Because 'Windows-specific launch behavior is not applicable on this platform.'
+                return
+            }
+
+            Mock Start-Process {
+                [pscustomobject]@{
+                    Id       = 1234
+                    HasExited = $false
+                }
+            } -ModuleName XDRInternals
+
+            $null = Start-XdrSsoBrowserProcess -BrowserPath 'msedge.exe' -ArgumentList @('--headless=new', 'https://security.microsoft.com/')
+
+            Should -Invoke Start-Process -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $FilePath -eq 'msedge.exe' -and
+                $WindowStyle -eq 'Hidden' -and
+                $RedirectStandardError -eq 'NUL'
+            }
+        }
+
         It 'resolves a tenant ID from user realm and OpenID discovery metadata' {
             Mock Invoke-RestMethod {
                 if ($Uri -like '*userrealm*') {

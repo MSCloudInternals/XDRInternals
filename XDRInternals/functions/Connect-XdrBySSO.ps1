@@ -6,8 +6,12 @@
     .DESCRIPTION
         Starts a dedicated browser profile, attempts silent sign-in using the local browser and
         operating-system account state, captures Defender portal cookies, and configures the
-        XDR session. This cmdlet is intended for Windows-first SSO scenarios and keeps the
-        interactive browser cmdlets focused on explicit sign-in flows.
+        XDR session. This cmdlet is intended for Windows-first SSO scenarios, but it can also
+        reuse existing Chromium browser session state on macOS and Linux when that browser state
+        is already available.
+
+        Use -Visible when validating or troubleshooting the flow so you can confirm the browser
+        reaches the Defender portal before the cmdlet captures the resulting session cookies.
 
     .PARAMETER TenantId
         Optional tenant ID (GUID) used to select the final tenant.
@@ -33,7 +37,7 @@
     .EXAMPLE
         Connect-XdrBySSO
 
-        Attempts silent browser SSO using the default dedicated profile.
+        Attempts browser-based SSO using the default dedicated profile.
 
     .EXAMPLE
         Connect-XdrBySSO -Visible

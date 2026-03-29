@@ -200,10 +200,18 @@ Connect-XdrByEstsCookie
 Connect-XdrByBrowser -Username 'admin@contoso.com'
 ```
 
+`Connect-XdrByBrowser` uses Chromium-compatible browser automation and cookie capture. On macOS, Microsoft Edge, Google Chrome, Brave, and Chromium are the supported browsers today. Safari is not currently supported by this flow.
+
+On macOS and Linux, `Connect-XdrByBrowser` is still an interactive flow. Complete any prompts until Defender XDR finishes loading so the cmdlet can capture the final session cookies.
+
 ```powershell
 # Connect to Microsoft Defender XDR using Windows/browser single sign-on
 Connect-XdrBySSO
 ```
+
+`Connect-XdrBySSO` is still a Windows-first flow, but it can also reuse existing Chromium browser session state on macOS and Linux when a supported browser profile already has the required sign-in state.
+
+`Connect-XdrBySSO -Visible` is useful for validating or troubleshooting the flow because it lets you confirm the browser reached Defender XDR before the cmdlet captures the session cookies.
 
 ```powershell
 # Connect to Microsoft Defender XDR using a Temporary Access Pass

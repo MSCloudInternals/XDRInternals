@@ -14,6 +14,9 @@
         By default the cmdlet uses a dedicated secondary browser profile so browser and device
         state can participate in authentication without reusing the user's primary profile.
 
+        On macOS and Linux, this cmdlet remains interactive. Complete any browser prompts until
+        Microsoft Defender XDR finishes loading so the cmdlet can capture the final session cookies.
+
     .PARAMETER Username
         Optional username to display while completing the browser sign-in.
         If omitted, the browser sign-in flow lets you choose an account interactively.

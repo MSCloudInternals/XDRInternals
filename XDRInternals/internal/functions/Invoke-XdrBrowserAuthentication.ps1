@@ -51,25 +51,74 @@ function Resolve-XdrWindowsBrowserPath {
     throw 'No supported Chromium-based browser was found on Windows. Install Microsoft Edge, Google Chrome, Brave, or specify -BrowserPath.'
 }
 
+function Get-XdrMacOSBrowserCandidateSet {
+    [OutputType([object[]])]
+    [CmdletBinding()]
+    param()
+
+    $candidateSet = @(
+        [pscustomobject]@{ Name = 'Microsoft Edge'; CommandName = 'msedge' }
+        [pscustomobject]@{ Name = 'Google Chrome'; CommandName = 'google-chrome' }
+        [pscustomobject]@{ Name = 'Brave Browser'; CommandName = 'brave-browser' }
+        [pscustomobject]@{ Name = 'Brave Browser'; CommandName = 'brave' }
+        [pscustomobject]@{ Name = 'Chromium'; CommandName = 'chromium' }
+    )
+
+    foreach ($applicationRoot in @('/Applications', (Join-Path $HOME 'Applications'))) {
+        $candidateSet += @(
+            [pscustomobject]@{ Name = 'Microsoft Edge'; FilePath = (Join-Path $applicationRoot 'Microsoft Edge.app/Contents/MacOS/Microsoft Edge') }
+            [pscustomobject]@{ Name = 'Google Chrome'; FilePath = (Join-Path $applicationRoot 'Google Chrome.app/Contents/MacOS/Google Chrome') }
+            [pscustomobject]@{ Name = 'Brave Browser'; FilePath = (Join-Path $applicationRoot 'Brave Browser.app/Contents/MacOS/Brave Browser') }
+            [pscustomobject]@{ Name = 'Chromium'; FilePath = (Join-Path $applicationRoot 'Chromium.app/Contents/MacOS/Chromium') }
+        )
+    }
+
+    return $candidateSet
+}
+
 function Resolve-XdrMacOSBrowserPath {
     [CmdletBinding()]
     param()
 
-    $match = Resolve-XdrBrowserPathFromCandidateSet -Candidates @(
-        [pscustomobject]@{ Name = 'Microsoft Edge'; CommandName = 'msedge' }
-        [pscustomobject]@{ Name = 'Google Chrome'; CommandName = 'google-chrome' }
-        [pscustomobject]@{ Name = 'Chromium'; CommandName = 'chromium' }
-        [pscustomobject]@{ Name = 'Microsoft Edge'; FilePath = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge' }
-        [pscustomobject]@{ Name = 'Google Chrome'; FilePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' }
-        [pscustomobject]@{ Name = 'Brave Browser'; FilePath = '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser' }
-        [pscustomobject]@{ Name = 'Chromium'; FilePath = '/Applications/Chromium.app/Contents/MacOS/Chromium' }
-    )
+    $match = Resolve-XdrBrowserPathFromCandidateSet -Candidates (Get-XdrMacOSBrowserCandidateSet)
 
     if ($match) {
         return $match
     }
 
     throw 'No supported Chromium-based browser was found on macOS. Install Microsoft Edge, Google Chrome, Brave, Chromium, or specify -BrowserPath.'
+}
+
+function Resolve-XdrMacOSAppBundleExecutablePath {
+    [OutputType([pscustomobject])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$BundlePath
+    )
+
+    $resolvedBundlePath = (Resolve-Path -LiteralPath $BundlePath).ProviderPath
+    $bundleName = [System.IO.Path]::GetFileNameWithoutExtension($resolvedBundlePath)
+    $macOsPath = Join-Path $resolvedBundlePath 'Contents/MacOS'
+
+    if (-not (Test-Path -LiteralPath $macOsPath -PathType Container)) {
+        throw "Browser application bundle '$BundlePath' does not contain a Contents/MacOS executable directory."
+    }
+
+    $candidateExecutables = @(Get-ChildItem -LiteralPath $macOsPath -File -ErrorAction Stop)
+    if (-not $candidateExecutables) {
+        throw "Browser application bundle '$BundlePath' does not contain an executable in Contents/MacOS."
+    }
+
+    $preferredExecutable = @(
+        $candidateExecutables | Where-Object { $_.Name -eq $bundleName }
+        $candidateExecutables
+    ) | Where-Object { $_ } | Select-Object -First 1
+
+    return [pscustomobject]@{
+        Path = $preferredExecutable.FullName
+        Name = $bundleName
+    }
 }
 
 function Resolve-XdrLinuxBrowserPath {
@@ -107,7 +156,11 @@ function Resolve-XdrBrowserPath {
     )
 
     if ($BrowserPath) {
-        if (Test-Path -LiteralPath $BrowserPath) {
+        if ($IsMacOS -and $BrowserPath -like '*.app' -and (Test-Path -LiteralPath $BrowserPath -PathType Container)) {
+            return Resolve-XdrMacOSAppBundleExecutablePath -BundlePath $BrowserPath
+        }
+
+        if (Test-Path -LiteralPath $BrowserPath -PathType Leaf) {
             return [pscustomobject]@{
                 Path = (Resolve-Path -LiteralPath $BrowserPath).ProviderPath
                 Name = [System.IO.Path]::GetFileNameWithoutExtension($BrowserPath)
@@ -325,6 +378,91 @@ function Get-XdrBrowserLaunchArgumentList {
     return $arguments
 }
 
+function Format-XdrProcessArgumentList {
+    [OutputType([string[]])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$ArgumentList
+    )
+
+    $formattedArguments = foreach ($argument in $ArgumentList) {
+        if ($argument -match '^(--[^=]+=)(.*)$') {
+            $argumentPrefix = $Matches[1]
+            $argumentValue = $Matches[2]
+
+            if ($argumentValue -match '[\s"]') {
+                $escapedValue = $argumentValue.Replace('"', '\"')
+                $argumentPrefix + '"' + $escapedValue + '"'
+                continue
+            }
+
+            $argument
+            continue
+        }
+
+        if ($argument -match '[\s"]') {
+            $escapedArgument = $argument.Replace('"', '\"')
+            '"' + $escapedArgument + '"'
+            continue
+        }
+
+        $argument
+    }
+
+    return @($formattedArguments)
+}
+
+function Start-XdrBrowserProcess {
+    [OutputType([System.Diagnostics.Process])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$BrowserPath,
+
+        [Parameter(Mandatory)]
+        [string[]]$ArgumentList
+    )
+
+    $formattedArgumentList = Format-XdrProcessArgumentList -ArgumentList $ArgumentList
+    return Start-Process -FilePath $BrowserPath -ArgumentList $formattedArgumentList -PassThru
+}
+
+function Test-XdrBrowserAuthenticationCompletion {
+    [OutputType([bool])]
+    [CmdletBinding()]
+    param(
+        [string]$SccAuthCookieValue,
+
+        [object]$EstsCookie,
+
+        [Nullable[datetime]]$FirstEstsCookieObservedAt,
+
+        [datetime]$Deadline,
+
+        [int]$PortalCookieGracePeriodSeconds = 45
+    )
+
+    if ($SccAuthCookieValue) {
+        return $true
+    }
+
+    if (-not $EstsCookie) {
+        return $false
+    }
+
+    if (-not $FirstEstsCookieObservedAt) {
+        return $false
+    }
+
+    $portalCookieGraceDeadline = ([datetime]$FirstEstsCookieObservedAt).AddSeconds($PortalCookieGracePeriodSeconds)
+    if ($portalCookieGraceDeadline -gt $Deadline) {
+        $portalCookieGraceDeadline = $Deadline
+    }
+
+    return (Get-Date) -ge $portalCookieGraceDeadline
+}
+
 function Get-XdrBrowserFreeTcpPort {
     [CmdletBinding()]
     param()
@@ -401,6 +539,70 @@ function Get-XdrBrowserPreferredWebSocketUrl {
     }
 
     return $FallbackWebSocketUrl
+}
+
+function Get-XdrBrowserPreferredTargetContext {
+    [OutputType([pscustomobject])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [int]$Port,
+
+        [string]$FallbackWebSocketUrl
+    )
+
+    try {
+        $targets = @(Get-XdrBrowserTargetList -Port $Port)
+    } catch {
+        return [pscustomobject]@{
+            Url          = $null
+            Title        = $null
+            Type         = $null
+            WebSocketUrl = $FallbackWebSocketUrl
+        }
+    }
+
+    $preferredTarget = @(
+        $targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'https://security.microsoft.com/*' -and $_.webSocketDebuggerUrl }
+        $targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'https://login.microsoftonline.com/*' -and $_.webSocketDebuggerUrl }
+        $targets | Where-Object { $_.type -eq 'page' -and $_.webSocketDebuggerUrl }
+    ) | Where-Object { $_ } | Select-Object -First 1
+
+    if (-not $preferredTarget) {
+        return [pscustomobject]@{
+            Url          = $null
+            Title        = $null
+            Type         = $null
+            WebSocketUrl = $FallbackWebSocketUrl
+        }
+    }
+
+    return [pscustomobject]@{
+        Url          = [string]$preferredTarget.url
+        Title        = [string]$preferredTarget.title
+        Type         = [string]$preferredTarget.type
+        WebSocketUrl = [string]$preferredTarget.webSocketDebuggerUrl
+    }
+}
+
+function Format-XdrBrowserTargetDescription {
+    [OutputType([string])]
+    [CmdletBinding()]
+    param(
+        [string]$Url,
+
+        [string]$Title
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Url)) {
+        return $null
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Title)) {
+        return $Url
+    }
+
+    return "$Title [$Url]"
 }
 
 function Invoke-XdrBrowserCdpCommand {
@@ -655,13 +857,15 @@ function Invoke-XdrBrowserAuthentication {
             Write-Host 'Complete the sign-in in the browser with the target account.'
         }
 
-        $browserProcess = Start-Process -FilePath $browser.Path -ArgumentList $arguments -PassThru
+        $browserProcess = Start-XdrBrowserProcess -BrowserPath $browser.Path -ArgumentList $arguments
         $versionInfo = Get-XdrBrowserCdpVersion -Port $debugPort -TimeoutSeconds 20
 
         $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
         $selectedEstsCookie = $null
         $selectedSccAuth = $null
         $selectedXsrfToken = $null
+        $firstEstsCookieObservedAt = $null
+        $lastObservedTargetDescription = $null
 
         do {
             Start-Sleep -Seconds 2
@@ -669,13 +873,24 @@ function Invoke-XdrBrowserAuthentication {
             if ($browserProcess) {
                 $browserProcess.Refresh()
                 if ($browserProcess.HasExited) {
-                    throw 'The browser window was closed before the browser sign-in completed.'
+                    $message = 'The browser window was closed before the browser sign-in completed.'
+                    if ($lastObservedTargetDescription) {
+                        $message += " Last observed browser page: $lastObservedTargetDescription"
+                    }
+
+                    throw $message
                 }
             }
 
             try {
-                $cookieWebSocketUrl = Get-XdrBrowserPreferredWebSocketUrl -Port $debugPort -FallbackWebSocketUrl $versionInfo.webSocketDebuggerUrl
-                $cookies = @(Get-XdrBrowserCookieJar -WebSocketUrl $cookieWebSocketUrl)
+                $targetContext = Get-XdrBrowserPreferredTargetContext -Port $debugPort -FallbackWebSocketUrl $versionInfo.webSocketDebuggerUrl
+                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url -Title $targetContext.Title
+                if ($currentTargetDescription -and $currentTargetDescription -ne $lastObservedTargetDescription) {
+                    $lastObservedTargetDescription = $currentTargetDescription
+                    Write-Verbose "Observed browser page: $currentTargetDescription"
+                }
+
+                $cookies = @(Get-XdrBrowserCookieJar -WebSocketUrl $targetContext.WebSocketUrl)
             } catch {
                 Write-Verbose "Cookie polling failed: $($_.Exception.Message)"
                 continue
@@ -685,13 +900,23 @@ function Invoke-XdrBrowserAuthentication {
             $selectedSccAuth = Get-XdrBrowserCookieValue -Cookies $cookies -Name 'sccauth' -DomainLike 'security.microsoft.com'
             $selectedXsrfToken = Get-XdrBrowserCookieValue -Cookies $cookies -Name 'XSRF-TOKEN' -DomainLike 'security.microsoft.com'
 
-            if ($selectedSccAuth -or $selectedEstsCookie) {
+            if ($selectedEstsCookie -and -not $firstEstsCookieObservedAt) {
+                $firstEstsCookieObservedAt = Get-Date
+                Write-Verbose 'Captured ESTS authentication cookie. Waiting for Defender portal cookies to appear before falling back to ESTS bootstrap.'
+            }
+
+            if (Test-XdrBrowserAuthenticationCompletion -SccAuthCookieValue $selectedSccAuth -EstsCookie $selectedEstsCookie -FirstEstsCookieObservedAt $firstEstsCookieObservedAt -Deadline $deadline) {
                 break
             }
         } while ((Get-Date) -lt $deadline)
 
         if (-not $selectedSccAuth -and -not $selectedEstsCookie) {
-            throw 'Browser sign-in did not produce Defender portal or ESTS authentication cookies before the timeout expired.'
+            $message = 'Browser sign-in did not produce Defender portal or ESTS authentication cookies before the timeout expired.'
+            if ($lastObservedTargetDescription) {
+                $message += " Last observed browser page: $lastObservedTargetDescription"
+            }
+
+            throw $message
         }
 
         if ($selectedSccAuth) {

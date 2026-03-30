@@ -14,7 +14,9 @@
         reaches the Defender portal before the cmdlet captures the resulting session cookies.
 
     .PARAMETER TenantId
-        Optional tenant ID (GUID) used to select the final tenant.
+        Optional tenant ID (GUID) to select from the authenticated SSO session.
+        If only an ESTS cookie is captured, the requested tenant ID is passed to the ESTS
+        bootstrap step.
 
     .PARAMETER Visible
         Shows the browser window instead of using the default headless launch.
@@ -87,7 +89,13 @@
             throw 'SSO authentication failed - no authentication cookies were returned.'
         }
 
-        $resolvedTenantId = if ($ssoAuth.SelectedTenantId) { $ssoAuth.SelectedTenantId } else { $null }
+        $resolvedTenantId = if ($ssoAuth.SelectedTenantId) {
+            $ssoAuth.SelectedTenantId
+        } elseif (-not $ssoAuth.SccAuthCookieValue -and $TenantId) {
+            $TenantId
+        } else {
+            $null
+        }
 
         return Connect-XdrAuthArtifactSet -EstsAuthCookieValue $ssoAuth.EstsAuthCookieValue -SccAuthCookieValue $ssoAuth.SccAuthCookieValue -XsrfToken $ssoAuth.XsrfToken -TenantId $resolvedTenantId -ConnectionPreference PreferPortal -FailureLabel 'SSO authentication'
     }

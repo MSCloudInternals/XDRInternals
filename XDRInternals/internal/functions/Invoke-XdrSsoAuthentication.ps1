@@ -208,6 +208,10 @@ function Resolve-XdrSsoTenantSelection {
     )
 
     if ($RequestedTenant) {
+        if (-not $Tenants -or $Tenants.Count -eq 0) {
+            throw "Could not validate the requested tenant '$RequestedTenant' because the authenticated SSO session did not return any tenants."
+        }
+
         $match = @(
             $Tenants | Where-Object { $_.tenantId -eq $RequestedTenant }
         ) | Where-Object { $_ } | Select-Object -First 1
@@ -219,10 +223,7 @@ function Resolve-XdrSsoTenantSelection {
             }
         }
 
-        return [pscustomobject]@{
-            TenantId   = $RequestedTenant
-            TenantName = $null
-        }
+        throw "Requested tenant '$RequestedTenant' was not found in the authenticated SSO session."
     }
 
     if (-not $Tenants -or $Tenants.Count -eq 0) {
@@ -430,6 +431,10 @@ function Invoke-XdrSsoAuthentication {
                 $tenants = Get-XdrSsoTenantList -SccAuthCookieValue $sccAuthCookieValue -XsrfToken $xsrfToken -TenantId $TenantId -UserAgent $UserAgent
                 $selectedTenant = Resolve-XdrSsoTenantSelection -Tenants $tenants -RequestedTenant $TenantId -SkipTenantSelection:$SkipTenantSelection
             } catch {
+                if ($TenantId) {
+                    throw
+                }
+
                 Write-Verbose "Tenant selection skipped: $($_.Exception.Message)"
             }
         }
@@ -438,7 +443,7 @@ function Invoke-XdrSsoAuthentication {
             EstsAuthCookieValue = $estsAuthCookieValue
             SccAuthCookieValue  = $sccAuthCookieValue
             XsrfToken           = $xsrfToken
-            SelectedTenantId    = if ($selectedTenant) { $selectedTenant.TenantId } else { $TenantId }
+            SelectedTenantId    = if ($selectedTenant) { $selectedTenant.TenantId } else { $null }
             SelectedTenantName  = if ($selectedTenant) { $selectedTenant.TenantName } else { $null }
             ProfilePath         = $resolvedProfilePath
         }

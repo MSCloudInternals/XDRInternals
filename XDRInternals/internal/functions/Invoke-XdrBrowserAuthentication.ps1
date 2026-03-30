@@ -212,6 +212,90 @@ function Get-XdrBrowserDefaultProfilePath {
     throw 'Connect-XdrByBrowser is not supported on this operating system.'
 }
 
+function Get-XdrBrowserProfileDirectoryName {
+    [OutputType([string])]
+    [CmdletBinding()]
+    param()
+
+    return 'XDRInternals'
+}
+
+function Get-XdrBrowserNamedProfilePath {
+    [OutputType([string])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$UserDataDirectory
+    )
+
+    return Join-Path $UserDataDirectory (Get-XdrBrowserProfileDirectoryName)
+}
+
+function Read-XdrBrowserJsonConfigurationFile {
+    [OutputType([hashtable])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return @{}
+    }
+
+    $content = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    if ([string]::IsNullOrWhiteSpace($content)) {
+        return @{}
+    }
+
+    return (ConvertFrom-Json -InputObject $content -AsHashtable -Depth 100)
+}
+
+function Set-XdrBrowserJsonConfigurationValue {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper that mutates an in-memory browser configuration object before serialization.')]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]$Configuration,
+
+        [Parameter(Mandatory)]
+        [string[]]$Path,
+
+        $Value
+    )
+
+    $current = $Configuration
+    for ($index = 0; $index -lt ($Path.Count - 1); $index++) {
+        $pathSegment = $Path[$index]
+
+        if (-not $current.Contains($pathSegment) -or $null -eq $current[$pathSegment] -or $current[$pathSegment] -isnot [System.Collections.IDictionary]) {
+            $current[$pathSegment] = @{}
+        }
+
+        $current = [System.Collections.IDictionary]$current[$pathSegment]
+    }
+
+    $current[$Path[-1]] = $Value
+}
+
+function Write-XdrBrowserJsonConfigurationFile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]$Configuration
+    )
+
+    $parentPath = Split-Path -Path $Path -Parent
+    if ($parentPath -and -not (Test-Path -LiteralPath $parentPath -PathType Container)) {
+        $null = New-Item -ItemType Directory -Path $parentPath -Force
+    }
+
+    $Configuration | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $Path -Encoding UTF8
+}
+
 function Initialize-XdrBrowserProfile {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper that prepares the dedicated browser profile.')]
     [CmdletBinding()]
@@ -224,25 +308,32 @@ function Initialize-XdrBrowserProfile {
         $null = New-Item -ItemType Directory -Path $ProfilePath -Force
     }
 
-    if (-not $IsWindows) {
-        return
+    $legacyDefaultProfilePath = Join-Path $ProfilePath 'Default'
+    $namedProfilePath = Get-XdrBrowserNamedProfilePath -UserDataDirectory $ProfilePath
+    if (-not (Test-Path -LiteralPath $namedProfilePath -PathType Container)) {
+        if (Test-Path -LiteralPath $legacyDefaultProfilePath -PathType Container) {
+            Move-Item -LiteralPath $legacyDefaultProfilePath -Destination $namedProfilePath -Force
+        } else {
+            $null = New-Item -ItemType Directory -Path $namedProfilePath -Force
+        }
     }
 
-    $defaultProfilePath = Join-Path $ProfilePath 'Default'
-    if (-not (Test-Path -LiteralPath $defaultProfilePath)) {
-        $null = New-Item -ItemType Directory -Path $defaultProfilePath -Force
-    }
+    $profileDirectoryName = Get-XdrBrowserProfileDirectoryName
+    $localStatePath = Join-Path $ProfilePath 'Local State'
+    $localState = Read-XdrBrowserJsonConfigurationFile -Path $localStatePath
+    Set-XdrBrowserJsonConfigurationValue -Configuration $localState -Path @('profile', 'last_used') -Value $profileDirectoryName
+    Write-XdrBrowserJsonConfigurationFile -Path $localStatePath -Configuration $localState
 
-    $preferencesPath = Join-Path $defaultProfilePath 'Preferences'
-    if (Test-Path -LiteralPath $preferencesPath) {
-        return
-    }
-
-    @{
-        sync    = @{ requested = $false }
-        signin  = @{ allowed = $true }
-        browser = @{ has_seen_welcome_page = $true }
-    } | ConvertTo-Json -Depth 5 | Set-Content -Path $preferencesPath -Encoding UTF8
+    $preferencesPath = Join-Path $namedProfilePath 'Preferences'
+    $preferences = Read-XdrBrowserJsonConfigurationFile -Path $preferencesPath
+    Set-XdrBrowserJsonConfigurationValue -Configuration $preferences -Path @('sync', 'requested') -Value $false
+    Set-XdrBrowserJsonConfigurationValue -Configuration $preferences -Path @('signin', 'allowed') -Value $true
+    Set-XdrBrowserJsonConfigurationValue -Configuration $preferences -Path @('browser', 'has_seen_welcome_page') -Value $true
+    Set-XdrBrowserJsonConfigurationValue -Configuration $preferences -Path @('profile', 'name') -Value $profileDirectoryName
+    Set-XdrBrowserJsonConfigurationValue -Configuration $preferences -Path @('profile', 'exit_type') -Value 'Normal'
+    Set-XdrBrowserJsonConfigurationValue -Configuration $preferences -Path @('session', 'restore_on_startup') -Value 5
+    Set-XdrBrowserJsonConfigurationValue -Configuration $preferences -Path @('session', 'startup_urls') -Value @()
+    Write-XdrBrowserJsonConfigurationFile -Path $preferencesPath -Configuration $preferences
 }
 
 function Resolve-XdrBrowserProfileConfiguration {
@@ -358,6 +449,7 @@ function Get-XdrBrowserLaunchArgumentList {
     $arguments = @(
         "--remote-debugging-port=$DebugPort",
         "--user-data-dir=$ProfileDirectory",
+        "--profile-directory=$(Get-XdrBrowserProfileDirectoryName)",
         '--new-window',
         '--no-first-run',
         '--no-default-browser-check',
@@ -476,6 +568,80 @@ function Remove-XdrBrowserProcessRedirectFiles {
     foreach ($redirectPath in ($redirectPaths | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
         Remove-Item -LiteralPath $redirectPath -Force -ErrorAction SilentlyContinue
     }
+}
+
+function Wait-XdrBrowserProcessExit {
+    [OutputType([bool])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [object]$Process,
+
+        [int]$TimeoutMilliseconds = 5000
+    )
+
+    if ($Process.PSObject.Methods.Name -contains 'WaitForExit') {
+        return [bool]$Process.WaitForExit($TimeoutMilliseconds)
+    }
+
+    $deadline = (Get-Date).AddMilliseconds($TimeoutMilliseconds)
+    do {
+        Start-Sleep -Milliseconds 100
+
+        if ($Process.PSObject.Methods.Name -contains 'Refresh') {
+            $Process.Refresh()
+        }
+
+        if ($Process.HasExited) {
+            return $true
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    return $false
+}
+
+function Stop-XdrBrowserProcess {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper that closes the dedicated browser process launched for authentication.')]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [object]$Process,
+
+        [string]$BrowserWebSocketUrl,
+
+        [int]$CloseTimeoutMilliseconds = 5000
+    )
+
+    if ($Process.PSObject.Methods.Name -contains 'Refresh') {
+        $Process.Refresh()
+    }
+
+    if ($Process.HasExited) {
+        return
+    }
+
+    if ($BrowserWebSocketUrl) {
+        try {
+            $null = Invoke-XdrBrowserCdpCommand -WebSocketUrl $BrowserWebSocketUrl -Method 'Browser.close'
+        } catch {
+            Write-Verbose "Graceful browser shutdown failed: $($_.Exception.Message)"
+        }
+
+        if (Wait-XdrBrowserProcessExit -Process $Process -TimeoutMilliseconds $CloseTimeoutMilliseconds) {
+            return
+        }
+    }
+
+    if ($Process.PSObject.Methods.Name -contains 'Refresh') {
+        $Process.Refresh()
+    }
+
+    if ($Process.HasExited) {
+        return
+    }
+
+    Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+    $null = Wait-XdrBrowserProcessExit -Process $Process -TimeoutMilliseconds 1000
 }
 
 function Test-XdrBrowserProcessOutputSuppression {
@@ -898,6 +1064,7 @@ function Invoke-XdrBrowserAuthentication {
     $profileDirectory = $profileConfiguration.ProfilePath
 
     $browserProcess = $null
+    $versionInfo = $null
 
     try {
         $startUrl = Get-XdrBrowserInteractiveStartUrl -Username $Username -TenantId $TenantId
@@ -907,7 +1074,7 @@ function Invoke-XdrBrowserAuthentication {
         if ($profileConfiguration.UsePrivateSession) {
             Write-Host 'Using a temporary private browser session.'
         } else {
-            Write-Host "Using dedicated browser profile: $profileDirectory"
+            Write-Host "Using dedicated browser profile: $(Get-XdrBrowserNamedProfilePath -UserDataDirectory $profileDirectory)"
         }
         if ($Username) {
             Write-Host "Complete the sign-in in the browser with account: $Username"
@@ -990,12 +1157,7 @@ function Invoke-XdrBrowserAuthentication {
         }
     } finally {
         if ($browserProcess) {
-            $browserProcess.Refresh()
-            if (-not $browserProcess.HasExited) {
-                Stop-Process -Id $browserProcess.Id -Force -ErrorAction SilentlyContinue
-                $browserProcess.WaitForExit(1000)
-            }
-
+            Stop-XdrBrowserProcess -Process $browserProcess -BrowserWebSocketUrl $versionInfo.webSocketDebuggerUrl
             Remove-XdrBrowserProcessRedirectFiles -Process $browserProcess
         }
 

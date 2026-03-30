@@ -68,12 +68,13 @@
                         throw
                     }
 
-                    if ($_.Exception.Message -notmatch 'Session information is not sufficient for single-sign-on') {
-                        throw
+                    if ($_.Exception.Message -match 'Session information is not sufficient for single-sign-on') {
+                        Write-Verbose 'ESTS bootstrap was not sufficient for Defender SSO. Falling back to the captured Defender portal session cookies.'
+                    } else {
+                        Write-Verbose "ESTS bootstrap failed: $($_.Exception.Message). Falling back to the captured Defender portal session cookies."
                     }
 
-                    Write-Verbose 'ESTS bootstrap was not sufficient for Defender SSO. Falling back to the captured Defender portal session cookies.'
-                    return Set-XdrConnectionSettings @portalConnectParams
+                    continue
                 }
             }
 
@@ -82,7 +83,16 @@
                     continue
                 }
 
-                return Set-XdrConnectionSettings @portalConnectParams
+                try {
+                    return Set-XdrConnectionSettings @portalConnectParams
+                } catch {
+                    if (-not $estsConnectParams -or $ConnectionPreference -ne 'PreferPortal') {
+                        throw
+                    }
+
+                    Write-Verbose "Defender portal bootstrap failed: $($_.Exception.Message). Falling back to ESTS cookie bootstrap."
+                    continue
+                }
             }
         }
     }

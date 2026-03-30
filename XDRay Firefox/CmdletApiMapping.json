@@ -7,6 +7,13 @@
     }
   },
   {
+    "Cmdlet": "Disconnect-XdrEndpointDeviceLiveResponse",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/close_session",
+    "Parameters": {
+      "SessionId": "body.session_id"
+    }
+  },
+  {
     "Cmdlet": "Get-XdrActionsCenterHistory",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/actionCenter/actioncenterui/history-actions/"
   },
@@ -124,6 +131,26 @@
   {
     "Cmdlet": "Get-XdrEndpointDevice",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceActionResult",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/requests/forensics/downloaduribyguid/V2"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceActionResult",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/requests/latest"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceActionResult",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/requests/logscollection/downloaduribyguid/V2"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceLiveResponseLibrary",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/library/get_files"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceLiveResponseLibraryFile",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/library/download_file"
   },
   {
     "Cmdlet": "Get-XdrEndpointDeviceModel",
@@ -288,6 +315,31 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks/topThreats"
   },
   {
+    "Cmdlet": "Invoke-XdrEndpointDeviceAction",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/requests/create",
+    "Parameters": {
+      "commentText": "body.RequestorComment",
+      "device": "body.SenseClientVersion",
+      "DeviceId": "body.MachineId",
+      "Scan": "body.ScanType"
+    }
+  },
+  {
+    "Cmdlet": "Invoke-XdrEndpointDeviceAutomatedInvestigation",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/ui/investigations/",
+    "Parameters": {
+      "DeviceId": "body.machine"
+    }
+  },
+  {
+    "Cmdlet": "Invoke-XdrEndpointDevicePolicySync",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/siamApi/machines/{DeviceId}/forceDeviceSync",
+    "Parameters": {
+      "Comment": "body.RequestorComment",
+      "device": "body.SenseClientVersion"
+    }
+  },
+  {
     "Cmdlet": "Invoke-XdrHuntingQueryValidation",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/rules/validateQuery",
     "Parameters": {
@@ -349,6 +401,10 @@
     }
   },
   {
+    "Cmdlet": "New-XdrEndpointDeviceLiveResponseLibraryFile",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/library/upload_file"
+  },
+  {
     "Cmdlet": "New-XdrIdentityConfigurationRemediationActionAccount",
     "ApiUri": "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials",
     "Parameters": {
@@ -370,6 +426,10 @@
       "RuleId": "body.ruleId",
       "true": "body.isDeleted"
     }
+  },
+  {
+    "Cmdlet": "Remove-XdrEndpointDeviceLiveResponseLibraryFile",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/library/delete_file"
   },
   {
     "Cmdlet": "Remove-XdrIdentityConfigurationRemediationActionAccount",
@@ -447,8 +507,40 @@
     }
   },
   {
+    "Cmdlet": "Set-XdrEndpointDeviceAssetValue",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/assetValues",
+    "Parameters": {
+      "AssetValue": "body.AssetValue",
+      "DeviceId": "body.SenseMachineIds"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointDeviceCriticalityLevel",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/criticalityLevel",
+    "Parameters": {
+      "DeviceId": "body.DeviceIds",
+      "levelValue": "body.CriticalityLevel"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointDeviceExclusionState",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/k8s/machines/UpdateExclusionState",
+    "Parameters": {
+      "DeviceId": "body.SenseMachineIds",
+      "ExclusionState": "body.ExclusionState"
+    }
+  },
+  {
     "Cmdlet": "Set-XdrEndpointDeviceRbacGroup",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/rbacManagementApi/rbac/machine_groups"
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointDeviceTag",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/editMachineTags",
+    "Parameters": {
+      "DeviceId": "body.SenseMachineIds",
+      "tagsJson": "body.MachineTags"
+    }
   },
   {
     "Cmdlet": "Set-XdrIdentityConfigurationRemediationActionAccount",
@@ -456,5 +548,9 @@
     "Parameters": {
       "UseLocalSystem": "body.IsRemediationWithLocalSystemEnabled"
     }
+  },
+  {
+    "Cmdlet": "Stop-XdrEndpointDeviceAction",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/requests/cancelbyid"
   }
 ]

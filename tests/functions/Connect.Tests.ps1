@@ -276,6 +276,26 @@ Describe 'Connect-XdrBySSO' {
         Should -Invoke Set-XdrConnectionSettings -ModuleName XDRInternals -Times 0 -Exactly
     }
 
+    It 'passes the requested tenant ID to ESTS bootstrap when portal cookies are unavailable' {
+        Mock Invoke-XdrSsoAuthentication {
+            [pscustomobject]@{
+                SccAuthCookieValue  = $null
+                XsrfToken           = $null
+                EstsAuthCookieValue = 'ests-cookie-value'
+                SelectedTenantId    = $null
+            }
+        } -ModuleName XDRInternals
+
+        $result = Connect-XdrBySSO -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
+
+        $result | Should -Be 'connected-via-ests'
+        Should -Invoke Connect-XdrByEstsCookie -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $EstsAuthCookieValue -eq 'ests-cookie-value' -and
+            $TenantId -eq '8612f621-73ca-4c12-973c-0da732bc44c2'
+        }
+        Should -Invoke Set-XdrConnectionSettings -ModuleName XDRInternals -Times 0 -Exactly
+    }
+
     It 'forwards visible and browser options when provided' {
         $result = Connect-XdrBySSO -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2' -Visible -SkipTenantSelection -BrowserPath 'msedge.exe' -ProfilePath 'C:\Temp\XdrSsoProfile' -UserAgent 'Custom-Agent/1.0'
 
@@ -288,6 +308,27 @@ Describe 'Connect-XdrBySSO' {
             $ProfilePath -eq 'C:\Temp\XdrSsoProfile' -and
             $UserAgent -eq 'Custom-Agent/1.0'
         }
+    }
+
+    It 'does not stamp an unverified requested tenant into the portal cookie connection' {
+        Mock Invoke-XdrSsoAuthentication {
+            [pscustomobject]@{
+                SccAuthCookieValue  = 'sccauth-cookie-value'
+                XsrfToken           = 'xsrf-cookie-value'
+                EstsAuthCookieValue = 'ests-cookie-value'
+                SelectedTenantId    = $null
+            }
+        } -ModuleName XDRInternals
+
+        $result = Connect-XdrBySSO -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
+
+        $result | Should -Be 'connected-via-sso'
+        Should -Invoke Set-XdrConnectionSettings -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $SccAuth -eq 'sccauth-cookie-value' -and
+            $Xsrf -eq 'xsrf-cookie-value' -and
+            -not $PSBoundParameters.ContainsKey('TenantId')
+        }
+        Should -Invoke Connect-XdrByEstsCookie -ModuleName XDRInternals -Times 0 -Exactly
     }
 
     It 'rejects non-GUID TenantId values before starting SSO' {
@@ -717,6 +758,17 @@ InModuleScope XDRInternals {
             }
         }
 
+        It 'throws when the requested SSO tenant is not available in the authenticated session' {
+            {
+                Resolve-XdrSsoTenantSelection -Tenants @(
+                    [pscustomobject]@{
+                        tenantId = '11111111-1111-1111-1111-111111111111'
+                        name     = 'Tenant A'
+                    }
+                ) -RequestedTenant '22222222-2222-2222-2222-222222222222'
+            } | Should -Throw '*22222222-2222-2222-2222-222222222222*'
+        }
+
         It 'prefers ESTS bootstrap when requested' {
             $result = Connect-XdrAuthArtifactSet -EstsAuthCookieValue 'ests-cookie-value' -SccAuthCookieValue 'sccauth-cookie-value' -XsrfToken 'xsrf-cookie-value' -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2' -UserAgent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0' -ConnectionPreference PreferEsts -FailureLabel 'Browser sign-in'
 
@@ -741,8 +793,39 @@ InModuleScope XDRInternals {
             Should -Invoke Connect-XdrByEstsCookie -ModuleName XDRInternals -Times 0 -Exactly
         }
 
+        It 'falls back to ESTS bootstrap when portal bootstrap fails' {
+            Mock Set-XdrConnectionSettings { throw 'portal-failed' } -ModuleName XDRInternals
+
+            $result = Connect-XdrAuthArtifactSet -EstsAuthCookieValue 'ests-cookie-value' -SccAuthCookieValue 'sccauth-cookie-value' -XsrfToken 'xsrf-cookie-value' -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2' -ConnectionPreference PreferPortal -FailureLabel 'SSO authentication' -Verbose
+
+            $result | Should -Be 'connected-via-ests'
+            Should -Invoke Set-XdrConnectionSettings -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $SccAuth -eq 'sccauth-cookie-value' -and
+                $Xsrf -eq 'xsrf-cookie-value' -and
+                $TenantId -eq '8612f621-73ca-4c12-973c-0da732bc44c2'
+            }
+            Should -Invoke Connect-XdrByEstsCookie -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $EstsAuthCookieValue -eq 'ests-cookie-value' -and
+                $TenantId -eq '8612f621-73ca-4c12-973c-0da732bc44c2'
+            }
+        }
+
         It 'falls back to portal cookies after insufficient ESTS SSO bootstrap when requested' {
             Mock Connect-XdrByEstsCookie { throw 'Session information is not sufficient for single-sign-on. Please use a incognito/private browsing session to obtain a new ESTSAUTH cookie value.' } -ModuleName XDRInternals
+
+            $result = Connect-XdrAuthArtifactSet -EstsAuthCookieValue 'ests-cookie-value' -SccAuthCookieValue 'sccauth-cookie-value' -XsrfToken 'xsrf-cookie-value' -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2' -ConnectionPreference PreferEsts -FallbackToPortalOnEstsBootstrapFailure -FailureLabel 'Browser sign-in' -Verbose
+
+            $result | Should -Be 'connected-via-sccauth'
+            Should -Invoke Connect-XdrByEstsCookie -ModuleName XDRInternals -Times 1 -Exactly
+            Should -Invoke Set-XdrConnectionSettings -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $SccAuth -eq 'sccauth-cookie-value' -and
+                $Xsrf -eq 'xsrf-cookie-value' -and
+                $TenantId -eq '8612f621-73ca-4c12-973c-0da732bc44c2'
+            }
+        }
+
+        It 'falls back to portal cookies after any ESTS bootstrap failure when fallback is enabled' {
+            Mock Connect-XdrByEstsCookie { throw 'ESTS bootstrap failed for another reason.' } -ModuleName XDRInternals
 
             $result = Connect-XdrAuthArtifactSet -EstsAuthCookieValue 'ests-cookie-value' -SccAuthCookieValue 'sccauth-cookie-value' -XsrfToken 'xsrf-cookie-value' -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2' -ConnectionPreference PreferEsts -FallbackToPortalOnEstsBootstrapFailure -FailureLabel 'Browser sign-in' -Verbose
 

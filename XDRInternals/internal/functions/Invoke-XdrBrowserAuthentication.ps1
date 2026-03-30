@@ -232,7 +232,7 @@ function Get-XdrBrowserNamedProfilePath {
 }
 
 function Read-XdrBrowserJsonConfigurationFile {
-    [OutputType([System.Collections.IDictionary])]
+    [OutputType([hashtable])]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -252,6 +252,7 @@ function Read-XdrBrowserJsonConfigurationFile {
 }
 
 function Set-XdrBrowserJsonConfigurationValue {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper that mutates an in-memory browser configuration object before serialization.')]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]

@@ -55,7 +55,7 @@
         $TenantId,
 
         [Parameter(Mandatory, ParameterSetName = 'Websession')]
-        [Microsoft.PowerShell.Commands.WebRequestSession]$WebSession,
+        $WebSession,
 
         [Parameter(Mandatory, ParameterSetName = 'ResetWebSession')]
         [switch]$ResetWebSession
@@ -94,7 +94,7 @@
             $script:session.Cookies.Add((New-Object System.Net.Cookie("XSRF-TOKEN", $XsrfValue, "/", "security.microsoft.com")))
         } else {
             if ($TenantId) {
-                $SecurityPortalUri = "https://security.microsoft.com/" + "?tid=$TenantId"
+                $SecurityPortalUri = "https://security.microsoft.com/?tid=$TenantId"
             } else {
                 $SecurityPortalUri = "https://security.microsoft.com/"
             }

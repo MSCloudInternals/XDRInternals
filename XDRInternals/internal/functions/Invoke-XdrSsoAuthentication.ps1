@@ -18,6 +18,7 @@
 }
 
 function Start-XdrSsoBrowserProcess {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper that launches the dedicated SSO browser process.')]
     [OutputType([System.Diagnostics.Process])]
     [CmdletBinding()]
     param(

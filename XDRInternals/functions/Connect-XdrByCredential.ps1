@@ -52,12 +52,7 @@
         The Defender XDR tenant ID to connect to. If not provided, the default tenant is used.
 
     .PARAMETER UserAgent
-        User-Agent string for HTTP requests. Defaults to Edge browser user agent.
-
-    .PARAMETER DebugCaptureDirectory
-        Optional directory for writing detailed credential-auth debug captures.
-        When provided, request bodies, response bodies, headers, parsed state, and cookie snapshots
-        are written under the specified path for each major authentication stage.
+        User-Agent string for HTTP requests. Defaults to a browser-compatible Edge user agent.
 
     .EXAMPLE
         Connect-XdrByCredential
@@ -82,7 +77,7 @@
         Fully non-interactive: all credentials and MFA passed as parameters.
 
     .EXAMPLE
-        Connect-XdrByCredential -Credential (Get-Credential) -TotpSecret "JBSWY3DPEHPK3PXP" -TenantId "847b5907-ca15-40f4-b171-eb18619dbfab"
+        Connect-XdrByCredential -Credential (Get-Credential) -TotpSecret "JBSWY3DPEHPK3PXP" -TenantId "8612f621-73ca-4c12-973c-0da732bc44c2"
 
         Authenticates and connects to a specific XDR tenant.
     #>
@@ -105,9 +100,7 @@
 
         [string]$TenantId,
 
-        [string]$DebugCaptureDirectory,
-
-        [string]$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
+        [string]$UserAgent = (Get-XdrDefaultUserAgent)
     )
 
     process {
@@ -163,7 +156,6 @@
         }
         if ($TotpSecret) { $credParams.TotpSecret = $TotpSecret }
         if ($MfaMethod) { $credParams.MfaMethod = $MfaMethod }
-        if ($DebugCaptureDirectory) { $credParams.DebugCaptureDirectory = $DebugCaptureDirectory }
 
         $estsAuth = Invoke-XdrCredentialAuthentication @credParams
 
@@ -171,12 +163,6 @@
             throw "Credential authentication failed - no ESTS cookie was returned."
         }
 
-        $connectParams = @{
-            EstsAuthCookieValue = $estsAuth
-            UserAgent           = $UserAgent
-        }
-        if ($TenantId) { $connectParams.TenantId = $TenantId }
-
-        Connect-XdrByEstsCookie @connectParams
+        Connect-XdrAuthArtifactSet -EstsAuthCookieValue $estsAuth -TenantId $TenantId -UserAgent $UserAgent -FailureLabel 'Credential authentication'
     }
 }

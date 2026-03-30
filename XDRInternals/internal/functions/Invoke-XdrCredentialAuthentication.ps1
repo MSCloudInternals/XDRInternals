@@ -49,119 +49,6 @@ function Get-XdrTotpCode {
     return ($code % [Math]::Pow(10, $Digits)).ToString().PadLeft($Digits, '0')
 }
 
-function Get-XdrAuthDebugHeaderMap {
-    param($Headers)
-
-    $result = [ordered]@{}
-    if (-not $Headers) {
-        return $result
-    }
-
-    foreach ($key in $Headers.Keys) {
-        $value = $Headers[$key]
-        if ($value -is [System.Array]) {
-            $result[$key] = @($value)
-        } else {
-            $result[$key] = [string]$value
-        }
-    }
-
-    return $result
-}
-
-function Get-XdrAuthDebugCookieSnapshot {
-    param(
-        [Parameter(Mandatory)]
-        [Microsoft.PowerShell.Commands.WebRequestSession]$Session
-    )
-
-    $domains = @('https://login.microsoftonline.com', 'https://security.microsoft.com')
-    $result = [ordered]@{}
-
-    foreach ($domain in $domains) {
-        $cookies = @($Session.Cookies.GetCookies($domain))
-        $result[$domain] = @(
-            foreach ($cookie in $cookies) {
-                [pscustomobject]@{
-                    Name     = $cookie.Name
-                    Value    = $cookie.Value
-                    Domain   = $cookie.Domain
-                    Path     = $cookie.Path
-                    Secure   = $cookie.Secure
-                    HttpOnly = $cookie.HttpOnly
-                    Expired  = $cookie.Expired
-                }
-            }
-        )
-    }
-
-    return $result
-}
-
-function Get-XdrAuthDebugResponse {
-    param($Response)
-
-    if (-not $Response) {
-        return $null
-    }
-
-    $statusCode = $null
-    if ($Response.StatusCode) {
-        $statusCode = [int]$Response.StatusCode
-    } elseif ($Response.BaseResponse -and $Response.BaseResponse.StatusCode) {
-        $statusCode = [int]$Response.BaseResponse.StatusCode
-    }
-
-    $responseUri = $null
-    if ($Response.BaseResponse -and $Response.BaseResponse.ResponseUri) {
-        $responseUri = [string]$Response.BaseResponse.ResponseUri
-    }
-
-    return [ordered]@{
-        StatusCode  = $statusCode
-        ResponseUri = $responseUri
-        Headers     = Get-XdrAuthDebugHeaderMap -Headers $(if ($Response.Headers) { $Response.Headers } elseif ($Response.BaseResponse) { $Response.BaseResponse.Headers } else { $null })
-        Content     = $Response.Content
-    }
-}
-
-function Get-XdrAuthDebugInterestingFieldSet {
-    param($ParsedState)
-
-    if (-not $ParsedState) {
-        return $null
-    }
-
-    $result = [ordered]@{}
-    $fieldNames = @(
-        'pgid', 'sFT', 'canary', 'sCtx', 'correlationId', 'sessionId',
-        'sCrossDomainCanary', 'urlPost', 'urlLogin', 'urlPostAad', 'urlPostMsa',
-        'urlResume', 'urlRefresh', 'sErrorCode', 'sErrTxt'
-    )
-
-    foreach ($fieldName in $fieldNames) {
-        if ($null -ne $ParsedState.$fieldName) {
-            $result[$fieldName] = $ParsedState.$fieldName
-        }
-    }
-
-    if ($null -ne $ParsedState.oGetCredTypeResult -and $null -ne $ParsedState.oGetCredTypeResult.FlowToken) {
-        $result['oGetCredTypeResult.FlowToken'] = $ParsedState.oGetCredTypeResult.FlowToken
-    }
-
-    if ($null -ne $ParsedState.arrSessions) {
-        $result['arrSessions'] = @(
-            foreach ($sessionInfo in @($ParsedState.arrSessions)) {
-                [pscustomobject]@{
-                    id = $sessionInfo.id
-                }
-            }
-        )
-    }
-
-    return $result
-}
-
 function Test-XdrMfaAuthSucceeded {
     param($Response)
 
@@ -280,46 +167,6 @@ function Get-XdrProcessAuthRequestBody {
     } | ConvertTo-Json
 }
 
-function Save-XdrAuthDebugRecord {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper that writes opt-in authentication diagnostics to disk.')]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Directory,
-        [Parameter(Mandatory)]
-        [string]$Stage,
-        [string]$Method,
-        [string]$Uri,
-        $RequestBody,
-        $Response,
-        $ParsedState,
-        [Microsoft.PowerShell.Commands.WebRequestSession]$Session,
-        $Extra
-    )
-
-    if (-not (Test-Path $Directory)) {
-        $null = New-Item -ItemType Directory -Path $Directory -Force
-    }
-
-    $safeStage = ($Stage -replace '[^A-Za-z0-9._-]', '_')
-    $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss_fff'
-    $filePath = Join-Path $Directory "$timestamp-$safeStage.json"
-
-    $payload = [ordered]@{
-        Timestamp   = (Get-Date).ToString('o')
-        Stage       = $Stage
-        Method      = $Method
-        Uri         = $Uri
-        RequestBody = $RequestBody
-        Response    = Get-XdrAuthDebugResponse -Response $Response
-        ParsedState = $ParsedState
-        Interesting = Get-XdrAuthDebugInterestingFieldSet -ParsedState $ParsedState
-        Extra       = $Extra
-        Cookies     = if ($Session) { Get-XdrAuthDebugCookieSnapshot -Session $Session } else { $null }
-    }
-
-    $payload | ConvertTo-Json -Depth 20 | Set-Content -Path $filePath -Encoding UTF8
-}
-
 function Get-XdrAuthStateFromResponse {
     param($Response)
 
@@ -336,6 +183,85 @@ function Get-XdrAuthStateFromResponse {
     }
 
     return $null
+}
+
+function Resolve-XdrAuthAbsoluteUri {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Uri,
+        [string]$BaseUri = 'https://login.microsoftonline.com/'
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Uri)) {
+        return $null
+    }
+
+    return [uri]::new([uri]$BaseUri, $Uri).AbsoluteUri
+}
+
+function Get-XdrBestEstsCookieValue {
+    param(
+        [Parameter(Mandatory)]
+        [Microsoft.PowerShell.Commands.WebRequestSession]$Session
+    )
+
+    $allCookies = @($Session.Cookies.GetCookies('https://login.microsoftonline.com'))
+    $estsCookies = @($allCookies | Where-Object Name -Like 'ESTS*')
+    if (-not $estsCookies) {
+        return $null
+    }
+
+    $bestCookie = @(
+        $allCookies | Where-Object Name -EQ 'ESTSAUTH'
+        $allCookies | Where-Object Name -EQ 'ESTSAUTHPERSISTENT'
+        $allCookies | Where-Object Name -EQ 'ESTSAUTHLIGHT'
+        $estsCookies
+    ) | Where-Object { $_ } | Sort-Object { $_.Value.Length } -Descending | Select-Object -First 1
+
+    return $bestCookie.Value
+}
+
+function ConvertTo-XdrFormUrlEncodedBody {
+    param(
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]$Data
+    )
+
+    return (@(
+            foreach ($entry in $Data.GetEnumerator()) {
+                "$([uri]::EscapeDataString([string]$entry.Key))=$([uri]::EscapeDataString([string]$entry.Value))"
+            }
+        ) -join '&')
+}
+
+function Get-XdrHtmlFormPost {
+    param($Response)
+
+    if ($null -eq $Response -or [string]::IsNullOrWhiteSpace($Response.Content)) {
+        return $null
+    }
+
+    $actionMatch = [regex]::Match($Response.Content, 'action="([^"]+)"')
+    if (-not $actionMatch.Success) {
+        return $null
+    }
+
+    $action = $actionMatch.Groups[1].Value
+
+    $fields = [ordered]@{}
+    foreach ($match in [regex]::Matches($Response.Content, '<input[^>]+name="([^"]+)"[^>]+value="([^"]*)"')) {
+        $fields[$match.Groups[1].Value] = $match.Groups[2].Value
+    }
+
+    if ($fields.Count -eq 0) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        Action = $action
+        Fields = $fields
+        Body   = ConvertTo-XdrFormUrlEncodedBody -Data $fields
+    }
 }
 
 function Get-XdrResponseLocation {
@@ -425,7 +351,7 @@ function Test-XdrSecurityPortalFormPostResponse {
     }
 
     $requiredFields = @('code', 'id_token', 'state', 'session_state', 'correlation_id')
-    $inputNames = @($Response.InputFields | Select-Object -ExpandProperty name)
+    $inputNames = @($Response.InputFields | Where-Object { $_.name } | Select-Object -ExpandProperty name)
 
     foreach ($field in $requiredFields) {
         if ($inputNames -notcontains $field) {
@@ -630,11 +556,6 @@ function Invoke-XdrCredentialAuthentication {
     .PARAMETER UserAgent
         User-Agent string for HTTP requests.
 
-    .PARAMETER DebugCaptureDirectory
-        Optional directory for writing detailed credential-auth debug captures.
-        When provided, request bodies, response bodies, headers, parsed state, and cookie snapshots
-        are written under the specified path for each major authentication stage.
-
     .EXAMPLE
         $password = ConvertTo-SecureString "MyPassword" -AsPlainText -Force
         Invoke-XdrCredentialAuthentication -Username "admin@contoso.com" -Password $password -TotpSecret "JBSWY3DPEHPK3PXP"
@@ -658,16 +579,8 @@ function Invoke-XdrCredentialAuthentication {
         [ValidateSet('PhoneAppOTP', 'PhoneAppNotification', 'OneWaySMS')]
         [string]$MfaMethod,
 
-        [string]$DebugCaptureDirectory,
-
-        [string]$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
+        [string]$UserAgent = (Get-XdrDefaultUserAgent)
     )
-
-    $captureDirectory = $null
-    if ($DebugCaptureDirectory) {
-        $captureDirectory = Join-Path $DebugCaptureDirectory ("xdr-credential-auth-" + (Get-Date -Format 'yyyyMMdd_HHmmss'))
-        Write-Verbose "Credential auth debug capture enabled: $captureDirectory"
-    }
 
     #region Establish session and initiate authentication flow
     $authUrl = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize" +
@@ -685,9 +598,6 @@ function Invoke-XdrCredentialAuthentication {
     $initialResponse = Invoke-WebRequest -UseBasicParsing -Uri $authUrl -Method Get -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck -Verbose:$false
 
     $sessionInfo = Get-XdrAuthStateFromResponse -Response $initialResponse
-    if ($captureDirectory) {
-        Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage '01-initial-authorize' -Method 'GET' -Uri $authUrl -Response $initialResponse -ParsedState $sessionInfo -Session $session
-    }
     if (-not $sessionInfo) {
         throw "Unexpected response from Entra ID authentication endpoint."
     }
@@ -734,15 +644,8 @@ function Invoke-XdrCredentialAuthentication {
         }
     }
 
-    if ($captureDirectory) {
-        Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage '02-password-submit' -Method 'POST' -Uri $sessionInfo.urlPost -RequestBody $credBody -Response $credResponse -ParsedState (Get-XdrAuthStateFromResponse -Response $credResponse) -Session $session
-    }
-
     $credOutcome = Resolve-XdrAuthenticationResponse -Response $credResponse -Session $session
     $authState = $credOutcome.AuthState
-    if ($captureDirectory) {
-        Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage '03-password-resolved' -Method 'POST' -Uri $sessionInfo.urlPost -RequestBody $credBody -Response $credOutcome.Response -ParsedState $authState -Session $session
-    }
     if (-not $authState) {
         throw "Unexpected response after credential submission."
     }
@@ -784,47 +687,12 @@ function Invoke-XdrCredentialAuthentication {
         Write-Host "Using MFA method: $selectedMethod"
         Write-Verbose "Available methods: $(($supportedMethods | ForEach-Object { $_.AuthMethodId }) -join ', ')"
 
-        # BeginAuth
-        $beginBody = @{
-            AuthMethodId = $selectedMethod
-            Method       = "BeginAuth"
-            ctx          = $authState.sCtx
-            flowToken    = $authState.sFT
-        } | ConvertTo-Json
-
-        Write-Verbose "Calling SAS/BeginAuth..."
-        $beginAuth = Invoke-RestMethod -Method Post `
-            -Uri "https://login.microsoftonline.com/common/SAS/BeginAuth" `
-            -Body $beginBody -ContentType "application/json" `
-            -Headers $sasHeaders `
-            -WebSession $session -Verbose:$false
-
-        if ($captureDirectory) {
-            Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage '04-mfa-beginauth' -Method 'POST' -Uri 'https://login.microsoftonline.com/common/SAS/BeginAuth' -RequestBody ($beginBody | ConvertFrom-Json) -ParsedState $beginAuth -Session $session
-        }
-
-        $isPushDuplicateBeginAuth = (
-            $selectedMethod -eq 'PhoneAppNotification' -and
-            $beginAuth -and
-            $beginAuth.ErrCode -eq 500121 -and
-            $beginAuth.ResultValue -eq 'UserAuthFailedDuplicateRequest' -and
-            $beginAuth.FlowToken -and
-            $beginAuth.Ctx
-        )
-
-        if ($isPushDuplicateBeginAuth) {
-            Write-Verbose 'BeginAuth returned UserAuthFailedDuplicateRequest for push MFA. Continuing with polling using the returned continuation state.'
-            if (-not $beginAuth.SessionId -or $beginAuth.SessionId -eq '00000000-0000-0000-0000-000000000000') {
-                $beginAuth.SessionId = $authState.sessionId
-            }
-        } elseif (-not $beginAuth.Success -and $beginAuth.ErrCode -ne 0) {
-            throw "MFA BeginAuth failed (ErrCode: $($beginAuth.ErrCode)): $($beginAuth.Message)"
-        }
-
-        Write-Verbose "BeginAuth response: Success=$($beginAuth.Success), ResultValue=$($beginAuth.ResultValue)"
+        $beginAuth = Invoke-XdrSasBeginAuth -SelectedMethod $selectedMethod -AuthState $authState -Session $session -Headers $sasHeaders -BeginAuthUri 'https://login.microsoftonline.com/common/SAS/BeginAuth' -FailureLabel 'MFA'
 
         # Get the verification code based on method
         $verificationCode = $null
+        $processAuthPollStart = $null
+        $processAuthPollEnd = $null
 
         switch ($selectedMethod) {
             'PhoneAppOTP' {
@@ -851,118 +719,10 @@ function Invoke-XdrCredentialAuthentication {
                     Write-Host "Approve the sign-in request in your Authenticator app."
                 }
 
-                # Poll EndAuth until approved or denied
-                $pollCount = 0
-                $maxPolls = 60  # 60 * 3s = 180 seconds max
-                $pushApproved = $false
-
-                $useGetForPushPolling = [bool]$authState.fSasEndAuthPostToGetSwitch
-                $lastPollStart = $null
-                $lastPollEnd = $null
-                $processAuthPollStart = $null
-                $processAuthPollEnd = $null
-
-                while ($pollCount -lt $maxPolls) {
-                    $pollCount++
-                    Start-Sleep -Seconds 3
-
-                    $pollStarted = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-
-                    if ($useGetForPushPolling) {
-                        $pollParams = @(
-                            "authMethodId=$([uri]::EscapeDataString($selectedMethod))",
-                            "pollCount=$pollCount"
-                        )
-                        if ($lastPollStart) {
-                            $pollParams += "lastPollStart=$lastPollStart"
-                        }
-                        if ($lastPollEnd) {
-                            $pollParams += "lastPollEnd=$lastPollEnd"
-                        }
-
-                        $pollUri = "https://login.microsoftonline.com/common/SAS/EndAuth?" + ($pollParams -join '&')
-                        $pollBody = $null
-                        $pollResult = Invoke-RestMethod -Method Get `
-                            -Uri $pollUri `
-                            -WebSession $session -Verbose:$false
-
-                        $shouldFallbackToPostPolling = (
-                            $pollResult -and
-                            $pollResult.ErrCode -eq 500121 -and
-                            -not $pollResult.FlowToken -and
-                            -not $pollResult.SessionId -and
-                            -not $pollResult.Ctx
-                        )
-
-                        if ($shouldFallbackToPostPolling) {
-                            Write-Verbose 'Initial GET-based push polling failed without continuation state. Falling back to POST-based polling.'
-                            $useGetForPushPolling = $false
-                            $pollBody = @{
-                                AuthMethodId = $selectedMethod
-                                Method       = "EndAuth"
-                                SessionId    = $beginAuth.SessionId
-                                FlowToken    = $beginAuth.FlowToken
-                                Ctx          = $beginAuth.Ctx
-                                PollCount    = $pollCount
-                            } | ConvertTo-Json
-
-                            $pollUri = "https://login.microsoftonline.com/common/SAS/EndAuth"
-                            $pollResult = Invoke-RestMethod -Method Post `
-                                -Uri $pollUri `
-                                -Body $pollBody -ContentType "application/json" `
-                                -Headers $sasHeaders `
-                                -WebSession $session -Verbose:$false
-                        }
-                    } else {
-                        $pollBody = @{
-                            AuthMethodId = $selectedMethod
-                            Method       = "EndAuth"
-                            SessionId    = $beginAuth.SessionId
-                            FlowToken    = $beginAuth.FlowToken
-                            Ctx          = $beginAuth.Ctx
-                            PollCount    = $pollCount
-                        } | ConvertTo-Json
-
-                        $pollUri = "https://login.microsoftonline.com/common/SAS/EndAuth"
-                        $pollResult = Invoke-RestMethod -Method Post `
-                            -Uri $pollUri `
-                            -Body $pollBody -ContentType "application/json" `
-                            -Headers $sasHeaders `
-                            -WebSession $session -Verbose:$false
-                    }
-
-                    $pollEnded = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-                    if ($null -eq $processAuthPollStart) {
-                        $processAuthPollStart = $pollStarted
-                        $processAuthPollEnd = $pollEnded
-                    }
-                    $lastPollStart = $pollStarted
-                    $lastPollEnd = $pollEnded
-
-                    if ($captureDirectory) {
-                        $pollRequestBody = if ($pollBody) { $pollBody | ConvertFrom-Json } else { [ordered]@{ AuthMethodId = $selectedMethod; PollCount = $pollCount; LastPollStart = $lastPollStart; LastPollEnd = $lastPollEnd } }
-                        $pollMethod = if ($useGetForPushPolling) { 'GET' } else { 'POST' }
-                        Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage ("05-mfa-poll-" + $pollCount) -Method $pollMethod -Uri $pollUri -RequestBody $pollRequestBody -ParsedState $pollResult -Session $session
-                    }
-
-                    Write-Verbose "Poll $pollCount : Success=$($pollResult.Success) ResultValue=$($pollResult.ResultValue)"
-
-                    if (Test-XdrMfaAuthSucceeded -Response $pollResult) {
-                        $pushApproved = $true
-                        $beginAuth = $pollResult  # Carry forward for ProcessAuth
-                        break
-                    } elseif ($pollResult.ResultValue -ne 'AuthenticationPending') {
-                        throw "Push notification denied or failed: $($pollResult.ResultValue) - $($pollResult.Message)"
-                    }
-
-                    if (-not $pollResult.Retry) {
-                        throw "Push notification timed out. Retry is false."
-                    }
-                }
-
-                if (-not $pushApproved) {
-                    throw "Push notification timed out after $($pollCount * 3) seconds."
-                }
+                $pollOutcome = Invoke-XdrSasPushNotificationPolling -SelectedMethod $selectedMethod -BeginAuth $beginAuth -AuthState $authState -Session $session -Headers $sasHeaders -EndAuthUri 'https://login.microsoftonline.com/common/SAS/EndAuth' -Deadline (Get-Date).AddSeconds(180) -FailureLabel 'Push notification' -TimeoutMessage 'Push notification timed out after {0} seconds.'
+                $beginAuth = $pollOutcome.BeginAuth
+                $processAuthPollStart = $pollOutcome.ProcessAuthPollStart
+                $processAuthPollEnd = $pollOutcome.ProcessAuthPollEnd
 
                 Write-Host "Push notification approved."
             }
@@ -991,10 +751,6 @@ function Invoke-XdrCredentialAuthentication {
                 -Headers $sasHeaders `
                 -WebSession $session -Verbose:$false
 
-            if ($captureDirectory) {
-                Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage '06-mfa-endauth' -Method 'POST' -Uri 'https://login.microsoftonline.com/common/SAS/EndAuth' -RequestBody ($endBody | ConvertFrom-Json) -ParsedState $endAuth -Session $session
-            }
-
             if (-not (Test-XdrMfaAuthSucceeded -Response $endAuth)) {
                 $errDetail = if ($endAuth.Message) { $endAuth.Message } else { $endAuth.ResultValue }
                 throw "MFA verification failed: $errDetail"
@@ -1004,104 +760,9 @@ function Invoke-XdrCredentialAuthentication {
             $beginAuth = $endAuth  # Carry forward FlowToken for ProcessAuth
         }
 
-        # ProcessAuth - finalize MFA and continue the login flow
-        $processRequest = if ($selectedMethod -eq 'PhoneAppNotification' -and $beginAuth.Ctx) {
-            $beginAuth.Ctx
-        } elseif ($beginAuth.MobileAppAuthDetails -and $beginAuth.MobileAppAuthDetails.AuthAppState) {
-            $beginAuth.MobileAppAuthDetails.AuthAppState
-        } elseif ($beginAuth.Ctx) {
-            $beginAuth.Ctx
-        } else {
-            $authState.sCtx
-        }
-
-        $processBody = Get-XdrProcessAuthRequestBody `
-            -SelectedMethod $selectedMethod `
-            -Username $Username `
-            -ProcessRequest $processRequest `
-            -BeginAuth $beginAuth `
-            -AuthState $authState `
-            -MfaLastPollStart $processAuthPollStart `
-            -MfaLastPollEnd $processAuthPollEnd
-
-        $processBodyForDebug = if ($processBody -is [string]) {
-            $processBody | ConvertFrom-Json
-        } else {
-            [pscustomobject]$processBody
-        }
-
-        $processContentType = if ($processBody -is [string]) {
-            'application/json'
-        } else {
-            'application/x-www-form-urlencoded'
-        }
-
-        Write-Verbose "Calling SAS/ProcessAuth..."
-        $processResponse = Invoke-XdrRedirectCapturingWebRequest `
-            -Method Post `
-            -Uri "https://login.microsoftonline.com/common/SAS/ProcessAuth" `
-            -Body $processBody `
-            -ContentType $processContentType `
-            -Headers $sasHeaders `
-            -Session $session
-
-        $processResponseState = Get-XdrAuthStateFromResponse -Response $processResponse
-
-        if (Test-XdrProcessAuthRetryableError -ParsedState $processResponseState) {
-            $formProcessBody = [ordered]@{
-                type         = 22
-                request      = $processRequest
-                flowToken    = $beginAuth.FlowToken
-                canary       = $authState.canary
-                hpgrequestid = $authState.correlationId
-            }
-
-            if ($selectedMethod -eq 'PhoneAppNotification') {
-                $formProcessBody['mfaAuthMethod'] = $selectedMethod
-                $formProcessBody['login'] = $Username
-                $formProcessBody['sacxt'] = ''
-                $formProcessBody['hideSmsInMfaProofs'] = 'false'
-                if ($null -ne $processAuthPollStart) {
-                    $formProcessBody['mfaLastPollStart'] = [string]$processAuthPollStart
-                }
-                if ($null -ne $processAuthPollEnd) {
-                    $formProcessBody['mfaLastPollEnd'] = [string]$processAuthPollEnd
-                }
-                if ($null -ne $authState.i19) {
-                    $formProcessBody['i19'] = [string]$authState.i19
-                }
-            } else {
-                $formProcessBody['ctx'] = $beginAuth.Ctx
-            }
-
-            if ($captureDirectory) {
-                Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage '07a-mfa-processauth-json-retryable-error' -Method 'POST' -Uri 'https://login.microsoftonline.com/common/SAS/ProcessAuth' -RequestBody $processBodyForDebug -Response $processResponse -ParsedState $processResponseState -Session $session
-            }
-
-            Write-Verbose 'ProcessAuth returned a retryable request parsing error. Retrying with login-form style field names.'
-            $processResponse = Invoke-XdrRedirectCapturingWebRequest `
-                -Method Post `
-                -Uri "https://login.microsoftonline.com/common/SAS/ProcessAuth" `
-                -Body $formProcessBody `
-                -ContentType 'application/x-www-form-urlencoded' `
-                -Headers $sasHeaders `
-                -Session $session
-
-            $processBody = $formProcessBody
-            $processBodyForDebug = [pscustomobject]$formProcessBody
-            $processResponseState = Get-XdrAuthStateFromResponse -Response $processResponse
-        }
-
-        if ($captureDirectory) {
-            Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage '07-mfa-processauth-raw' -Method 'POST' -Uri 'https://login.microsoftonline.com/common/SAS/ProcessAuth' -RequestBody $processBodyForDebug -Response $processResponse -ParsedState $processResponseState -Session $session
-        }
-
-        $processOutcome = Resolve-XdrAuthenticationResponse -Response $processResponse -Session $session
+        $processOutcome = Invoke-XdrSasProcessAuth -SelectedMethod $selectedMethod -Username $Username -BeginAuth $beginAuth -AuthState $authState -Session $session -Headers $sasHeaders -ProcessAuthUri 'https://login.microsoftonline.com/common/SAS/ProcessAuth' -MfaLastPollStart $processAuthPollStart -MfaLastPollEnd $processAuthPollEnd
+        $processOutcome = $processOutcome.Outcome
         $authState = $processOutcome.AuthState
-
-        if ($captureDirectory) {
-            Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage '08-mfa-processauth-resolved' -Method 'POST' -Uri 'https://login.microsoftonline.com/common/SAS/ProcessAuth' -RequestBody $processBodyForDebug -Response $processOutcome.Response -ParsedState $authState -Session $session
-        }
 
         if ($authState) {
             Write-Verbose "ProcessAuth completed (pgid: $($authState.pgid))"
@@ -1140,10 +801,6 @@ function Invoke-XdrCredentialAuthentication {
                     hpgrequestid = $authState.correlationId
                 }
 
-                if ($captureDirectory) {
-                    Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage '09a-proofup-skip-json-retryable-error' -Method 'POST' -Uri 'https://login.microsoftonline.com/common/SAS/ProcessAuth' -RequestBody ($skipBody | ConvertFrom-Json) -Response $skipResponse -ParsedState $skipResponseState -Session $session
-                }
-
                 Write-Verbose 'Proof-up skip ProcessAuth returned a retryable request parsing error. Retrying with login-form style field names.'
                 $skipResponse = Invoke-XdrRedirectCapturingWebRequest `
                     -Method Post `
@@ -1155,16 +812,8 @@ function Invoke-XdrCredentialAuthentication {
                 $skipResponseState = Get-XdrAuthStateFromResponse -Response $skipResponse
             }
 
-            if ($captureDirectory) {
-                Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage '09-proofup-skip-raw' -Method 'POST' -Uri 'https://login.microsoftonline.com/common/SAS/ProcessAuth' -RequestBody ($skipBody | ConvertFrom-Json) -Response $skipResponse -ParsedState $skipResponseState -Session $session
-            }
-
             $skipOutcome = Resolve-XdrAuthenticationResponse -Response $skipResponse -Session $session
             $authState = $skipOutcome.AuthState
-
-            if ($captureDirectory) {
-                Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage '10-proofup-skip-resolved' -Method 'POST' -Uri 'https://login.microsoftonline.com/common/SAS/ProcessAuth' -RequestBody ($skipBody | ConvertFrom-Json) -Response $skipOutcome.Response -ParsedState $authState -Session $session
-            }
         } else {
             throw "MFA registration is required for this account and cannot be skipped."
         }
@@ -1237,15 +886,8 @@ function Invoke-XdrCredentialAuthentication {
         $respFinalize = Invoke-WebRequest @reqParams
         Start-Sleep -Milliseconds 300
 
-        if ($captureDirectory) {
-            Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage ("11-interrupt-" + $currentPageId) -Method $handler.Method -Uri $reqParams.Uri -RequestBody $reqParams.Body -Response $respFinalize -ParsedState (Get-XdrAuthStateFromResponse -Response $respFinalize) -Session $session
-        }
-
         $interruptOutcome = Resolve-XdrAuthenticationResponse -Response $respFinalize -Session $session
         $debug = $interruptOutcome.AuthState
-        if ($captureDirectory) {
-            Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage ("12-interrupt-resolved-" + $currentPageId) -Method $handler.Method -Uri $reqParams.Uri -RequestBody $reqParams.Body -Response $interruptOutcome.Response -ParsedState $debug -Session $session
-        }
         if (-not $debug -or -not $debug.pgid) {
             break
         }
@@ -1271,10 +913,6 @@ function Invoke-XdrCredentialAuthentication {
         $allCookies | Where-Object Name -EQ "ESTSAUTHPERSISTENT"
         $allCookies | Where-Object Name -EQ "ESTSAUTHLIGHT"
     ) | Where-Object { $_ } | Sort-Object { $_.Value.Length } -Descending | Select-Object -First 1
-
-    if ($captureDirectory) {
-        Save-XdrAuthDebugRecord -Directory $captureDirectory -Stage '13-final-cookies' -Method 'GET' -Uri 'https://login.microsoftonline.com' -ParsedState ([pscustomobject]@{ SelectedCookie = $bestCookie.Name; SelectedCookieLength = $bestCookie.Value.Length }) -Session $session -Extra ([pscustomobject]@{ AvailableEstsCookies = @($estsCookies | ForEach-Object { [pscustomobject]@{ Name = $_.Name; Length = $_.Value.Length } }) })
-    }
 
     Write-Verbose "Obtained $($bestCookie.Name) cookie (length: $($bestCookie.Value.Length))"
     return $bestCookie.Value

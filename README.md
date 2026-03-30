@@ -45,9 +45,13 @@ Get-XdrTenantContext -Force
 
 | Cmdlet                                                          | Description                                                         |
 | --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Connect-XdrByBrowser                                            | Authenticate to Microsoft Defender XDR using an interactive browser sign-in |
 | Connect-XdrByEstsCookie                                         | Authenticate to Microsoft Defender XDR using ESTS cookie            |
-| Connect-XdrEndpointDeviceLiveResponse                           | Start interactive or non-interactive Live Response sessions         |
+| Connect-XdrByPhoneSignIn                                        | Authenticate to Microsoft Defender XDR using Microsoft Authenticator phone sign-in |
 | Connect-XdrBySoftwarePasskey                                    | Authenticate to Microsoft Defender XDR using a software FIDO2 passkey (local or Azure Key Vault) |
+| Connect-XdrBySSO                                                | Authenticate to Microsoft Defender XDR using browser-based single sign-on |
+| Connect-XdrByTemporaryAccessPass                                | Authenticate to Microsoft Defender XDR using a Temporary Access Pass |
+| Connect-XdrEndpointDeviceLiveResponse                           | Start interactive or non-interactive Live Response sessions         |
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encode Advanced Hunting queries for URL/API usage                   |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Close one or more active Live Response sessions                     |
 | Get-XdrActionsCenterHistory                                     | Retrieve historical actions from the Action Center                  |
@@ -188,6 +192,39 @@ Import-Module .\XDRInternals\XDRInternals.psd1
 # Connect to Microsoft Defender XDR using ESTSAUTH cookie
 Connect-XdrByEstsCookie
 ```
+
+```powershell
+# Connect to Microsoft Defender XDR using an interactive browser sign-in
+# Uses a dedicated secondary browser profile by default
+# Useful for passkey/FIDO2 or Temporary Access Pass flows
+Connect-XdrByBrowser -Username 'admin@contoso.com'
+```
+
+`Connect-XdrByBrowser` uses Chromium-compatible browser automation and cookie capture. On macOS, Microsoft Edge, Google Chrome, Brave, and Chromium are the supported browsers today. Safari is not currently supported by this flow.
+
+On macOS and Linux, `Connect-XdrByBrowser` is still an interactive flow. Complete any prompts until Defender XDR finishes loading so the cmdlet can capture the final session cookies.
+
+```powershell
+# Connect to Microsoft Defender XDR using Windows/browser single sign-on
+Connect-XdrBySSO
+```
+
+`Connect-XdrBySSO` is still a Windows-first flow, but it can also reuse existing Chromium browser session state on macOS and Linux when a supported browser profile already has the required sign-in state.
+
+`Connect-XdrBySSO -Visible` is useful for validating or troubleshooting the flow because it lets you confirm the browser reached Defender XDR before the cmdlet captures the session cookies.
+
+```powershell
+# Connect to Microsoft Defender XDR using a Temporary Access Pass
+$tap = ConvertTo-SecureString '+&YZuead' -AsPlainText -Force
+Connect-XdrByTemporaryAccessPass -Username 'admin@contoso.com' -TemporaryAccessPass $tap -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
+```
+
+```powershell
+# Connect to Microsoft Defender XDR using Microsoft Authenticator phone sign-in
+Connect-XdrByPhoneSignIn -Username 'admin@contoso.com'
+```
+
+Phone sign-in starts the Defender portal flow directly and shows the number returned by Entra ID when the service exposes it through the resume URL. Some tenants or accounts currently land in a `login.microsoft.com` passkey/native-bridge interstitial instead of inline `PhoneAppNotification`; in that case the cmdlet fails fast and `Connect-XdrByBrowser` remains the supported fallback.
 
 Or alternatively:
 

@@ -397,6 +397,77 @@ InModuleScope XDRInternals {
             $arguments | Should -Contain 'https://security.microsoft.com/'
         }
 
+        It 'suppresses interactive browser stdout and stderr on non-Windows platforms by default' {
+            if ($IsWindows) {
+                Set-ItResult -Skipped -Because 'Non-Windows launch behavior is not applicable on Windows.'
+                return
+            }
+
+            Mock Start-Process {
+                [pscustomobject]@{
+                    Id        = 1234
+                    HasExited = $false
+                }
+            } -ModuleName XDRInternals
+
+            $result = Start-XdrBrowserProcess -BrowserPath '/usr/bin/microsoft-edge-stable' -ArgumentList @('https://security.microsoft.com/') -SuppressBrowserOutput
+
+            Should -Invoke Start-Process -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $FilePath -eq '/usr/bin/microsoft-edge-stable' -and
+                -not [string]::IsNullOrWhiteSpace($RedirectStandardOutput) -and
+                -not [string]::IsNullOrWhiteSpace($RedirectStandardError) -and
+                $RedirectStandardOutput -ne $RedirectStandardError
+            }
+
+            $result.StandardOutputPath | Should -Not -BeNullOrEmpty
+            $result.StandardErrorPath | Should -Not -BeNullOrEmpty
+            $result.StandardOutputPath | Should -Not -Be $result.StandardErrorPath
+        }
+
+        It 'preserves interactive browser stdout and stderr on non-Windows platforms when suppression is disabled' {
+            if ($IsWindows) {
+                Set-ItResult -Skipped -Because 'Non-Windows launch behavior is not applicable on Windows.'
+                return
+            }
+
+            Mock Start-Process {
+                [pscustomobject]@{
+                    Id        = 1234
+                    HasExited = $false
+                }
+            } -ModuleName XDRInternals
+
+            $null = Start-XdrBrowserProcess -BrowserPath '/usr/bin/microsoft-edge-stable' -ArgumentList @('https://security.microsoft.com/')
+
+            Should -Invoke Start-Process -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $FilePath -eq '/usr/bin/microsoft-edge-stable' -and
+                -not $PSBoundParameters.ContainsKey('RedirectStandardOutput') -and
+                -not $PSBoundParameters.ContainsKey('RedirectStandardError')
+            }
+        }
+
+        It 'suppresses interactive browser output by default on non-Windows platforms' {
+            if ($IsWindows) {
+                Set-ItResult -Skipped -Because 'Non-Windows output suppression is not applicable on Windows.'
+                return
+            }
+
+            $result = Test-XdrBrowserProcessOutputSuppression
+
+            $result | Should -BeTrue
+        }
+
+        It 'disables interactive browser output suppression when verbose logging is enabled' {
+            if ($IsWindows) {
+                Set-ItResult -Skipped -Because 'Non-Windows output suppression is not applicable on Windows.'
+                return
+            }
+
+            $result = Test-XdrBrowserProcessOutputSuppression -Verbose
+
+            $result | Should -BeFalse
+        }
+
         It 'waits for portal cookies while the ESTS grace period is still active' {
             $result = Test-XdrBrowserAuthenticationCompletion -EstsCookie ([pscustomobject]@{ value = 'ests-cookie' }) -FirstEstsCookieObservedAt (Get-Date).AddSeconds(-10) -Deadline (Get-Date).AddMinutes(2)
 

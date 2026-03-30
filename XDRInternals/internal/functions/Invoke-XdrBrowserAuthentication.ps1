@@ -421,11 +421,65 @@ function Start-XdrBrowserProcess {
         [string]$BrowserPath,
 
         [Parameter(Mandatory)]
-        [string[]]$ArgumentList
+        [string[]]$ArgumentList,
+
+        [switch]$SuppressBrowserOutput
     )
 
     $formattedArgumentList = Format-XdrProcessArgumentList -ArgumentList $ArgumentList
+
+    if ($SuppressBrowserOutput -and -not $IsWindows) {
+        $redirectConfiguration = New-XdrBrowserProcessRedirectConfiguration
+        $process = Start-Process -FilePath $BrowserPath -ArgumentList $formattedArgumentList -PassThru -RedirectStandardOutput $redirectConfiguration.StandardOutputPath -RedirectStandardError $redirectConfiguration.StandardErrorPath
+        $null = $process | Add-Member -NotePropertyName StandardOutputPath -NotePropertyValue $redirectConfiguration.StandardOutputPath -PassThru
+        $null = $process | Add-Member -NotePropertyName StandardErrorPath -NotePropertyValue $redirectConfiguration.StandardErrorPath -PassThru
+        return $process
+    }
+
     return Start-Process -FilePath $BrowserPath -ArgumentList $formattedArgumentList -PassThru
+}
+
+function New-XdrBrowserProcessRedirectConfiguration {
+    [OutputType([pscustomobject])]
+    [CmdletBinding()]
+    param()
+
+    $temporaryPath = [System.IO.Path]::GetTempPath()
+
+    return [pscustomobject]@{
+        StandardOutputPath = [System.IO.Path]::Combine($temporaryPath, ('xdr-browser-stdout-' + [guid]::NewGuid().ToString('N') + '.log'))
+        StandardErrorPath  = [System.IO.Path]::Combine($temporaryPath, ('xdr-browser-stderr-' + [guid]::NewGuid().ToString('N') + '.log'))
+    }
+}
+
+function Remove-XdrBrowserProcessRedirectFiles {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [object]$Process
+    )
+
+    $redirectPaths = @()
+
+    if ($Process.PSObject.Properties['StandardOutputPath']) {
+        $redirectPaths += [string]$Process.StandardOutputPath
+    }
+
+    if ($Process.PSObject.Properties['StandardErrorPath']) {
+        $redirectPaths += [string]$Process.StandardErrorPath
+    }
+
+    foreach ($redirectPath in ($redirectPaths | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
+        Remove-Item -LiteralPath $redirectPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Test-XdrBrowserProcessOutputSuppression {
+    [OutputType([bool])]
+    [CmdletBinding()]
+    param()
+
+    return (-not $IsWindows) -and ($VerbosePreference -ne [System.Management.Automation.ActionPreference]::Continue)
 }
 
 function Test-XdrBrowserAuthenticationCompletion {
@@ -857,7 +911,7 @@ function Invoke-XdrBrowserAuthentication {
             Write-Host 'Complete the sign-in in the browser with the target account.'
         }
 
-        $browserProcess = Start-XdrBrowserProcess -BrowserPath $browser.Path -ArgumentList $arguments
+        $browserProcess = Start-XdrBrowserProcess -BrowserPath $browser.Path -ArgumentList $arguments -SuppressBrowserOutput:(Test-XdrBrowserProcessOutputSuppression)
         $versionInfo = Get-XdrBrowserCdpVersion -Port $debugPort -TimeoutSeconds 20
 
         $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -935,7 +989,10 @@ function Invoke-XdrBrowserAuthentication {
             $browserProcess.Refresh()
             if (-not $browserProcess.HasExited) {
                 Stop-Process -Id $browserProcess.Id -Force -ErrorAction SilentlyContinue
+                $browserProcess.WaitForExit(1000)
             }
+
+            Remove-XdrBrowserProcessRedirectFiles -Process $browserProcess
         }
 
         if ($profileConfiguration.CleanupProfileOnExit) {

@@ -410,10 +410,11 @@ function Format-XdrProcessArgumentList {
         $argument
     }
 
-    return @($formattedArguments)
+    return $formattedArguments
 }
 
 function Start-XdrBrowserProcess {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper that launches the browser process for authentication.')]
     [OutputType([System.Diagnostics.Process])]
     [CmdletBinding()]
     param(
@@ -440,6 +441,7 @@ function Start-XdrBrowserProcess {
 }
 
 function New-XdrBrowserProcessRedirectConfiguration {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper that allocates temporary redirect file paths for browser process output.')]
     [OutputType([pscustomobject])]
     [CmdletBinding()]
     param()
@@ -453,6 +455,8 @@ function New-XdrBrowserProcessRedirectConfiguration {
 }
 
 function Remove-XdrBrowserProcessRedirectFiles {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Private helper that cleans up temporary redirect files created for browser process output.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'Private helper operates on the redirect file set attached to a process object.')]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]

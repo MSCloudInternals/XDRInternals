@@ -4,7 +4,17 @@
         Retrieves endpoint devices from Microsoft Defender XDR.
 
     .DESCRIPTION
-        Gets a list of endpoint devices from the Microsoft Defender XDR portal with options to filter, sort, and paginate the results.
+        Gets endpoint devices from the Microsoft Defender XDR portal. Supports two modes:
+        - List (default): Retrieves devices with options to filter, sort, and paginate results.
+        - DeviceId: Retrieves detailed information for a single device by its identifier.
+          Uses the getMachine API and caches results for 5 minutes.
+
+    .PARAMETER DeviceId
+        The device identifier (also known as MachineId or SenseMachineId). When specified,
+        retrieves detailed information for a single device. Results are cached for 5 minutes.
+
+    .PARAMETER Force
+        Bypasses the cache when using -DeviceId and forces a fresh retrieval from the API.
 
     .PARAMETER HideLowFidelityDevices
         Whether to hide low fidelity devices from the results. Defaults to $true.
@@ -46,29 +56,42 @@
     .EXAMPLE
         Get-XdrEndpointDevice -MachineSearchPrefix "DESKTOP"
         Retrieves devices whose names start with "DESKTOP".
+
+    .EXAMPLE
+        Get-XdrEndpointDevice -DeviceId "abc123def456"
+        Retrieves detailed information for a single device by its identifier.
     #>
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'List')]
     param (
-        [Parameter()]
+        [Parameter(ParameterSetName = 'DeviceId', Mandatory = $true)]
+        [Alias('MachineId', 'SenseMachineId')]
+        [ValidateLength(40,40)]
+        [ValidatePattern('^[0-9a-fA-F]{40}$')]
+        [string]$DeviceId,
+
+        [Parameter(ParameterSetName = 'DeviceId')]
+        [switch]$Force,
+
+        [Parameter(ParameterSetName = 'List')]
         [string]$MachineSearchPrefix,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [int]$LookingBackInDays = 30,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [int]$PageIndex = 1,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [int]$PageSize = 25,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [string]$SortByField = "riskscore",
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [ValidateSet("Ascending", "Descending")]
         [string]$SortOrder = "Descending",
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'List')]
         [bool]$HideLowFidelityDevices = $true
     )
 
@@ -77,6 +100,33 @@
     }
 
     process {
+        if ($PSCmdlet.ParameterSetName -eq 'DeviceId') {
+            $CacheKey = "XdrDeviceDetails_$DeviceId"
+            if (-not $Force) {
+                $cache = Get-XdrCache -CacheKey $CacheKey -ErrorAction SilentlyContinue
+                if ($cache -and $cache.NotValidAfter -gt (Get-Date)) {
+                    Write-Verbose "Using cached device details for $DeviceId"
+                    return $cache.Value
+                }
+            }
+
+            $DeviceUri = "https://security.microsoft.com/apiproxy/mtp/getMachine/machines?machineId=$DeviceId&idType=SenseMachineId&readFromCache=false&lookingBackIndays=180"
+            Write-Verbose "Retrieving device details for DeviceId: $DeviceId"
+
+            try {
+                $result = Invoke-RestMethod -Uri $DeviceUri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+            } catch {
+                throw "Failed to retrieve device details for DeviceId '$DeviceId': $_"
+            }
+
+            if (-not $result) {
+                throw "Device not found: $DeviceId"
+            }
+
+            Set-XdrCache -CacheKey $CacheKey -Value $result -TTLMinutes 5
+            return $result
+        }
+
         $Uri = "https://security.microsoft.com/apiproxy/mtp/ndr/machines?hideLowFidelityDevices=$($HideLowFidelityDevices.ToString().ToLower())&lookingBackIndays=$LookingBackInDays&pageIndex=$PageIndex&pageSize=$PageSize&sortByField=$SortByField&sortOrder=$SortOrder"
 
         if ($PSBoundParameters.ContainsKey('MachineSearchPrefix')) {
@@ -89,14 +139,14 @@
             Write-Error "Failed to retrieve endpoint devices: $_"
             return
         }
-        
+
         # Add custom type name for formatting
         if ($result) {
             foreach ($machine in $result) {
                 $machine.PSObject.TypeNames.Insert(0, 'XdrEndpointDevice')
             }
         }
-        
+
         return $result
     }
 

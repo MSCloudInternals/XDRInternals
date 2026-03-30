@@ -124,7 +124,9 @@
     [CmdletBinding(DefaultParameterSetName = 'ByDeviceId')]
     param (
         [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, ParameterSetName = 'ByDeviceId')]
-        [Alias('MachineId')]
+        [Alias('MachineId', 'SenseMachineId')]
+        [ValidateLength(40,40)]
+        [ValidatePattern('^[0-9a-fA-F]{40}$')]
         [string]$DeviceId,
 
         [Parameter(Mandatory, ParameterSetName = 'ByMachineDnsName')]
@@ -564,7 +566,7 @@
                 # Poll for progress by counting completed chunk files
                 $lastCompletedCount = 0
                 $completedChunks = @{}
-                
+
                 # Wait for job to start or complete (covers NotStarted, Running states)
                 while ($parallelJob.State -in @('NotStarted', 'Running')) {
                     # Check timeout
@@ -577,7 +579,7 @@
                     # Count completed chunk files for progress
                     $chunkFiles = Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue
                     $completedFiles = $chunkFiles.Count
-                    
+
                     # Report newly completed chunks
                     if ($completedFiles -gt $lastCompletedCount) {
                         foreach ($file in $chunkFiles) {
@@ -589,13 +591,13 @@
                         }
                         $lastCompletedCount = $completedFiles
                     }
-                    
+
                     $percentComplete = [math]::Min(99, [math]::Round(($completedFiles / [math]::Max(1, $totalChunks)) * 100))
                     Write-Progress -Activity "Retrieving Device Timeline" -Status "Downloaded $completedFiles of $totalChunks chunks" -PercentComplete $percentComplete -Id 1
 
                     Start-Sleep -Milliseconds 250
                 }
-                
+
                 # Handle job terminal states (Failed, Stopped, Blocked, etc.)
                 $jobState = $parallelJob.State
                 if ($jobState -eq 'Failed') {
@@ -623,7 +625,7 @@
                 # Collect results from job and clean up
                 $results = Receive-Job -Job $parallelJob -Wait
                 Remove-Job -Job $parallelJob -Force
-                
+
                 # Force garbage collection after parallel job completes to reclaim thread memory
                 [System.GC]::Collect()
                 [System.GC]::WaitForPendingFinalizers()
@@ -834,7 +836,7 @@
                     [void]$powershell.AddParameter('cookieInfo', $cookieData)
                     [void]$powershell.AddParameter('headerInfo', $headersData)
                     [void]$powershell.AddParameter('baseUrl', $script:XdrBaseUrl)
-                    
+
                     @{
                         PowerShell = $powershell
                         Handle     = $powershell.BeginInvoke()
@@ -884,7 +886,7 @@
                             $job.PowerShell.Dispose()
                         }
                         $activeJobs.Remove($job) | Out-Null
-                        
+
                         # Queue next chunk if available
                         if ($chunkQueue.Count -gt 0) {
                             $nextChunk = $chunkQueue.Dequeue()
@@ -896,7 +898,7 @@
                     # Update progress by counting completed chunk files
                     $chunkFiles = Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue
                     $completedFiles = $chunkFiles.Count
-                    
+
                     # Report newly completed chunks
                     if ($completedFiles -gt $lastCompletedCount) {
                         foreach ($file in $chunkFiles) {
@@ -908,7 +910,7 @@
                         }
                         $lastCompletedCount = $completedFiles
                     }
-                    
+
                     $percentComplete = [math]::Min(99, [math]::Round(($completedFiles / [math]::Max(1, $totalJobs)) * 100))
                     Write-Progress -Activity "Retrieving Device Timeline" -Status "Downloaded $completedFiles of $totalJobs chunks (Active: $($activeJobs.Count), Queued: $($chunkQueue.Count))" -PercentComplete $percentComplete -Id 1
 
@@ -917,7 +919,7 @@
 
                 $runspacePool.Close()
                 $runspacePool.Dispose()
-                
+
                 # Force garbage collection after runspace pool completes to reclaim thread memory
                 [System.GC]::Collect()
                 [System.GC]::WaitForPendingFinalizers()
@@ -965,7 +967,7 @@
             # Merge all JSON files with progress - using memory-efficient streaming
             Write-Progress -Activity "Processing Results" -Status "Merging chunk files..." -PercentComplete 0 -Id 2
             Write-Verbose "Merging results from $($results.Count) chunk(s)..."
-            
+
             $jsonFiles = Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue | Sort-Object Name
 
             # If ExportPath is specified, use pure file-based merge (most memory efficient)
@@ -975,7 +977,7 @@
                 if ($exportDir -and -not (Test-Path $exportDir)) {
                     New-Item -Path $exportDir -ItemType Directory -Force | Out-Null
                 }
-                
+
                 # Stream merge directly to export file without loading into memory
                 $exportWriter = [System.IO.StreamWriter]::new($ExportPath, $false, [System.Text.Encoding]::UTF8)
                 try {
@@ -983,19 +985,19 @@
                     $isFirstEvent = $true
                     $fileIndex = 0
                     $totalFiles = $jsonFiles.Count
-                    
+
                     foreach ($file in $jsonFiles) {
                         $fileIndex++
                         $percentComplete = [math]::Round(($fileIndex / [math]::Max(1, $totalFiles)) * 100)
                         Write-Progress -Activity "Processing Results" -Status "Merging file $fileIndex of $totalFiles to export" -PercentComplete $percentComplete -Id 2
-                        
+
                         # Read file content as text and extract just the Events array
                         $rawContent = [System.IO.File]::ReadAllText($file.FullName)
                         # Find Events array - it starts after "Events":[ and ends before ],"EventCount" or ]}
                         $eventsStart = $rawContent.IndexOf('"Events":[') + 10
                         $eventsEnd = $rawContent.LastIndexOf('],"EventCount"')
                         if ($eventsEnd -lt 0) { $eventsEnd = $rawContent.LastIndexOf(']}') }
-                        
+
                         if ($eventsStart -gt 10 -and $eventsEnd -gt $eventsStart) {
                             $eventsJson = $rawContent.Substring($eventsStart, $eventsEnd - $eventsStart)
                             if ($eventsJson.Length -gt 0) {
@@ -1005,7 +1007,7 @@
                             }
                         }
                         $rawContent = $null
-                        
+
                         # GC periodically
                         if ($fileIndex % 50 -eq 0) {
                             [System.GC]::Collect()
@@ -1018,7 +1020,7 @@
                 }
                 Write-Progress -Activity "Processing Results" -Completed -Id 2
                 Write-Information "Exported $totalEvents events to: $ExportPath" -InformationAction Continue
-                
+
                 # Clean up temp files unless KeepTempFiles is specified
                 if (-not $KeepTempFiles) {
                     Write-Verbose "Cleaning up temporary files..."
@@ -1026,9 +1028,9 @@
                 } else {
                     Write-Verbose "Temporary files kept at: $runTempPath"
                 }
-                
+
                 [System.GC]::Collect()
-                
+
                 # Return summary info instead of all events when exporting
                 return [PSCustomObject]@{
                     ExportPath       = $ExportPath
@@ -1039,7 +1041,7 @@
                     EffectiveRate    = $overallEventsPerSec
                 }
             }
-            
+
             # For in-memory return, load events but with aggressive memory management
             $allEvents = [System.Collections.Generic.List[object]]::new([math]::Max(10000, $totalEvents))
 
@@ -1054,12 +1056,12 @@
                 $rawContent = Get-Content -Path $file.FullName -Raw
                 $chunkData = $rawContent | ConvertFrom-Json
                 $rawContent = $null  # Free the raw string memory
-                
+
                 if ($chunkData.Events) {
                     $allEvents.AddRange($chunkData.Events)
                 }
                 $chunkData = $null  # Free parsed object memory
-                
+
                 # Force garbage collection every 100 files to prevent memory buildup
                 if ($fileIndex % 100 -eq 0) {
                     [System.GC]::Collect()
@@ -1112,7 +1114,7 @@
             $allEvents.Clear()
             $allEvents = $null
             [System.GC]::Collect()
-            
+
             return $result
         } catch {
             Write-Progress -Activity "Retrieving Device Timeline" -Completed -Id 1

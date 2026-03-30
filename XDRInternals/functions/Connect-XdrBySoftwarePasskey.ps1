@@ -45,7 +45,7 @@
         Azure Key Vault REST API version to use for the Sign operation. Defaults to '7.4'.
 
     .PARAMETER UserAgent
-        User-Agent string for HTTP requests. Defaults to Edge browser user agent.
+        User-Agent string for HTTP requests. Defaults to a browser-compatible Edge user agent.
 
     .EXAMPLE
         Connect-XdrBySoftwarePasskey -KeyFilePath ".github\secadmin.passkey"
@@ -53,14 +53,14 @@
         Authenticates using a local passkey stored in a JSON file.
 
     .EXAMPLE
-        Connect-XdrBySoftwarePasskey -KeyFilePath ".\kv-passkey.json" -TenantId "847b5907-ca15-40f4-b171-eb18619dbfab"
+        Connect-XdrBySoftwarePasskey -KeyFilePath ".\kv-passkey.json" -TenantId "8612f621-73ca-4c12-973c-0da732bc44c2"
 
         Authenticates using an Azure Key Vault passkey and connects to a specific XDR tenant.
         Key Vault access is obtained automatically via Az module or Azure CLI.
 
     .EXAMPLE
         Connect-AzAccount
-        Connect-XdrBySoftwarePasskey -KeyFilePath ".\kv-passkey.json" -KeyVaultTenantId "847b5907-ca15-40f4-b171-eb18619dbfab"
+        Connect-XdrBySoftwarePasskey -KeyFilePath ".\kv-passkey.json" -KeyVaultTenantId "8612f621-73ca-4c12-973c-0da732bc44c2"
 
         Signs in to Azure first, then authenticates with a Key Vault passkey scoped to that tenant.
 
@@ -82,7 +82,7 @@
         [string]$KeyVaultClientId,
         [string]$KeyVaultApiVersion = '7.4',
 
-        [string]$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
+        [string]$UserAgent = (Get-XdrDefaultUserAgent)
     )
 
     process {
@@ -98,12 +98,6 @@
 
         $estsAuth = Invoke-XdrPasskeyAuthentication @passkeyParams
 
-        $connectParams = @{
-            EstsAuthCookieValue = $estsAuth
-            UserAgent           = $UserAgent
-        }
-        if ($TenantId) { $connectParams.TenantId = $TenantId }
-
-        Connect-XdrByEstsCookie @connectParams
+        Connect-XdrAuthArtifactSet -EstsAuthCookieValue $estsAuth -TenantId $TenantId -UserAgent $UserAgent -FailureLabel 'Software passkey authentication'
     }
 }

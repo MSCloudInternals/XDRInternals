@@ -318,6 +318,64 @@ InModuleScope XDRInternals {
             Get-XdrDefaultUserAgent | Should -Be 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
         }
 
+        It 'uses select_account for browser auth when Username is omitted' {
+            $startUrl = Get-XdrBrowserInteractiveStartUrl -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
+
+            $startUrl | Should -Match 'prompt=select_account'
+            $startUrl | Should -Not -Match 'login_hint='
+        }
+
+        It 'uses login and login_hint for browser auth when Username is provided' {
+            $startUrl = Get-XdrBrowserInteractiveStartUrl -Username 'user@contoso.com' -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
+
+            $startUrl | Should -Match 'prompt=login'
+            $startUrl | Should -Match 'login_hint=user%40contoso.com'
+        }
+
+        It 'initializes the dedicated Chromium profile as XDRInternals without restoring previous tabs' {
+            $profileRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('xdrinternals-browser-profile-' + [guid]::NewGuid().ToString('N'))
+
+            try {
+                Initialize-XdrBrowserProfile -ProfilePath $profileRoot
+
+                $namedProfilePath = Join-Path $profileRoot 'XDRInternals'
+                $preferencesPath = Join-Path $namedProfilePath 'Preferences'
+                $localStatePath = Join-Path $profileRoot 'Local State'
+                $preferences = Get-Content -LiteralPath $preferencesPath -Raw | ConvertFrom-Json
+                $localState = Get-Content -LiteralPath $localStatePath -Raw | ConvertFrom-Json
+
+                Test-Path -LiteralPath $namedProfilePath -PathType Container | Should -BeTrue
+                $preferences.profile.name | Should -Be 'XDRInternals'
+                $preferences.profile.exit_type | Should -Be 'Normal'
+                $preferences.session.restore_on_startup | Should -Be 5
+                @($preferences.session.startup_urls).Count | Should -Be 0
+                $preferences.sync.requested | Should -BeFalse
+                $preferences.signin.allowed | Should -BeTrue
+                $preferences.browser.has_seen_welcome_page | Should -BeTrue
+                $localState.profile.last_used | Should -Be 'XDRInternals'
+            } finally {
+                Remove-Item -Path $profileRoot -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It 'migrates the legacy Default browser profile to XDRInternals' {
+            $profileRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('xdrinternals-browser-migration-' + [guid]::NewGuid().ToString('N'))
+            $legacyProfilePath = Join-Path $profileRoot 'Default'
+            $sentinelPath = Join-Path $legacyProfilePath 'Sentinel.txt'
+
+            try {
+                $null = New-Item -ItemType Directory -Path $legacyProfilePath -Force
+                Set-Content -LiteralPath $sentinelPath -Value 'legacy profile data'
+
+                Initialize-XdrBrowserProfile -ProfilePath $profileRoot
+
+                Test-Path -LiteralPath (Join-Path $profileRoot 'Default') -PathType Container | Should -BeFalse
+                Test-Path -LiteralPath (Join-Path $profileRoot 'XDRInternals/Sentinel.txt') -PathType Leaf | Should -BeTrue
+            } finally {
+                Remove-Item -Path $profileRoot -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
         It 'selects host-only ESTS cookies captured from the browser' {
             $cookie = Get-XdrBestBrowserEstsCookie -Cookies @(
                 [pscustomobject]@{
@@ -397,6 +455,12 @@ InModuleScope XDRInternals {
             $arguments | Should -Contain 'https://security.microsoft.com/'
         }
 
+        It 'uses the XDRInternals Chromium profile directory when launching browser auth' {
+            $arguments = Get-XdrBrowserLaunchArgumentList -Browser ([pscustomobject]@{ Name = 'Microsoft Edge'; Path = 'msedge.exe' }) -UsePrivateSession:$false -DebugPort 9222 -ProfileDirectory '/tmp/xdr-browser-profile' -StartUrl 'https://security.microsoft.com/'
+
+            $arguments | Should -Contain '--profile-directory=XDRInternals'
+        }
+
         It 'suppresses interactive browser stdout and stderr on non-Windows platforms by default' {
             if ($IsWindows) {
                 Set-ItResult -Skipped -Because 'Non-Windows launch behavior is not applicable on Windows.'
@@ -443,6 +507,50 @@ InModuleScope XDRInternals {
                 $FilePath -eq '/usr/bin/microsoft-edge-stable' -and
                 -not $PSBoundParameters.ContainsKey('RedirectStandardOutput') -and
                 -not $PSBoundParameters.ContainsKey('RedirectStandardError')
+            }
+        }
+
+        It 'closes the browser gracefully before forcing termination' {
+            $process = [pscustomobject]@{
+                Id        = 1234
+                HasExited = $false
+            }
+            $null = $process | Add-Member -MemberType ScriptMethod -Name Refresh -Value { }
+
+            Mock Invoke-XdrBrowserCdpCommand { } -ModuleName XDRInternals
+            Mock Wait-XdrBrowserProcessExit {
+                param($Process, $TimeoutMilliseconds)
+
+                $Process.HasExited = $true
+                return $true
+            } -ModuleName XDRInternals
+            Mock Stop-Process { } -ModuleName XDRInternals
+
+            Stop-XdrBrowserProcess -Process $process -BrowserWebSocketUrl 'ws://browser-target'
+
+            Should -Invoke Invoke-XdrBrowserCdpCommand -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $WebSocketUrl -eq 'ws://browser-target' -and
+                $Method -eq 'Browser.close'
+            }
+            Should -Invoke Stop-Process -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'falls back to force termination when graceful close does not exit the browser' {
+            $process = [pscustomobject]@{
+                Id        = 1234
+                HasExited = $false
+            }
+            $null = $process | Add-Member -MemberType ScriptMethod -Name Refresh -Value { }
+
+            Mock Invoke-XdrBrowserCdpCommand { throw 'close failed' } -ModuleName XDRInternals
+            Mock Wait-XdrBrowserProcessExit { return $false } -ModuleName XDRInternals
+            Mock Stop-Process { } -ModuleName XDRInternals
+
+            Stop-XdrBrowserProcess -Process $process -BrowserWebSocketUrl 'ws://browser-target'
+
+            Should -Invoke Stop-Process -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Id -eq 1234 -and
+                $Force
             }
         }
 

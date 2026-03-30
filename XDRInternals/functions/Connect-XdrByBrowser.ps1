@@ -11,8 +11,10 @@
         This browser-driven flow is intended for interactive authentication branches such as
         FIDO2/passkeys and Temporary Access Pass.
 
-        By default the cmdlet uses a dedicated secondary browser profile so browser and device
-        state can participate in authentication without reusing the user's primary profile.
+        By default the cmdlet uses a dedicated secondary Chromium profile named XDRInternals so
+        browser and device state can participate in authentication without reusing the user's
+        primary profile. That dedicated profile is configured to open cleanly instead of restoring
+        tabs from previous runs.
 
         On macOS and Linux, this cmdlet remains interactive. Complete any browser prompts until
         Microsoft Defender XDR finishes loading so the cmdlet can capture the final session cookies.
@@ -32,8 +34,8 @@
         When omitted, a supported Chromium-based browser is auto-discovered.
 
     .PARAMETER ProfilePath
-        Optional dedicated browser profile path.
-        When omitted, a default secondary profile location is used.
+        Optional dedicated browser user data directory.
+        When omitted, a default secondary profile location is used for the XDRInternals profile.
 
     .PARAMETER ResetProfile
         Clears the dedicated browser profile before launching the sign-in flow.

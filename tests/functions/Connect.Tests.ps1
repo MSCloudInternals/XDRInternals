@@ -340,6 +340,30 @@ InModuleScope XDRInternals {
             $candidates.FilePath | Should -Contain (Join-Path $userApplicationRoot 'Chromium.app/Contents/MacOS/Chromium')
         }
 
+        It 'falls back to Google Chrome on macOS when Edge is unavailable' {
+            $browserRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('xdrinternals-browser-candidates-' + [guid]::NewGuid().ToString('N'))
+            $chromePath = Join-Path $browserRoot 'Google Chrome.app/Contents/MacOS/Google Chrome'
+
+            try {
+                $null = New-Item -ItemType Directory -Path ([System.IO.Path]::GetDirectoryName($chromePath)) -Force
+                $null = New-Item -ItemType File -Path $chromePath -Force
+
+                Mock Get-XdrMacOSBrowserCandidateSet {
+                    @(
+                        [pscustomobject]@{ Name = 'Microsoft Edge'; FilePath = '/path/that/does/not/exist/Microsoft Edge' }
+                        [pscustomobject]@{ Name = 'Google Chrome'; FilePath = $chromePath }
+                    )
+                } -ModuleName XDRInternals
+
+                $result = Resolve-XdrMacOSBrowserPath
+
+                $result.Name | Should -Be 'Google Chrome'
+                $result.Path | Should -Be $chromePath
+            } finally {
+                Remove-Item -Path $browserRoot -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
         It 'resolves a macOS app bundle path to its executable path' {
             $bundleRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('xdrinternals-browser-bundle-' + [guid]::NewGuid().ToString('N'))
             $bundlePath = Join-Path $bundleRoot 'Contoso Browser.app'
@@ -438,7 +462,7 @@ InModuleScope XDRInternals {
 
             Mock Start-Process {
                 [pscustomobject]@{
-                    Id       = 1234
+                    Id        = 1234
                     HasExited = $false
                 }
             } -ModuleName XDRInternals
@@ -460,7 +484,7 @@ InModuleScope XDRInternals {
 
             Mock Start-Process {
                 [pscustomobject]@{
-                    Id       = 1234
+                    Id        = 1234
                     HasExited = $false
                 }
             } -ModuleName XDRInternals

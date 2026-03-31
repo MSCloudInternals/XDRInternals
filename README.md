@@ -54,6 +54,8 @@ Get-XdrTenantContext -Force
 | Connect-XdrEndpointDeviceLiveResponse                           | Start interactive or non-interactive Live Response sessions         |
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encode Advanced Hunting queries for URL/API usage                   |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Close one or more active Live Response sessions                     |
+| Export-AzureDataExplorer                                        | Queue pipeline data for Azure Data Explorer ingestion               |
+| Get-AzureDataExplorerIngestionStatus                            | Get or wait on queued Azure Data Explorer ingestion operations      |
 | Get-XdrActionsCenterHistory                                     | Retrieve historical actions from the Action Center                  |
 | Get-XdrActionsCenterPending                                     | Retrieve pending actions from the Action Center                     |
 | Get-XdrAdvancedHuntingFunction                                  | Get saved Advanced Hunting functions                                |
@@ -151,6 +153,7 @@ Get-XdrTenantContext -Force
 | Set-XdrConfigurationCriticalAssetManagementClassification       | Enable or disable classification rules                              |
 | Set-XdrConfigurationPreviewFeatures                             | Enable or disable XDR preview features                              |
 | Set-XdrConnectionSettings                                       | Configure connection settings for XDR                               |
+| Set-AzureDataExplorerConnection                                 | Configure Azure Data Explorer export settings                       |
 | Set-XdrEndpointAdvancedFeatures                                 | Set endpoint advanced features configuration                        |
 | Set-XdrEndpointConfigurationCustomCollectionRule                | Update existing custom collection rules                             |
 | Set-XdrEndpointDeviceAssetValue                                 | Set the asset value for one or more devices                         |
@@ -320,6 +323,86 @@ Notes:
 - `Connect-XdrEndpointDeviceLiveResponse -NonInteractive` accepts pipeline input from `Get-XdrEndpointDevice` and supports `-NoStatusTable` when connecting to multiple devices.
 - `Invoke-XdrEndpointDeviceLiveResponseCommand` expands common table outputs such as `processes`, `services`, `drivers`, `connections`, `dir`, and `persistence` into typed row objects by default. Use `-RawCommandResult` to keep the original API response shape, or `-IncludeCommandResult` together with `-ExpandTableOutput` to emit both forms.
 - `Disconnect-XdrEndpointDeviceLiveResponse` accepts session objects or raw session IDs from the pipeline.
+
+#### Azure Data Explorer export
+
+Export XDR data directly to Azure Data Explorer for long-term investigation and custom analytics. The cmdlet supports two modes: **typed source routing** (recommended) which automatically creates well-structured tables, and **manual table** mode for custom schemas.
+
+##### Authentication
+
+`Export-AzureDataExplorer` requires a separate Azure Data Explorer token — this is independent of your XDR portal session. The token is acquired automatically using the following priority:
+
+| Method | When available |
+| --- | --- |
+| ESTS CLI bridge | `Connect-XdrByCredential` or `Connect-XdrByBrowser` (captures ESTS cookies) |
+| Az.Accounts | `Connect-AzAccount` is active |
+| Azure CLI | `az login` session exists |
+| Managed identity | Running on Azure with IMDS |
+| Explicit token | `-AccessToken` on `Set-AzureDataExplorerConnection` |
+
+> **Important:** `Connect-XdrBySSO` and `Set-XdrConnection` (with raw sccauth/xsrf tokens) do **not** capture ESTS cookies, so the silent CLI bridge is unavailable. When using these methods, ensure you have an active `Connect-AzAccount` or `az login` session, or provide an explicit `-AccessToken`.
+
+##### Typed source routing (recommended)
+
+Use `-Source` to automatically route events into purpose-built typed tables with promoted columns:
+
+```powershell
+# Configure the target ADX cluster once per session
+Set-AzureDataExplorerConnection `
+    -ClusterUri 'https://mycluster.westeurope.kusto.windows.net' `
+    -Database 'Investigations'
+
+# Device timeline — auto-splits into XDRDeviceTimelineProcessEvents,
+# XDRDeviceTimelineNetworkEvents, XDRDeviceTimelineFileEvents, etc.
+Get-XdrEndpointDeviceTimeline -DeviceId $deviceId -LastNDays 7 |
+    Export-AzureDataExplorer -Source DeviceTimeline -WaitForIngestion -Verbose
+
+# Identity timeline — routes to XDRIdentityTimelineCloudAppEvents,
+# XDRIdentityTimelineSignInEvents, XDRIdentityTimelineAlerts
+Get-XdrIdentityTimeline -Upn 'user@contoso.com' -LastNDays 7 |
+    Export-AzureDataExplorer -Source IdentityTimeline -Verbose
+
+# Standalone sources
+Get-XdrAlert | Export-AzureDataExplorer -Source Alert
+Get-XdrIncident | Export-AzureDataExplorer -Source Incident
+Get-XdrEndpointDevice | Export-AzureDataExplorer -Source Device
+```
+
+Typed tables created automatically:
+
+| Source | Tables |
+| --- | --- |
+| DeviceTimeline | `XDRDeviceTimelineProcessEvents`, `XDRDeviceTimelineFileEvents`, `XDRDeviceTimelineNetworkEvents`, `XDRDeviceTimelineRegistryEvents`, `XDRDeviceTimelineLogonEvents`, `XDRDeviceTimelineAlertEvents`, `XDRDeviceTimelineOtherEvents` |
+| IdentityTimeline | `XDRIdentityTimelineCloudAppEvents`, `XDRIdentityTimelineSignInEvents`, `XDRIdentityTimelineAlerts` |
+| Alert | `XDRAlerts` |
+| Incident | `XDRIncidents` |
+| Device | `XDRDevices` |
+| AdvancedHunting | `XDRAdvancedHuntingResults` |
+
+Every typed table includes an `Event` dynamic column containing the complete original event, so no data is lost even when specific columns aren't promoted.
+
+##### Manual table mode
+
+For custom schemas or ad-hoc exports, specify a table name directly:
+
+```powershell
+Get-XdrEndpointDeviceTimeline -DeviceId $deviceId -LastNDays 7 |
+    Export-AzureDataExplorer -TableName 'DeviceTimeline'
+
+# Track ingestion and wait for completion
+Get-XdrEndpointDeviceTimeline -DeviceId $deviceId -LastNDays 7 |
+    Export-AzureDataExplorer -TableName 'DeviceTimeline' -WaitForIngestion -Verbose
+
+# Check status of a tracked operation
+Get-AzureDataExplorerIngestionStatus -TableName 'DeviceTimeline' -OperationId 'op-id' -Details
+```
+
+##### Notes
+
+- Uses queued ingestion — uploads are asynchronous and data may take a few minutes to become queryable.
+- Payload files are gzip-compressed before upload unless `-DisableCompression` is specified.
+- Long-running exports automatically refresh the queued-ingestion storage configuration before SAS expiry.
+- Prefer `-TrackIngestion` only when you need operation IDs for troubleshooting.
 
 ## License
 

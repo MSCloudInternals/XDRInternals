@@ -178,7 +178,10 @@
         "Set-XdrEndpointDeviceTag",
         "Set-XdrIdentityConfigurationRemediationActionAccount",
         "Stop-XdrEndpointDeviceAction",
+        "Export-AzureDataExplorer",
         "Export-XdrToSentinel",
+        "Get-AzureDataExplorerIngestionStatus",
+        "Set-AzureDataExplorerConnection",
         "Set-XdrSentinelConnection",
         "Update-XdrConnectionSettings"
     )

@@ -1,4 +1,4 @@
-﻿@{
+@{
 
     # Script module or binary module file associated with this manifest.
     RootModule        = 'XDRInternals.psm1'
@@ -178,10 +178,11 @@
         "Set-XdrEndpointDeviceTag",
         "Set-XdrIdentityConfigurationRemediationActionAccount",
         "Stop-XdrEndpointDeviceAction",
-        "Export-AzureDataExplorer",
+        "Export-XdrAzureDataExplorer",
         "Export-XdrToSentinel",
-        "Get-AzureDataExplorerIngestionStatus",
-        "Set-AzureDataExplorerConnection",
+        "Get-XdrAzureDataExplorerIngestionStatus",
+        "Invoke-XdrAzureDataExplorerQuery",
+        "Set-XdrAzureDataExplorerConnection",
         "Set-XdrSentinelConnection",
         "Update-XdrConnectionSettings"
     )

@@ -1,4 +1,4 @@
-﻿function Export-AzureDataExplorer {
+function Export-XdrAzureDataExplorer {
     <#
     .SYNOPSIS
         Exports pipeline data to Azure Data Explorer using queued ingestion.
@@ -15,10 +15,10 @@
 
         Queued ingestion is asynchronous. After this cmdlet uploads blobs and submits ingestion
         requests, Azure Data Explorer may still take several minutes before the data is queryable.
-        Use -TrackIngestion together with Get-AzureDataExplorerIngestionStatus, or use
+        Use -TrackIngestion together with Get-XdrAzureDataExplorerIngestionStatus, or use
         -WaitForIngestion when you want the cmdlet to wait for queued ingestion to finish.
 
-        Requires Set-AzureDataExplorerConnection to be called first.
+        Requires Set-XdrAzureDataExplorerConnection to be called first.
 
     .NOTES
         AUTHENTICATION: This cmdlet requires a separate Azure Data Explorer token, independent
@@ -28,7 +28,7 @@
         Connect-XdrBySSO and Set-XdrConnection (with raw sccauth/xsrf tokens) do NOT capture
         ESTS cookies, so the silent CLI bridge is unavailable. When using these methods, ensure
         you have an active Connect-AzAccount or az login session, or provide an explicit
-        -AccessToken on Set-AzureDataExplorerConnection.
+        -AccessToken on Set-XdrAzureDataExplorerConnection.
 
     .PARAMETER Data
         The objects to export. Accepts pipeline input.
@@ -81,35 +81,35 @@
         Outputs the original input objects after staging them for ingestion.
 
     .EXAMPLE
-        Set-AzureDataExplorerConnection -ClusterUri "https://mycluster.westeurope.kusto.windows.net" -Database "Investigations"
-        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" | Export-AzureDataExplorer -TableName "DeviceTimeline"
+        Set-XdrAzureDataExplorerConnection -ClusterUri "https://mycluster.westeurope.kusto.windows.net" -Database "Investigations"
+        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" | Export-XdrAzureDataExplorer -TableName "DeviceTimeline"
 
         Exports a device timeline to Azure Data Explorer using queued ingestion with a single dynamic table.
 
     .EXAMPLE
-        Get-XdrIdentityUser -Upn "user@contoso.com" | Get-XdrIdentityUserTimeline -LastNDays 30 | Export-AzureDataExplorer -TableName "IdentityTimeline" -PassThru
+        Get-XdrIdentityUser -Upn "user@contoso.com" | Get-XdrIdentityUserTimeline -LastNDays 30 | Export-XdrAzureDataExplorer -TableName "IdentityTimeline" -PassThru
 
         Queues identity timeline data for ingestion and also passes the records through the pipeline.
 
     .EXAMPLE
-        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -LastNDays 7 | Export-AzureDataExplorer -TableName "DeviceTimeline" -TrackIngestion -Verbose
+        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -LastNDays 7 | Export-XdrAzureDataExplorer -TableName "DeviceTimeline" -TrackIngestion -Verbose
 
         Queues device timeline data for ingestion and asks ADX to return queued-ingestion operation IDs.
 
     .EXAMPLE
-        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -LastNDays 7 | Export-AzureDataExplorer -TableName "DeviceTimeline" -WaitForIngestion -Verbose
+        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -LastNDays 7 | Export-XdrAzureDataExplorer -TableName "DeviceTimeline" -WaitForIngestion -Verbose
 
         Queues a device timeline export and waits until the queued-ingestion operations finish.
 
     .EXAMPLE
-        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -LastNDays 7 | Export-AzureDataExplorer -Source DeviceTimeline -Verbose
+        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -LastNDays 7 | Export-XdrAzureDataExplorer -Source DeviceTimeline -Verbose
 
         Exports a device timeline using typed table routing. Events are automatically split across
         tables like XDRDeviceTimelineProcessEvents, XDRDeviceTimelineNetworkEvents, etc. based on
         their ActionType.
 
     .EXAMPLE
-        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -LastNDays 7 | Export-AzureDataExplorer -Source DeviceTimeline -TableName "DeviceTimelineFallback" -WaitForIngestion -Verbose
+        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -LastNDays 7 | Export-XdrAzureDataExplorer -Source DeviceTimeline -TableName "DeviceTimelineFallback" -WaitForIngestion -Verbose
 
         Exports a device timeline using typed table routing with a fallback table for unrecognized
         event types, and waits for all queued ingestion operations to complete.

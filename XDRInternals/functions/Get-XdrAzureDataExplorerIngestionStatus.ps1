@@ -1,14 +1,14 @@
-﻿function Get-AzureDataExplorerIngestionStatus {
+function Get-XdrAzureDataExplorerIngestionStatus {
     <#
     .SYNOPSIS
         Gets the status of queued Azure Data Explorer ingestion operations.
 
     .DESCRIPTION
         Queries the Azure Data Explorer queued-ingestion status REST endpoint for one or more
-        ingestion operation IDs. Use this cmdlet after Export-AzureDataExplorer -TrackIngestion,
+        ingestion operation IDs. Use this cmdlet after Export-XdrAzureDataExplorer -TrackIngestion,
         or use -WaitForCompletion to block until the queued-ingestion operations finish.
 
-        Requires Set-AzureDataExplorerConnection to be called first.
+        Requires Set-XdrAzureDataExplorerConnection to be called first.
 
     .PARAMETER TableName
         The target Azure Data Explorer table name that the queued-ingestion operation targeted.
@@ -30,12 +30,12 @@
         Number of seconds between queued-ingestion status polls when -WaitForCompletion is specified.
 
     .EXAMPLE
-        Get-AzureDataExplorerIngestionStatus -TableName "DeviceTimeline" -OperationId "ingest_op_12345"
+        Get-XdrAzureDataExplorerIngestionStatus -TableName "DeviceTimeline" -OperationId "ingest_op_12345"
 
         Gets the current status of a queued-ingestion operation.
 
     .EXAMPLE
-        Get-AzureDataExplorerIngestionStatus -TableName "DeviceTimeline" -OperationId "ingest_op_12345" -WaitForCompletion -Details
+        Get-XdrAzureDataExplorerIngestionStatus -TableName "DeviceTimeline" -OperationId "ingest_op_12345" -WaitForCompletion -Details
 
         Waits for the queued-ingestion operation to finish and returns detailed blob status.
 

@@ -1,12 +1,12 @@
-﻿Describe 'Azure Data Explorer export' {
+Describe 'Azure Data Explorer export' {
     BeforeAll {
         Import-Module "$global:testroot\..\XDRInternals\XDRInternals.psd1" -Force
     }
 
-    Describe 'Set-AzureDataExplorerConnection' {
+    Describe 'Set-XdrAzureDataExplorerConnection' {
         It 'derives the ingestion endpoint from the cluster URI' {
             InModuleScope XDRInternals {
-                Set-AzureDataExplorerConnection -ClusterUri 'https://contoso.westeurope.kusto.windows.net' -Database 'Investigations'
+                Set-XdrAzureDataExplorerConnection -ClusterUri 'https://contoso.westeurope.kusto.windows.net' -Database 'Investigations'
 
                 $connection = Get-XdrAzureDataExplorerConnection
                 $connection.ClusterUri.AbsoluteUri | Should -Be 'https://contoso.westeurope.kusto.windows.net/'
@@ -273,7 +273,7 @@
         }
     }
 
-    Describe 'Export-AzureDataExplorer' {
+    Describe 'Export-XdrAzureDataExplorer' {
         BeforeEach {
             InModuleScope XDRInternals {
                 $script:AzureDataExplorerConnection = [pscustomobject]@{
@@ -333,7 +333,7 @@
                 [pscustomobject]@{ DeviceId = 'device-2'; EventType = 'NetworkConnection' }
             )
 
-            $result = @($records | Export-AzureDataExplorer -TableName 'DeviceTimeline' -TempPath $TestDrive -PassThru)
+            $result = @($records | Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $TestDrive -PassThru)
 
             $result.Count | Should -Be 2
 
@@ -386,7 +386,7 @@
                 [pscustomobject]@{ DeviceId = 'device-2'; EventType = 'This string is intentionally long to force a service-sized rollover boundary.' }
             )
 
-            $null = @($records | Export-AzureDataExplorer -TableName 'DeviceTimeline' -TempPath $TestDrive)
+            $null = @($records | Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $TestDrive)
 
             Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 2 -Exactly
         }
@@ -396,7 +396,7 @@
                 [pscustomobject]@{ DeviceId = 'device-1'; EventType = 'ProcessCreated' }
             )
 
-            $null = @($records | Export-AzureDataExplorer -TableName 'DeviceTimeline' -TempPath $TestDrive -TrackIngestion)
+            $null = @($records | Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $TestDrive -TrackIngestion)
 
             Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
                 $TrackIngestion
@@ -408,7 +408,7 @@
                 [pscustomobject]@{ DeviceId = 'device-1'; EventType = 'ProcessCreated' }
             )
 
-            $null = @($records | Export-AzureDataExplorer -TableName 'DeviceTimeline' -TempPath $TestDrive -WaitForIngestion)
+            $null = @($records | Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $TestDrive -WaitForIngestion)
 
             Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
                 $TrackIngestion
@@ -445,13 +445,13 @@
                 [pscustomobject]@{ DeviceId = 'device-1'; EventType = 'ProcessCreated' }
             )
 
-            $null = @($records | Export-AzureDataExplorer -TableName 'DeviceTimeline' -TempPath $TestDrive)
+            $null = @($records | Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $TestDrive)
 
             Should -Invoke Get-XdrAzureDataExplorerIngestionConfiguration -ModuleName XDRInternals -Times 2 -Exactly
         }
     }
 
-    Describe 'Get-AzureDataExplorerIngestionStatus' {
+    Describe 'Get-XdrAzureDataExplorerIngestionStatus' {
         BeforeEach {
             InModuleScope XDRInternals {
                 $script:AzureDataExplorerConnection = [pscustomobject]@{
@@ -497,7 +497,7 @@
 
         It 'queries the current status for each operation id' {
             $result = @(
-                'ingest-op-1', 'ingest-op-2' | Get-AzureDataExplorerIngestionStatus -TableName 'DeviceTimeline'
+                'ingest-op-1', 'ingest-op-2' | Get-XdrAzureDataExplorerIngestionStatus -TableName 'DeviceTimeline'
             )
 
             $result.Count | Should -Be 2
@@ -512,7 +512,7 @@
 
         It 'waits for completion when requested' {
             $result = @(
-                Get-AzureDataExplorerIngestionStatus -TableName 'DeviceTimeline' -OperationId 'ingest-op-1' -WaitForCompletion -Details
+                Get-XdrAzureDataExplorerIngestionStatus -TableName 'DeviceTimeline' -OperationId 'ingest-op-1' -WaitForCompletion -Details
             )
 
             $result.Count | Should -Be 1
@@ -797,7 +797,7 @@
         }
     }
 
-    Describe 'Export-AzureDataExplorer with Source mode' {
+    Describe 'Export-XdrAzureDataExplorer with Source mode' {
         BeforeEach {
             InModuleScope XDRInternals {
                 $script:AzureDataExplorerConnection = [pscustomobject]@{
@@ -858,7 +858,7 @@
                 [pscustomobject]@{ ActionType = 'ConnectionSuccess'; Machine = @{ MachineId = 'm3' } }
             )
 
-            $null = @($records | Export-AzureDataExplorer -Source 'DeviceTimeline' -TempPath $TestDrive)
+            $null = @($records | Export-XdrAzureDataExplorer -Source 'DeviceTimeline' -TempPath $TestDrive)
 
             Should -Invoke Initialize-XdrAzureDataExplorerTable -ModuleName XDRInternals -Times 3 -Exactly
             Should -Invoke Initialize-XdrAzureDataExplorerTable -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
@@ -889,7 +889,7 @@
                 [pscustomobject]@{ ActionType = 'SomethingNew'; Machine = @{ MachineId = 'm1' } }
             )
 
-            $null = @($records | Export-AzureDataExplorer -Source 'DeviceTimeline' -TempPath $TestDrive)
+            $null = @($records | Export-XdrAzureDataExplorer -Source 'DeviceTimeline' -TempPath $TestDrive)
 
             Should -Invoke Initialize-XdrAzureDataExplorerTable -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
                 $TableName -eq 'XDRDeviceTimelineOtherEvents'
@@ -905,7 +905,7 @@
                 [pscustomobject]@{ ActionType = 'FileCreated'; DeviceId = 'device-pass-2' }
             )
 
-            $result = @($records | Export-AzureDataExplorer -Source 'DeviceTimeline' -TempPath $TestDrive -PassThru)
+            $result = @($records | Export-XdrAzureDataExplorer -Source 'DeviceTimeline' -TempPath $TestDrive -PassThru)
 
             $result.Count | Should -Be 2
             $result[0].DeviceId | Should -Be 'device-pass-1'
@@ -918,12 +918,132 @@
                 [pscustomobject]@{ ActionType = 'FileCreated'; Machine = @{ MachineId = 'm2' } }
             )
 
-            $null = @($records | Export-AzureDataExplorer -Source 'DeviceTimeline' -TempPath $TestDrive -WaitForIngestion)
+            $null = @($records | Export-XdrAzureDataExplorer -Source 'DeviceTimeline' -TempPath $TestDrive -WaitForIngestion)
 
             Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 2 -Exactly -ParameterFilter {
                 $TrackIngestion
             }
             Should -Invoke Wait-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 2 -Exactly
+        }
+    }
+
+    Describe 'Invoke-XdrAzureDataExplorerQuery' {
+        BeforeEach {
+            InModuleScope XDRInternals {
+                $script:AzureDataExplorerConnection = [pscustomobject]@{
+                    ClusterUri              = [uri]'https://contoso.westeurope.kusto.windows.net'
+                    IngestionUri            = [uri]'https://ingest-contoso.westeurope.kusto.windows.net'
+                    Database                = 'Investigations'
+                    TenantId                = $null
+                    ManagedIdentityClientId = $null
+                    AccessToken             = $null
+                }
+            }
+        }
+
+        It 'sends a regular KQL query to the v2 query endpoint' {
+            InModuleScope XDRInternals {
+                Mock Get-XdrAzureAccessToken { return 'mock-token' }
+                Mock Invoke-XdrAzureDataExplorerRestRequest {
+                    return @(
+                        @{ FrameType = 'DataSetHeader'; IsProgressive = $false },
+                        @{ FrameType = 'DataTable'; TableKind = 'QueryProperties'; Columns = @(); Rows = @() },
+                        @{ FrameType = 'DataTable'; TableKind = 'PrimaryResult'; Columns = @(
+                            @{ ColumnName = 'Col1'; ColumnType = 'string' },
+                            @{ ColumnName = 'Col2'; ColumnType = 'long' }
+                        ); Rows = @(
+                            ,@('value1', 42)
+                            ,@('value2', 99)
+                        ) },
+                        @{ FrameType = 'DataSetCompletion'; HasErrors = $false }
+                    )
+                }
+
+                $results = Invoke-XdrAzureDataExplorerQuery -Query 'MyTable | take 10'
+
+                Should -Invoke Invoke-XdrAzureDataExplorerRestRequest -Times 1 -Exactly -ParameterFilter {
+                    $Path -eq '/v2/rest/query' -and
+                    $Body.db -eq 'Investigations' -and
+                    $Body.csl -eq 'MyTable | take 10'
+                }
+
+                $results | Should -HaveCount 2
+                $results[0].Col1 | Should -Be 'value1'
+                $results[0].Col2 | Should -Be 42
+                $results[1].Col1 | Should -Be 'value2'
+                $results[1].Col2 | Should -Be 99
+            }
+        }
+
+        It 'sends management commands to the v1 mgmt endpoint' {
+            InModuleScope XDRInternals {
+                Mock Get-XdrAzureAccessToken { return 'mock-token' }
+                Mock Invoke-XdrAzureDataExplorerRestRequest {
+                    return @{ Tables = @( @{ Columns = @(@{ColumnName='Name';DataType='String'}); Rows = @(,@('MyTable')) } ) }
+                }
+
+                $results = Invoke-XdrAzureDataExplorerQuery -Query '.show tables'
+
+                Should -Invoke Invoke-XdrAzureDataExplorerRestRequest -Times 1 -Exactly -ParameterFilter {
+                    $Path -eq '/v1/rest/mgmt'
+                }
+
+                $results | Should -HaveCount 1
+                $results[0].Name | Should -Be 'MyTable'
+            }
+        }
+
+        It 'returns raw response when -Raw is specified' {
+            InModuleScope XDRInternals {
+                Mock Get-XdrAzureAccessToken { return 'mock-token' }
+                $mockResponse = @(
+                    @{ FrameType = 'DataSetHeader'; IsProgressive = $false },
+                    @{ FrameType = 'DataTable'; TableKind = 'PrimaryResult'; Columns = @(
+                        @{ ColumnName = 'Col1'; ColumnType = 'string' }
+                    ); Rows = @(,@('value1')) },
+                    @{ FrameType = 'DataSetCompletion'; HasErrors = $false }
+                )
+                Mock Invoke-XdrAzureDataExplorerRestRequest { return $mockResponse }
+
+                $result = Invoke-XdrAzureDataExplorerQuery -Query 'MyTable | take 1' -Raw
+
+                $result | Should -HaveCount 3
+                $result[0].FrameType | Should -Be 'DataSetHeader'
+            }
+        }
+
+        It 'uses -Database parameter to override connection database' {
+            InModuleScope XDRInternals {
+                Mock Get-XdrAzureAccessToken { return 'mock-token' }
+                Mock Invoke-XdrAzureDataExplorerRestRequest {
+                    return @(
+                        @{ FrameType = 'DataTable'; TableKind = 'PrimaryResult'; Columns = @(); Rows = @() }
+                    )
+                }
+
+                Invoke-XdrAzureDataExplorerQuery -Query 'MyTable | take 1' -Database 'OtherDB'
+
+                Should -Invoke Invoke-XdrAzureDataExplorerRestRequest -Times 1 -Exactly -ParameterFilter {
+                    $Body.db -eq 'OtherDB'
+                }
+            }
+        }
+
+        It 'includes server timeout in request properties' {
+            InModuleScope XDRInternals {
+                Mock Get-XdrAzureAccessToken { return 'mock-token' }
+                Mock Invoke-XdrAzureDataExplorerRestRequest {
+                    return @(
+                        @{ FrameType = 'DataTable'; TableKind = 'PrimaryResult'; Columns = @(); Rows = @() }
+                    )
+                }
+
+                Invoke-XdrAzureDataExplorerQuery -Query 'MyTable | take 1' -ServerTimeout ([timespan]::FromMinutes(10))
+
+                Should -Invoke Invoke-XdrAzureDataExplorerRestRequest -Times 1 -Exactly -ParameterFilter {
+                    $Body.properties.Options.servertimeout -eq ([timespan]::FromMinutes(10)).ToString()
+                }
+            }
         }
     }
 }

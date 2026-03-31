@@ -1,10 +1,10 @@
-﻿function Get-XdrAzureDataExplorerConnection {
+function Get-XdrAzureDataExplorerConnection {
     [CmdletBinding()]
     param()
 
     process {
         if (-not $script:AzureDataExplorerConnection) {
-            throw "Azure Data Explorer connection not configured. Run Set-AzureDataExplorerConnection first."
+            throw "Azure Data Explorer connection not configured. Run Set-XdrAzureDataExplorerConnection first."
         }
 
         return $script:AzureDataExplorerConnection

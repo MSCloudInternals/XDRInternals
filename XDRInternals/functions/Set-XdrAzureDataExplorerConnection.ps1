@@ -1,11 +1,11 @@
-﻿function Set-AzureDataExplorerConnection {
+function Set-XdrAzureDataExplorerConnection {
     <#
     .SYNOPSIS
         Configures Azure Data Explorer connection settings for export cmdlets.
 
     .DESCRIPTION
         Stores the Azure Data Explorer cluster, ingestion endpoint, database, and auth settings
-        used by Export-AzureDataExplorer and Get-AzureDataExplorerIngestionStatus.
+        used by Export-XdrAzureDataExplorer and Get-XdrAzureDataExplorerIngestionStatus.
 
         If IngestionUri is omitted, the cmdlet derives it from the cluster URI by using the
         standard `ingest-<cluster>` hostname convention.
@@ -36,13 +36,13 @@
         Shows what would happen if the cmdlet runs without updating the module's Azure Data Explorer connection settings.
 
     .EXAMPLE
-        Set-AzureDataExplorerConnection -ClusterUri "https://mycluster.westeurope.kusto.windows.net" -Database "Investigations"
+        Set-XdrAzureDataExplorerConnection -ClusterUri "https://mycluster.westeurope.kusto.windows.net" -Database "Investigations"
 
         Configures the connection and derives the ingestion endpoint automatically.
 
     .EXAMPLE
         $token = az account get-access-token --resource https://api.kusto.windows.net --query accessToken -o tsv
-        Set-AzureDataExplorerConnection -ClusterUri "https://mycluster.westeurope.kusto.windows.net" -Database "Investigations" -AccessToken $token
+        Set-XdrAzureDataExplorerConnection -ClusterUri "https://mycluster.westeurope.kusto.windows.net" -Database "Investigations" -AccessToken $token
 
         Configures the connection with an explicit bearer token.
     #>

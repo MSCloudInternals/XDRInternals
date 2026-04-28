@@ -42,6 +42,7 @@
         implement logic to automatically fetch additional pages and aggregate all results.
         This will be added once testable data with pagination is available.
     #>
+    [OutputType([object[]])]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory, ValueFromPipeline)]
@@ -58,7 +59,7 @@
         }
 
         # Check if this object has the properties.columns/rows structure
-        if ($InputObject.PSObject.Properties['properties'] -and 
+        if ($InputObject.PSObject.Properties['properties'] -and
             $InputObject.properties.PSObject.Properties['columns'] -and
             $InputObject.properties.PSObject.Properties['rows']) {
 
@@ -110,3 +111,4 @@
         return $InputObject
     }
 }
+

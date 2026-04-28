@@ -29,7 +29,7 @@
     .PARAMETER StreamId
         The ID of the discovery stream to query. If not specified for types that require it,
         queries all available streams.
-        Accepts pipeline input from Get-XdrCloudAppsConfigurationDiscoveryStream via the _id property.
+        Accepts pipeline input from Get-XdrCloudAppsConfiguration -Type DiscoveryStream via the _id property.
 
     .PARAMETER StreamName
         The name of the discovery stream to query. Supports wildcards (e.g., "Defender*").
@@ -147,7 +147,7 @@
         Retrieves apps marked as unsanctioned from ALL streams.
 
     .EXAMPLE
-        Get-XdrCloudAppsConfigurationDiscoveryStream | Get-XdrCloudAppsDiscovery -Type Entity -EntityType Machine
+        Get-XdrCloudAppsConfiguration -Type DiscoveryStream | Get-XdrCloudAppsDiscovery -Type Entity -EntityType Machine
         Retrieves discovered machines from all streams via pipeline.
 
     .OUTPUTS
@@ -274,7 +274,7 @@
     process {
         # Handle ListStreams
         if ($PSCmdlet.ParameterSetName -eq 'ListStreams') {
-            return Get-XdrCloudAppsConfigurationDiscoveryStream -Force:$Force
+            return Get-XdrCloudAppsDiscoveryStream -Force:$Force
         }
 
         # Helper function to add stream context to results
@@ -734,3 +734,4 @@
     end {
     }
 }
+

@@ -208,7 +208,7 @@
         "ApiUri": "https://security.microsoft.com/apiproxy/mtp/sccManagement/mgmt/TenantContext"
     },
     {
-        "Cmdlet": "Get-XdrTenants",
+        "Cmdlet": "Get-XdrMtoTenantList",
         "ApiUri": "https://security.microsoft.com/apiproxy/mtoapi/tenants/TenantPicker"
     },
     {

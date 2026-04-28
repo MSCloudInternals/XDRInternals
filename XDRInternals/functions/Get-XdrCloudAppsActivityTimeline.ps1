@@ -1,149 +1,96 @@
 ﻿function Get-XdrCloudAppsActivityTimeline {
     <#
     .SYNOPSIS
-        Retrieves timeline of activities from Microsoft Defender for Cloud Apps.
+        Retrieves Microsoft Defender for Cloud Apps activity timeline data.
 
     .DESCRIPTION
-        The Get-XdrCloudAppsActivityTimeline cmdlet retrieves activities from the Microsoft Defender
-        for Cloud Apps activity log. You can filter by date, apply custom filters, and use parallel
-        chunked requests to improve performance for large date ranges.
-
-        For date filtering:
-        - Requests within 30 days use the regular activities API
-        - Requests older than 30 days use the archived activities API exclusively
-        - Maximum date range is 180 days
-
-        For large date ranges, the cmdlet automatically splits the request into time-based chunks
-        and processes them in parallel for improved performance. Results are written to temporary
-        files and merged at the end.
-
-        Use -Metadata or -ArchivedMetadata to retrieve filter and sorting field definitions.
-        Use -CountOnly to retrieve just the activity count without full data.
+        Retrieves Cloud Apps activity events with reliable chunking, retry handling,
+        recent/archived API routing, export support, and typed admin-friendly output.
 
     .PARAMETER Metadata
-        Returns simplified metadata about available filters for the regular activities API.
-        Shows filter name, supported operators, and input type.
+        Returns filter metadata for the recent activities API.
 
     .PARAMETER ArchivedMetadata
-        Returns simplified metadata about available filters for the archived activities API.
-        Shows filter name, supported operators, and input type.
+        Returns filter metadata for the archived activities API.
 
     .PARAMETER Raw
-        When used with -Metadata or -ArchivedMetadata, returns the full raw metadata response
-        instead of the simplified view.
+        Returns raw API metadata or response data when supported.
 
     .PARAMETER CountOnly
-        Returns only the count of matching activities without the full activity data.
+        Returns activity counts without retrieving full activity records.
 
     .PARAMETER FromDate
-        The start date for filtering activities. Cannot be in the future or older than 180 days.
+        Start of the timeline range.
 
     .PARAMETER ToDate
-        The end date for filtering activities. Defaults to current time if not specified.
-        If in the future, will be adjusted to current time with a warning.
+        End of the timeline range.
 
     .PARAMETER LastNDays
-        Retrieves activities from the last N days. Maximum is 180 days.
-        Alternative to using -FromDate/-ToDate.
+        Retrieves activity from the last specified number of days.
 
     .PARAMETER PageSize
-        The number of activities to retrieve per page. Default and maximum is 250.
+        Number of activities to request per page.
 
     .PARAMETER Filters
-        A hashtable of additional filters to apply to the activity query.
-        Use -Metadata to see available filter options.
+        Cloud Apps activity filters to include in the query body.
 
     .PARAMETER IncludeThreatScores
-        When specified, retrieves threat scores for returned activities and adds them as a
-        ThreatScore property on each activity object.
-        Note: Only available for recent activities (within 30 days).
+        Adds threat score data for recent activities when available.
 
     .PARAMETER ThrottleLimit
-        The maximum number of concurrent requests for parallel processing. Defaults to 10.
+        Maximum number of chunks to retrieve concurrently.
 
     .PARAMETER ChunkHours
-        The size of each time chunk in hours for parallel processing. Defaults to 24 hours.
-        Maximum is 168 hours (7 days) due to archived API limits.
-        For time windows of 48 hours or less, chunks are auto-calculated.
+        Maximum hours represented by each activity chunk.
+
+    .PARAMETER Aggressive
+        Uses higher concurrency and smaller chunks for incident response investigations.
 
     .PARAMETER TimeoutSeconds
-        Maximum time in seconds to wait for all requests to complete. Defaults to 3600 (1 hour).
+        Maximum total runtime for chunk retrieval.
 
     .PARAMETER MaxRetries
-        Maximum number of retry attempts for failed API requests. Defaults to 3.
+        Maximum retry attempts for each page request.
 
     .PARAMETER RetryDelaySeconds
-        Base delay in seconds between retry attempts (uses exponential backoff). Defaults to 5.
+        Base delay used for retry backoff.
+
+    .PARAMETER RequestTimeoutSeconds
+        Timeout for each individual HTTP request.
 
     .PARAMETER OutputPath
-        Optional. The path to store temporary JSON files. Defaults to system temp folder.
+        Directory used for temporary chunk files.
 
     .PARAMETER KeepTempFiles
-        If specified, keeps the temporary JSON files after merging.
+        Keeps temporary chunk files after the command completes.
 
     .PARAMETER ExportPath
-        Optional. Export results directly to a JSON file at the specified path.
-        Uses streaming merge for memory efficiency with large datasets.
+        Writes retrieved activity events to a JSON file.
 
     .PARAMETER PassThru
-        When used with -ExportPath, returns the full results in addition to exporting.
-        By default, -ExportPath only returns a summary object.
+        Returns activity events after writing ExportPath.
 
     .PARAMETER Compress
-        When used with -ExportPath, writes minified JSON instead of formatted.
-        Reduces file size and disk I/O.
+        Writes compressed JSON when ExportPath is used.
+
+    .PARAMETER AllowPartial
+        Returns completed chunks instead of terminating when one or more chunks fail.
 
     .PARAMETER Force
-        Bypasses the cache and retrieves fresh data from the API.
+        Bypasses cache-backed metadata requests.
 
     .EXAMPLE
-        Get-XdrCloudAppsActivityTimeline
+        Get-XdrCloudAppsActivityTimeline -LastNDays 1
 
-        Retrieves the 250 most recent activities without date filtering.
-
-    .EXAMPLE
-        Get-XdrCloudAppsActivityTimeline -LastNDays 7
-
-        Retrieves all activities from the last 7 days.
+        Retrieves the last day of Cloud Apps activity.
 
     .EXAMPLE
-        Get-XdrCloudAppsActivityTimeline -LastNDays 60 -ThrottleLimit 10
+        Get-XdrCloudAppsActivityTimeline -LastNDays 7 -Aggressive -ExportPath .\cloud-apps-activity.json
 
-        Retrieves 60 days of activities using 10 concurrent requests.
-
-    .EXAMPLE
-        Get-XdrCloudAppsActivityTimeline -FromDate (Get-Date).AddDays(-90) -ExportPath ".\activities.json"
-
-        Retrieves 90 days of activities and exports directly to a JSON file.
-
-    .EXAMPLE
-        Get-XdrCloudAppsActivityTimeline -LastNDays 180 -ExportPath ".\activities.json" -Compress -PassThru
-
-        Retrieves 180 days, exports to compressed JSON, and returns the results.
-
-    .EXAMPLE
-        $filters = @{ "activity.eventType" = @{ "eq" = @("EVENT_CATEGORY_LOGIN") } }
-        Get-XdrCloudAppsActivityTimeline -LastNDays 30 -Filters $filters
-
-        Retrieves login activities from the last 30 days.
-
-    .EXAMPLE
-        Get-XdrCloudAppsActivityTimeline -Metadata
-
-        Retrieves simplified metadata about available filters.
-
-    .NOTES
-        Requires an active XDR session established via Connect-XdrByEstsCookie.
-        Maximum date range is 180 days.
-        Activities older than 30 days are retrieved from the archived activities API.
-        PowerShell 7+ recommended for parallel processing performance.
+        Retrieves seven days of activity using aggressive incident response settings and exports to JSON.
     #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'Metadata is a common term in the API naming convention')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Raw', Justification = 'Parameter used in conditional logic')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'PassThru', Justification = 'Parameter used in conditional logic')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Compress', Justification = 'Parameter used in conditional logic')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseOutputTypeCorrectly', '', Justification = 'Returns different types based on parameter set')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseUsingScopeModifierInNewRunspaces', '', Justification = 'Variables passed via -ArgumentList to parallel jobs')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'Cloud Apps is the product name')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseUsingScopeModifierInNewRunspaces', '', Justification = 'Parallel runspace values are passed explicitly or through using scope')]
     [OutputType([PSCustomObject[]])]
     [CmdletBinding(DefaultParameterSetName = 'Default')]
     param(
@@ -186,11 +133,14 @@
 
         [Parameter(ParameterSetName = 'Default')]
         [ValidateRange(1, 64)]
-        [int]$ThrottleLimit = 10,
+        [int]$ThrottleLimit = 8,
 
         [Parameter(ParameterSetName = 'Default')]
         [ValidateRange(1, 168)]
-        [int]$ChunkHours = 24,
+        [int]$ChunkHours = 6,
+
+        [Parameter(ParameterSetName = 'Default')]
+        [switch]$Aggressive,
 
         [Parameter(ParameterSetName = 'Default')]
         [ValidateRange(60, 86400)]
@@ -198,13 +148,17 @@
 
         [Parameter(ParameterSetName = 'Default')]
         [Parameter(ParameterSetName = 'CountOnly')]
-        [ValidateRange(1, 10)]
-        [int]$MaxRetries = 3,
+        [ValidateRange(1, 20)]
+        [int]$MaxRetries = 5,
 
         [Parameter(ParameterSetName = 'Default')]
         [Parameter(ParameterSetName = 'CountOnly')]
-        [ValidateRange(1, 60)]
+        [ValidateRange(1, 300)]
         [int]$RetryDelaySeconds = 5,
+
+        [Parameter(ParameterSetName = 'Default')]
+        [ValidateRange(10, 300)]
+        [int]$RequestTimeoutSeconds = 60,
 
         [Parameter(ParameterSetName = 'Default')]
         [string]$OutputPath,
@@ -221,776 +175,495 @@
         [Parameter(ParameterSetName = 'Default')]
         [switch]$Compress,
 
+        [Parameter(ParameterSetName = 'Default')]
+        [switch]$AllowPartial,
+
         [Parameter()]
         [switch]$Force
     )
 
     begin {
         Update-XdrConnectionSettings
-
-        # Constants
-        $script:MaxDaysRegularApi = 30
-        $script:MaxDaysTotal = 180
-        $script:BaseUriActivities = "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/activities/"
-        $script:BaseUriArchived = "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/archived_activities/"
-        $script:XdrBaseUrl = "https://security.microsoft.com"
+        $regularApiPath = '/mcas/cas/api/v1/activities/'
+        $archivedApiPath = '/mcas/cas/api/v1/archived_activities/'
+        $maxDaysTotal = 180
+        $regularBoundaryUtc = [datetime]::UtcNow.AddDays(-30)
+        $xdrBaseUrl = 'https://security.microsoft.com'
     }
 
     process {
-        #region Metadata handling
         if ($Metadata -or $ArchivedMetadata) {
-            $apiType = if ($Metadata) { "activities" } else { "archived_activities" }
-            $CacheKey = "XdrCloudApps${apiType}Metadata"
-
-            if (-not $Force) {
-                $cache = Get-XdrCache -CacheKey $CacheKey -ErrorAction SilentlyContinue
-                if ($cache -and $cache.NotValidAfter -gt (Get-Date)) {
-                    Write-Verbose "Returning cached $apiType metadata"
-                    if ($Raw) {
-                        return $cache.Value
-                    }
-                    # Return simplified metadata
-                    return $cache.Value.filters | ForEach-Object {
-                        [PSCustomObject]@{
-                            Name       = $_.name
-                            Operators  = ($_.operators.id -join ', ')
-                            InputType  = $_.inputType.type
-                        }
-                    }
-                }
+            $apiType = if ($ArchivedMetadata) { 'archived_activities' } else { 'activities' }
+            $metadata = Invoke-XdrCloudAppsRequest -Path "/mcas/cas/api/v1/$apiType/metadata/?allowDeprecationFields=true" -TypeName 'XdrCloudAppsActivityMetadata' -CacheKey "XdrCloudApps-$apiType-Metadata" -TTLMinutes 15 -Raw:$Raw -Force:$Force
+            if ($Raw) {
+                return $metadata
             }
 
-            $Uri = "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/${apiType}/metadata/?allowDeprecationFields=true"
-            Write-Verbose "Retrieving $apiType metadata from $Uri"
-
-            try {
-                $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-                Set-XdrCache -CacheKey $CacheKey -Value $result -TTLMinutes 15
-
-                if ($Raw) {
-                    return $result
+            return $metadata.filters | ForEach-Object {
+                [PSCustomObject]@{
+                    PSTypeName = 'XdrCloudAppsActivityMetadata'
+                    Name       = $_.name
+                    Operators  = ($_.operators.id -join ', ')
+                    InputType  = $_.inputType.type
+                    Deprecated = $_.deprecated
                 }
-                # Return simplified metadata
-                return $result.filters | ForEach-Object {
-                    [PSCustomObject]@{
-                        Name       = $_.name
-                        Operators  = ($_.operators.id -join ', ')
-                        InputType  = $_.inputType.type
-                    }
-                }
-            }
-            catch {
-                Write-Error "Failed to retrieve $apiType metadata: $_"
-                return
             }
         }
-        #endregion
 
-        #region Date validation and calculation
-        $useArchived = $false
-
-        if ($LastNDays) {
+        if ($PSBoundParameters.ContainsKey('LastNDays')) {
             $ToDate = [datetime]::UtcNow
             $FromDate = $ToDate.AddDays(-$LastNDays)
         }
 
-        # Validate FromDate is not in the future
-        if ($FromDate -and $FromDate -gt [datetime]::UtcNow) {
-            Write-Error "FromDate cannot be in the future."
-            return
-        }
+        if ($PSBoundParameters.ContainsKey('FromDate')) { $FromDate = $FromDate.ToUniversalTime() }
+        if ($PSBoundParameters.ContainsKey('ToDate')) { $ToDate = $ToDate.ToUniversalTime() }
 
-        # Adjust ToDate if in the future
-        if ($ToDate -and $ToDate -gt [datetime]::UtcNow) {
-            Write-Warning "ToDate is in the future, adjusting to current time."
+        if ($FromDate -and -not $ToDate) {
             $ToDate = [datetime]::UtcNow
         }
+        elseif ($ToDate -and -not $FromDate) {
+            throw 'FromDate is required when ToDate is specified.'
+        }
 
-        if ($FromDate) {
-            if (-not $ToDate) {
+        if ($FromDate -and $ToDate) {
+            if ($FromDate -ge $ToDate) { throw 'FromDate must be before ToDate.' }
+            if ($FromDate -gt [datetime]::UtcNow) { throw 'FromDate cannot be in the future.' }
+            if ($ToDate -gt [datetime]::UtcNow) {
+                Write-Warning 'ToDate is in the future; adjusting to the current UTC time.'
                 $ToDate = [datetime]::UtcNow
             }
-
-            # Validate date range
-            $daysDiff = ($ToDate - $FromDate).TotalDays
-            if ($daysDiff -gt $script:MaxDaysTotal) {
-                Write-Error "Date range cannot exceed $($script:MaxDaysTotal) days. Requested range: $([math]::Round($daysDiff, 1)) days."
-                return
+            $rangeDays = ($ToDate - $FromDate).TotalDays
+            if ($rangeDays -gt $maxDaysTotal) {
+                throw "Date range cannot exceed $maxDaysTotal days. Requested range: $([math]::Round($rangeDays, 1)) days."
             }
-
-            if ($daysDiff -lt 0) {
-                Write-Error "FromDate must be before ToDate."
-                return
-            }
-
-            # Determine which API to use - if range extends beyond 30 days, use archived exclusively
-            $daysAgo = ([datetime]::UtcNow - $FromDate).TotalDays
-            if ($daysAgo -gt $script:MaxDaysRegularApi) {
-                $useArchived = $true
-                Write-Verbose "Using archived activities API (date range extends beyond $($script:MaxDaysRegularApi) days)"
-            }
-
-            Write-Verbose "Date range: $FromDate to $ToDate ($('{0:N1}' -f $daysDiff) days, archived: $useArchived)"
         }
-        #endregion
 
-        #region CountOnly handling
+        if ($Aggressive) {
+            if (-not $PSBoundParameters.ContainsKey('ThrottleLimit')) { $ThrottleLimit = 32 }
+            if (-not $PSBoundParameters.ContainsKey('ChunkHours')) { $ChunkHours = 2 }
+            if (-not $PSBoundParameters.ContainsKey('MaxRetries')) { $MaxRetries = 8 }
+            if (-not $PSBoundParameters.ContainsKey('RequestTimeoutSeconds')) { $RequestTimeoutSeconds = 45 }
+        }
+
+        $newDateFilter = {
+            param([datetime]$Start, [datetime]$End, [bool]$UseArchived, [hashtable]$BaseFilters)
+
+            $epochStart = [long]($Start.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds
+            $epochEnd = [long]($End.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds
+            $queryFilters = $BaseFilters.Clone()
+            if ($UseArchived) {
+                $queryFilters.date = @{ range = @( @{ start = $epochStart; end = $epochEnd } ) }
+            }
+            else {
+                $queryFilters.date = @{ gte = $epochStart; lte = $epochEnd }
+            }
+            $queryFilters
+        }
+
         if ($CountOnly) {
-            $Uri = if ($useArchived) { "$($script:BaseUriArchived)count/" } else { "$($script:BaseUriActivities)count/" }
-
-            $allFilters = $Filters.Clone()
-            if ($FromDate -and $ToDate) {
-                $epochStart = [long]($FromDate.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds
-                $epochEnd = [long]($ToDate.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds
-                
-                if ($useArchived) {
-                    $allFilters["date"] = @{
-                        "range" = @(
-                            @{ "start" = $epochStart; "end" = $epochEnd }
-                        )
-                    }
-                }
-                else {
-                    $allFilters["date"] = @{
-                        "gte" = $epochStart
-                        "lte" = $epochEnd
-                    }
-                }
+            if (-not $FromDate) {
+                $body = @{ filters = $Filters }
+                return Invoke-XdrCloudAppsRequest -Path "${regularApiPath}count/" -Method Post -Body $body -Raw -Force:$Force
             }
 
-            $body = @{ filters = $allFilters }
-            $jsonBody = $body | ConvertTo-Json -Depth 10
-
-            Write-Verbose "Retrieving activity count from $Uri"
-            Write-Verbose "Request body: $jsonBody"
-
-            try {
-                $result = Invoke-RestMethod -Uri $Uri -Method Post -Body $jsonBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-                return $result
+            $countResults = @()
+            $segments = [System.Collections.Generic.List[hashtable]]::new()
+            if ($FromDate -lt $regularBoundaryUtc) {
+                $archiveEnd = if ($ToDate -lt $regularBoundaryUtc) { $ToDate } else { $regularBoundaryUtc }
+                $segments.Add(@{ FromDate = $FromDate; ToDate = $archiveEnd; Archived = $true })
             }
-            catch {
-                Write-Error "Failed to retrieve activity count: $_"
-                return
+            if ($ToDate -gt $regularBoundaryUtc) {
+                $recentStart = if ($FromDate -gt $regularBoundaryUtc) { $FromDate } else { $regularBoundaryUtc }
+                $segments.Add(@{ FromDate = $recentStart; ToDate = $ToDate; Archived = $false })
             }
+
+            foreach ($segment in $segments) {
+                $segmentFilters = & $newDateFilter $segment.FromDate $segment.ToDate $segment.Archived $Filters
+                $path = if ($segment.Archived) { "${archivedApiPath}count/" } else { "${regularApiPath}count/" }
+                $countResults += Invoke-XdrCloudAppsRequest -Path $path -Method Post -Body @{ filters = $segmentFilters } -Raw -Force:$Force
+            }
+            return $countResults
         }
-        #endregion
 
-        #region Activity retrieval - Simple mode (no date filter)
-        if (-not $FromDate -and -not $LastNDays) {
-            # Simple single-page request without date filtering
-            $Uri = $script:BaseUriActivities
-            
-            # Check cache
-            $filterHash = if ($Filters.Count -gt 0) { ($Filters | ConvertTo-Json -Compress) } else { "none" }
-            $CacheKey = "XdrCloudAppsActivity_${PageSize}_${filterHash}"
-            
-            if (-not $Force) {
-                $cache = Get-XdrCache -CacheKey $CacheKey -ErrorAction SilentlyContinue
-                if ($cache -and $cache.NotValidAfter -gt (Get-Date)) {
-                    Write-Verbose "Returning cached activities"
-                    return $cache.Value
-                }
-            }
-
+        if (-not $FromDate) {
             $body = @{
                 distributedId     = [guid]::NewGuid().ToString()
                 filters           = $Filters
                 limit             = $PageSize
                 performAsyncTotal = $true
                 skip              = 0
-                sortDirection     = "desc"
-                sortField         = "date"
+                sortDirection     = 'desc'
+                sortField         = 'date'
             }
-            $jsonBody = $body | ConvertTo-Json -Depth 10
-
-            try {
-                $response = Invoke-RestMethod -Uri $Uri -Method Post -Body $jsonBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-                
-                if ($response -is [string]) {
-                    $response = $response | ConvertFrom-Json -AsHashtable
-                }
-
-                $result = @()
-                if ($null -ne $response.data) {
-                    $result = $response.data | ForEach-Object {
-                        if ($_ -is [hashtable]) {
-                            $pso = [PSCustomObject]$_
-                            $pso.PSObject.TypeNames.Insert(0, 'XdrCloudAppsActivity')
-                            $pso
-                        }
-                        else {
-                            $_.PSObject.TypeNames.Insert(0, 'XdrCloudAppsActivity')
-                            $_
-                        }
-                    }
-                }
-
-                Set-XdrCache -CacheKey $CacheKey -Value $result -TTLMinutes 5
-                return $result
-            }
-            catch {
-                Write-Error "Failed to retrieve activities: $_"
-                return
-            }
+            $result = Invoke-XdrCloudAppsRequest -Path $regularApiPath -Method Post -Body $body -TypeName 'XdrCloudAppsActivity' -Raw:$Raw -Force:$Force
+            if ($Raw) { return $result }
+            return $result | Add-XdrCloudAppsTypeName -TypeName 'XdrCloudAppsActivity'
         }
-        #endregion
 
-        #region Activity retrieval - Parallel chunked mode (with date filter)
-        
-        # Set up output directory
-        $baseTempPath = if ($OutputPath) {
-            $OutputPath
-        } else {
-            Join-Path ([System.IO.Path]::GetTempPath()) 'XdrCloudAppsTimeline'
-        }
-        $runId = [guid]::NewGuid().ToString('N').Substring(0, 8)
-        $runTempPath = Join-Path $baseTempPath $runId
+        $baseTempPath = if ($OutputPath) { $OutputPath } else { Join-Path ([System.IO.Path]::GetTempPath()) 'XdrCloudAppsTimeline' }
+        $runTempPath = Join-Path $baseTempPath ([guid]::NewGuid().ToString('N').Substring(0, 8))
+        New-Item -Path $runTempPath -ItemType Directory -Force | Out-Null
 
-        if (-not (Test-Path $runTempPath)) {
-            New-Item -Path $runTempPath -ItemType Directory -Force | Out-Null
-        }
-        Write-Verbose "Temporary files will be stored in: $runTempPath"
-
-        # Generate date chunks
         $dateChunks = [System.Collections.Generic.List[hashtable]]::new()
-        $totalHours = ($ToDate - $FromDate).TotalHours
-
-        # For small time windows (≤48 hours), auto-calculate chunk size
-        $effectiveChunkHours = $ChunkHours
-        if (-not $PSBoundParameters.ContainsKey('ChunkHours') -and $totalHours -le 48) {
-            $effectiveChunkHours = [math]::Max(1, [math]::Ceiling($totalHours / 10))
-            Write-Verbose "Auto-calculated ChunkHours=$effectiveChunkHours for $([math]::Round($totalHours, 1)) hour time window"
-        }
-
-        $currentDate = $FromDate
-        $chunkIndex = 0
-        while ($currentDate -lt $ToDate) {
-            $chunkEnd = $currentDate.AddHours($effectiveChunkHours)
-            if ($chunkEnd -gt $ToDate) {
-                $chunkEnd = $ToDate
+        $addChunks = {
+            param([datetime]$SegmentStart, [datetime]$SegmentEnd, [bool]$Archived)
+            $totalHours = ($SegmentEnd - $SegmentStart).TotalHours
+            $effectiveChunkHours = $ChunkHours
+            if (-not $PSBoundParameters.ContainsKey('ChunkHours') -and $totalHours -le 24) {
+                $effectiveChunkHours = [math]::Max(1, [math]::Ceiling($totalHours / 8))
             }
-            $dateChunks.Add(@{
-                FromDate = $currentDate
-                ToDate   = $chunkEnd
-                Index    = $chunkIndex
-            })
-            $chunkIndex++
-            $currentDate = $chunkEnd
+            $cursor = $SegmentStart
+            while ($cursor -lt $SegmentEnd) {
+                $chunkEnd = $cursor.AddHours($effectiveChunkHours)
+                if ($chunkEnd -gt $SegmentEnd) { $chunkEnd = $SegmentEnd }
+                $dateChunks.Add(@{
+                    FromDate = $cursor
+                    ToDate   = $chunkEnd
+                    Archived = $Archived
+                    Index    = $dateChunks.Count
+                })
+                $cursor = $chunkEnd
+            }
         }
-        Write-Information "Split $([math]::Round($totalHours, 1)) hours into $($dateChunks.Count) chunks ($effectiveChunkHours hour$(if($effectiveChunkHours -gt 1){'s'}) each)" -InformationAction Continue
 
-        # Prepare session data for parallel execution
-        $cookieContainer = $script:session.Cookies
-        $cookies = $cookieContainer.GetCookies([Uri]$script:XdrBaseUrl)
+        if ($FromDate -lt $regularBoundaryUtc) {
+            $archiveEnd = if ($ToDate -lt $regularBoundaryUtc) { $ToDate } else { $regularBoundaryUtc }
+            & $addChunks $FromDate $archiveEnd $true
+        }
+        if ($ToDate -gt $regularBoundaryUtc) {
+            $recentStart = if ($FromDate -gt $regularBoundaryUtc) { $FromDate } else { $regularBoundaryUtc }
+            & $addChunks $recentStart $ToDate $false
+        }
+
+        Write-Information "Split activity range into $($dateChunks.Count) chunk(s); throttle=$ThrottleLimit; aggressive=$($Aggressive.IsPresent)" -InformationAction Continue
+
         $cookieData = @()
-        foreach ($cookie in $cookies) {
-            $cookieData += @{
-                Name   = $cookie.Name
-                Value  = $cookie.Value
-                Domain = $cookie.Domain
-                Path   = $cookie.Path
-            }
+        foreach ($cookie in $script:session.Cookies.GetCookies([Uri]$xdrBaseUrl)) {
+            $cookieData += @{ Name = $cookie.Name; Value = $cookie.Value; Domain = $cookie.Domain; Path = $cookie.Path }
         }
         $headersData = @{}
-        foreach ($key in $script:headers.Keys) {
-            $headersData[$key] = $script:headers[$key]
-        }
+        foreach ($key in $script:headers.Keys) { $headersData[$key] = $script:headers[$key] }
 
-        # Prepare base parameters for parallel jobs
         $baseParams = @{
-            UseArchived       = $useArchived
-            Filters           = $Filters
-            PageSize          = $PageSize
-            MaxRetries        = $MaxRetries
-            RetryDelaySeconds = $RetryDelaySeconds
-            BaseUriActivities = $script:BaseUriActivities
-            BaseUriArchived   = $script:BaseUriArchived
-            MaxDaysRegularApi = $script:MaxDaysRegularApi
+            RegularApiPath        = "https://security.microsoft.com/apiproxy$regularApiPath"
+            ArchivedApiPath       = "https://security.microsoft.com/apiproxy$archivedApiPath"
+            Filters               = $Filters
+            PageSize              = $PageSize
+            MaxRetries            = $MaxRetries
+            RetryDelaySeconds     = $RetryDelaySeconds
+            RequestTimeoutSeconds = $RequestTimeoutSeconds
+            TempPath              = $runTempPath
         }
 
-        try {
-            Write-Verbose "Starting parallel retrieval of $($dateChunks.Count) chunk(s) with throttle limit of $ThrottleLimit"
-            $operationStartTime = [System.Diagnostics.Stopwatch]::StartNew()
+        $chunkScript = {
+            param($Chunk, $Params, $CookieInfo, $HeaderInfo)
 
-            # Initialize progress
-            Write-Progress -Activity "Retrieving Cloud Apps Activity Timeline" -Status "Processing chunks..." -PercentComplete 0 -Id 1
-
-            if ($PSVersionTable.PSVersion.Major -ge 7) {
-                # PowerShell 7+ parallel processing
-                $totalChunks = $dateChunks.Count
-                $parallelJob = Start-ThreadJob -ScriptBlock {
-                    param($chunks, $throttle, $baseParams, $tempPath, $cookieInfo, $headerInfo)
-                    
-                    $chunks | ForEach-Object -ThrottleLimit $throttle -Parallel {
-                        $chunk = $_
-                        $params = $using:baseParams
-                        $path = $using:tempPath
-                        $cookies = $using:cookieInfo
-                        $headers = $using:headerInfo
-
-                        $chunkFromDate = $chunk.FromDate
-                        $chunkToDate = $chunk.ToDate
-                        $chunkIndex = $chunk.Index
-                        $chunkStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-
-                        # Recreate web session
-                        $webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
-                        foreach ($c in $cookies) {
-                            $cookie = [System.Net.Cookie]::new($c.Name, $c.Value, $c.Path, $c.Domain)
-                            $webSession.Cookies.Add($cookie)
-                        }
-
-                        # Determine API for this chunk
-                        $chunkUri = if ($params.UseArchived) { $params.BaseUriArchived } else { $params.BaseUriActivities }
-
-                        # Build date filter
-                        $epochStart = [long]($chunkFromDate.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds
-                        $epochEnd = [long]($chunkToDate.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds
-
-                        $chunkFilters = $params.Filters.Clone()
-                        if ($params.UseArchived) {
-                            $chunkFilters["date"] = @{
-                                "range" = @(
-                                    @{ "start" = $epochStart; "end" = $epochEnd }
-                                )
-                            }
-                        }
-                        else {
-                            $chunkFilters["date"] = @{
-                                "gte" = $epochStart
-                                "lte" = $epochEnd
-                            }
-                        }
-
-                        # Pagination within chunk
-                        $chunkEvents = [System.Collections.Generic.List[object]]::new()
-                        $skip = 0
-                        $hasMore = $true
-                        $pagesRetrieved = 0
-                        $maxPages = 1000
-                        $totalRetries = 0
-                        $retryErrors = [System.Collections.Generic.List[string]]::new()
-
-                        while ($hasMore -and $pagesRetrieved -lt $maxPages) {
-                            $body = @{
-                                distributedId     = [guid]::NewGuid().ToString()
-                                filters           = $chunkFilters
-                                limit             = $params.PageSize
-                                performAsyncTotal = $true
-                                skip              = $skip
-                                sortDirection     = "desc"
-                                sortField         = "date"
-                            }
-                            $jsonBody = $body | ConvertTo-Json -Depth 10
-
-                            # Retry loop with exponential backoff and jitter
-                            $attempt = 0
-                            $response = $null
-                            while ($attempt -lt $params.MaxRetries) {
-                                $attempt++
-                                try {
-                                    $response = Invoke-RestMethod -Uri $chunkUri -Method Post -Body $jsonBody -ContentType "application/json" -WebSession $webSession -Headers $headers
-                                    break
-                                }
-                                catch {
-                                    $errorMsg = $_.Exception.Message
-                                    if ($attempt -lt $params.MaxRetries) {
-                                        $totalRetries++
-                                        $delay = $params.RetryDelaySeconds * [math]::Pow(2, $attempt - 1)
-                                        $jitter = Get-Random -Minimum 0 -Maximum ([math]::Max(1, [int]($delay * 0.2)))
-                                        $totalDelay = [int]($delay + $jitter)
-                                        $retryErrors.Add("Page $pagesRetrieved attempt $attempt : $errorMsg (retry in ${totalDelay}s)")
-                                        Start-Sleep -Seconds $totalDelay
-                                    }
-                                    else {
-                                        throw "Failed after $($params.MaxRetries) attempts: $errorMsg"
-                                    }
-                                }
-                            }
-
-                            if ($response -is [string]) {
-                                $response = $response | ConvertFrom-Json -AsHashtable
-                            }
-
-                            if ($null -ne $response.data -and $response.data.Count -gt 0) {
-                                $chunkEvents.AddRange($response.data)
-                            }
-
-                            $hasMore = $response.hasNext -eq $true
-                            $skip += $params.PageSize
-                            $pagesRetrieved++
-                        }
-
-                        # Write chunk to file
-                        $fileName = "chunk_{0:D4}_{1:yyyyMMdd_HHmmss}_{2:yyyyMMdd_HHmmss}.json" -f $chunkIndex, $chunkFromDate, $chunkToDate
-                        $filePath = Join-Path $path $fileName
-
-                        $chunkData = @{
-                            ChunkIndex = $chunkIndex
-                            FromDate   = $chunkFromDate.ToString('o')
-                            ToDate     = $chunkToDate.ToString('o')
-                            EventCount = $chunkEvents.Count
-                            Events     = $chunkEvents.ToArray()
-                        }
-                        $chunkData | ConvertTo-Json -Depth 20 -Compress | Set-Content -Path $filePath -Encoding UTF8
-
-                        $chunkStopwatch.Stop()
-                        $fileSizeKB = [math]::Round((Get-Item $filePath).Length / 1KB, 2)
-
-                        [PSCustomObject]@{
-                            ChunkIndex     = $chunkIndex
-                            FromDate       = $chunkFromDate
-                            ToDate         = $chunkToDate
-                            EventCount     = $chunkEvents.Count
-                            PagesRetrieved = $pagesRetrieved
-                            RetryCount     = $totalRetries
-                            RetryErrors    = $retryErrors.ToArray()
-                            FilePath       = $filePath
-                            FileSizeKB     = $fileSizeKB
-                            ElapsedSeconds = [math]::Round($chunkStopwatch.Elapsed.TotalSeconds, 2)
-                            Success        = $true
-                        }
-                    }
-                } -ArgumentList $dateChunks, $ThrottleLimit, $baseParams, $runTempPath, $cookieData, $headersData
-
-                # Poll for progress
-                $lastCompletedCount = 0
-                
-                while ($parallelJob.State -in @('NotStarted', 'Running')) {
-                    if ($operationStartTime.Elapsed.TotalSeconds -gt $TimeoutSeconds) {
-                        Stop-Job -Job $parallelJob -ErrorAction SilentlyContinue
-                        Write-Warning "Operation timed out after $TimeoutSeconds seconds."
-                        break
-                    }
-
-                    $chunkFiles = Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue
-                    $completedFiles = $chunkFiles.Count
-
-                    if ($completedFiles -gt $lastCompletedCount) {
-                        $lastCompletedCount = $completedFiles
-                        $elapsed = $operationStartTime.Elapsed.TotalSeconds
-                        $avgPerChunk = if ($completedFiles -gt 0) { $elapsed / $completedFiles } else { 0 }
-                        $remaining = $totalChunks - $completedFiles
-                        $etaSeconds = $avgPerChunk * $remaining
-                        $etaText = if ($completedFiles -gt 2 -and $etaSeconds -gt 0) { " (~$([math]::Round($etaSeconds/60, 1)) min remaining)" } else { "" }
-                        
-                        $percentComplete = [math]::Min(99, [math]::Round(($completedFiles / [math]::Max(1, $totalChunks)) * 100))
-                        Write-Progress -Activity "Retrieving Cloud Apps Activity Timeline" -Status "Downloaded $completedFiles of $totalChunks chunks$etaText" -PercentComplete $percentComplete -Id 1
-                    }
-
-                    Start-Sleep -Milliseconds 500
-                }
-
-                $results = Receive-Job -Job $parallelJob -Wait
-                Remove-Job -Job $parallelJob -Force
-                [System.GC]::Collect()
-            }
-            else {
-                # PowerShell 5.1 fallback - sequential processing with progress
-                Write-Warning "PowerShell 7+ recommended for parallel processing. Using sequential mode."
-                $results = @()
-                $chunkNum = 0
-                
-                foreach ($chunk in $dateChunks) {
-                    $chunkNum++
-                    $percentComplete = [math]::Round(($chunkNum / $dateChunks.Count) * 100)
-                    Write-Progress -Activity "Retrieving Cloud Apps Activity Timeline" -Status "Processing chunk $chunkNum of $($dateChunks.Count)" -PercentComplete $percentComplete -Id 1
-
-                    $chunkFromDate = $chunk.FromDate
-                    $chunkToDate = $chunk.ToDate
-                    $chunkIndex = $chunk.Index
-                    $chunkStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-
-                    $chunkUri = if ($useArchived) { $script:BaseUriArchived } else { $script:BaseUriActivities }
-
-                    $epochStart = [long]($chunkFromDate.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds
-                    $epochEnd = [long]($chunkToDate.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds
-
-                    $chunkFilters = $Filters.Clone()
-                    if ($useArchived) {
-                        $chunkFilters["date"] = @{ "range" = @( @{ "start" = $epochStart; "end" = $epochEnd } ) }
-                    }
-                    else {
-                        $chunkFilters["date"] = @{ "gte" = $epochStart; "lte" = $epochEnd }
-                    }
-
-                    $chunkEvents = [System.Collections.Generic.List[object]]::new()
-                    $skip = 0
-                    $hasMore = $true
-                    $pagesRetrieved = 0
-                    $totalRetries = 0
-                    $retryErrors = [System.Collections.Generic.List[string]]::new()
-
-                    while ($hasMore -and $pagesRetrieved -lt 1000) {
-                        $body = @{
-                            distributedId = [guid]::NewGuid().ToString()
-                            filters = $chunkFilters
-                            limit = $PageSize
-                            performAsyncTotal = $true
-                            skip = $skip
-                            sortDirection = "desc"
-                            sortField = "date"
-                        }
-                        $jsonBody = $body | ConvertTo-Json -Depth 10
-
-                        $attempt = 0
-                        $response = $null
-                        while ($attempt -lt $MaxRetries) {
-                            $attempt++
-                            try {
-                                $response = Invoke-RestMethod -Uri $chunkUri -Method Post -Body $jsonBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-                                break
-                            }
-                            catch {
-                                $errorMsg = $_.Exception.Message
-                                if ($attempt -lt $MaxRetries) {
-                                    $totalRetries++
-                                    $delay = $RetryDelaySeconds * [math]::Pow(2, $attempt - 1)
-                                    $jitter = Get-Random -Minimum 0 -Maximum ([math]::Max(1, [int]($delay * 0.2)))
-                                    $totalDelay = [int]($delay + $jitter)
-                                    $retryErrors.Add("Page $pagesRetrieved attempt $attempt : $errorMsg (retry in ${totalDelay}s)")
-                                    Start-Sleep -Seconds $totalDelay
-                                }
-                                else { throw "Failed after $MaxRetries attempts: $errorMsg" }
-                            }
-                        }
-
-                        if ($response -is [string]) { $response = $response | ConvertFrom-Json -AsHashtable }
-                        if ($null -ne $response.data -and $response.data.Count -gt 0) { $chunkEvents.AddRange($response.data) }
-                        $hasMore = $response.hasNext -eq $true
-                        $skip += $PageSize
-                        $pagesRetrieved++
-                    }
-
-                    $fileName = "chunk_{0:D4}_{1:yyyyMMdd_HHmmss}_{2:yyyyMMdd_HHmmss}.json" -f $chunkIndex, $chunkFromDate, $chunkToDate
-                    $filePath = Join-Path $runTempPath $fileName
-                    @{ ChunkIndex = $chunkIndex; FromDate = $chunkFromDate.ToString('o'); ToDate = $chunkToDate.ToString('o'); EventCount = $chunkEvents.Count; Events = $chunkEvents.ToArray() } | ConvertTo-Json -Depth 20 -Compress | Set-Content -Path $filePath -Encoding UTF8
-
-                    $chunkStopwatch.Stop()
-                    $results += [PSCustomObject]@{
-                        ChunkIndex = $chunkIndex
-                        FromDate = $chunkFromDate
-                        ToDate = $chunkToDate
-                        EventCount = $chunkEvents.Count
-                        PagesRetrieved = $pagesRetrieved
-                        RetryCount = $totalRetries
-                        RetryErrors = $retryErrors.ToArray()
-                        FilePath = $filePath
-                        FileSizeKB = [math]::Round((Get-Item $filePath).Length / 1KB, 2)
-                        ElapsedSeconds = [math]::Round($chunkStopwatch.Elapsed.TotalSeconds, 2)
-                        Success = $true
-                    }
-                }
+            $webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            foreach ($c in $CookieInfo) {
+                $webSession.Cookies.Add([System.Net.Cookie]::new($c.Name, $c.Value, $c.Path, $c.Domain))
             }
 
-            Write-Progress -Activity "Retrieving Cloud Apps Activity Timeline" -Completed -Id 1
+            $chunkStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            $fileName = 'chunk_{0:D4}_{1:yyyyMMdd_HHmmss}_{2:yyyyMMdd_HHmmss}.json' -f $Chunk.Index, $Chunk.FromDate, $Chunk.ToDate
+            $filePath = Join-Path $Params.TempPath $fileName
+            $progressPath = Join-Path $Params.TempPath ('progress_{0:D4}.txt' -f $Chunk.Index)
+            $writer = $null
+            $eventCount = 0
+            $pagesRetrieved = 0
+            $retryCount = 0
+            $retryErrors = [System.Collections.Generic.List[string]]::new()
 
-            # Output statistics
-            Write-Information "`n=== Chunk Download Statistics ===" -InformationAction Continue
-            $totalElapsed = 0
-            $totalEvents = 0
-            $totalSizeKB = 0
-            $totalRetries = 0
-            foreach ($r in ($results | Sort-Object ChunkIndex)) {
-                if ($r.Success) {
-                    $totalElapsed += $r.ElapsedSeconds
-                    $totalEvents += $r.EventCount
-                    $totalSizeKB += $r.FileSizeKB
-                    $totalRetries += $r.RetryCount
-                    $eventsPerSec = if ($r.ElapsedSeconds -gt 0) { [math]::Round($r.EventCount / $r.ElapsedSeconds, 1) } else { 0 }
-                    $retryInfo = if ($r.RetryCount -gt 0) { " | Retries: $($r.RetryCount)" } else { "" }
-                    Write-Verbose "Chunk $($r.ChunkIndex): $($r.FromDate.ToString('yyyy-MM-dd HH:mm')) to $($r.ToDate.ToString('yyyy-MM-dd HH:mm')) | Events: $($r.EventCount) | Pages: $($r.PagesRetrieved) | Size: $($r.FileSizeKB) KB | Time: $($r.ElapsedSeconds)s | Rate: $eventsPerSec events/sec$retryInfo"
-                    
-                    # Log retry details if any occurred
-                    if ($r.RetryCount -gt 0) {
-                        Write-Warning "Chunk $($r.ChunkIndex) had $($r.RetryCount) retries"
-                        foreach ($err in $r.RetryErrors) {
-                            Write-Verbose "  Retry: $err"
-                        }
-                    }
-                }
-            }
-            $wallClockSeconds = $operationStartTime.Elapsed.TotalSeconds
-            $overallEventsPerSec = if ($wallClockSeconds -gt 0) { [math]::Round($totalEvents / $wallClockSeconds, 1) } else { 0 }
-            Write-Information "=== Summary ===" -InformationAction Continue
-            Write-Information "Total chunks: $($results.Count) | Total events: $totalEvents | Total size: $([math]::Round($totalSizeKB / 1024, 2)) MB" -InformationAction Continue
-            Write-Information "Cumulative download time: $([math]::Round($totalElapsed, 2))s | Wall-clock time: $([math]::Round($wallClockSeconds, 2))s | Effective rate: $overallEventsPerSec events/sec" -InformationAction Continue
-            if ($totalRetries -gt 0) {
-                Write-Information "Total retries: $totalRetries (indicates API throttling or network issues)" -InformationAction Continue
-            }
-
-            # Merge results
-            Write-Progress -Activity "Processing Results" -Status "Merging chunk files..." -PercentComplete 0 -Id 2
-            $jsonFiles = Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue | Sort-Object Name
-
-            if ($PSBoundParameters.ContainsKey('ExportPath')) {
-                # Stream merge to export file (memory efficient)
-                Write-Verbose "Exporting to file using streaming merge..."
-                $exportDir = Split-Path -Parent $ExportPath
-                if ($exportDir -and -not (Test-Path $exportDir)) {
-                    New-Item -Path $exportDir -ItemType Directory -Force | Out-Null
-                }
-
-                $exportWriter = [System.IO.StreamWriter]::new($ExportPath, $false, [System.Text.Encoding]::UTF8)
-                try {
-                    $exportWriter.Write('[')
-                    $firstEvent = $true
-                    $fileIndex = 0
-                    
-                    foreach ($file in $jsonFiles) {
-                        $fileIndex++
-                        Write-Progress -Activity "Processing Results" -Status "Merging file $fileIndex of $($jsonFiles.Count)" -PercentComplete ([math]::Round(($fileIndex / [math]::Max(1, $jsonFiles.Count)) * 100)) -Id 2
-
-                        $rawContent = Get-Content -Path $file.FullName -Raw
-                        $chunkData = $rawContent | ConvertFrom-Json -AsHashtable
-                        $rawContent = $null
-
-                        foreach ($item in $chunkData.Events) {
-                            if (-not $firstEvent) { $exportWriter.Write(',') }
-                            $firstEvent = $false
-                            
-                            if ($Compress) {
-                                $exportWriter.Write(($item | ConvertTo-Json -Depth 20 -Compress))
-                            }
-                            else {
-                                $exportWriter.Write(($item | ConvertTo-Json -Depth 20))
-                            }
-                        }
-                        $chunkData = $null
-                    }
-                    $exportWriter.Write(']')
-                }
-                finally {
-                    $exportWriter.Close()
-                    $exportWriter.Dispose()
-                }
-
-                Write-Progress -Activity "Processing Results" -Completed -Id 2
-                Write-Information "Exported $totalEvents events to: $ExportPath" -InformationAction Continue
-
-                # Clean up
-                if (-not $KeepTempFiles) {
-                    Remove-Item -Path $runTempPath -Recurse -Force -ErrorAction SilentlyContinue
+            try {
+                $uri = if ($Chunk.Archived) { $Params.ArchivedApiPath } else { $Params.RegularApiPath }
+                $epochStart = [long]($Chunk.FromDate.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds
+                $epochEnd = [long]($Chunk.ToDate.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds
+                $filters = $Params.Filters.Clone()
+                if ($Chunk.Archived) {
+                    $filters.date = @{ range = @( @{ start = $epochStart; end = $epochEnd } ) }
                 }
                 else {
-                    Write-Verbose "Temporary files kept at: $runTempPath"
+                    $filters.date = @{ gte = $epochStart; lte = $epochEnd }
                 }
 
-                [System.GC]::Collect()
+                $writer = [System.IO.StreamWriter]::new($filePath, $false, [System.Text.Encoding]::UTF8)
+                $writer.Write('{"ChunkIndex":' + $Chunk.Index + ',"FromDate":"' + $Chunk.FromDate.ToString('o') + '","ToDate":"' + $Chunk.ToDate.ToString('o') + '","Archived":' + $Chunk.Archived.ToString().ToLowerInvariant() + ',"Events":[')
+                $first = $true
+                $skip = 0
+                $hasMore = $true
+                while ($hasMore -and $pagesRetrieved -lt 10000) {
+                    $body = @{
+                        distributedId     = [guid]::NewGuid().ToString()
+                        filters           = $filters
+                        limit             = $Params.PageSize
+                        performAsyncTotal = $true
+                        skip              = $skip
+                        sortDirection     = 'desc'
+                        sortField         = 'date'
+                    } | ConvertTo-Json -Depth 20 -Compress
 
-                if ($PassThru) {
-                    # Load and return all events
-                    $allEvents = [System.Collections.Generic.List[object]]::new()
-                    $exportContent = Get-Content -Path $ExportPath -Raw | ConvertFrom-Json -AsHashtable
-                    foreach ($item in $exportContent) {
-                        if ($item -is [hashtable]) { $item = [PSCustomObject]$item }
-                        $item.PSObject.TypeNames.Insert(0, 'XdrCloudAppsActivity')
-                        $allEvents.Add($item)
-                    }
-                    return $allEvents.ToArray()
-                }
-
-                return [PSCustomObject]@{
-                    ExportPath   = $ExportPath
-                    EventCount   = $totalEvents
-                    ChunkCount   = $results.Count
-                    TotalSizeMB  = [math]::Round($totalSizeKB / 1024, 2)
-                    WallClockSec = [math]::Round($wallClockSeconds, 2)
-                    FromDate     = $FromDate
-                    ToDate       = $ToDate
-                }
-            }
-
-            # In-memory merge
-            $allEvents = [System.Collections.Generic.List[object]]::new([math]::Max(10000, $totalEvents))
-            $fileIndex = 0
-            
-            foreach ($file in $jsonFiles) {
-                $fileIndex++
-                Write-Progress -Activity "Processing Results" -Status "Merging file $fileIndex of $($jsonFiles.Count)" -PercentComplete ([math]::Round(($fileIndex / [math]::Max(1, $jsonFiles.Count)) * 100)) -Id 2
-
-                $rawContent = Get-Content -Path $file.FullName -Raw
-                $chunkData = $rawContent | ConvertFrom-Json -AsHashtable
-                $rawContent = $null
-
-                if ($chunkData.Events) {
-                    foreach ($item in $chunkData.Events) {
-                        if ($item -is [hashtable]) { $item = [PSCustomObject]$item }
-                        $item.PSObject.TypeNames.Insert(0, 'XdrCloudAppsActivity')
-                        $allEvents.Add($item)
-                    }
-                }
-                $chunkData = $null
-
-                if ($fileIndex % 50 -eq 0) {
-                    [System.GC]::Collect()
-                    [System.GC]::WaitForPendingFinalizers()
-                }
-            }
-
-            Write-Progress -Activity "Processing Results" -Completed -Id 2
-
-            # Clean up temp files
-            if (-not $KeepTempFiles) {
-                Remove-Item -Path $runTempPath -Recurse -Force -ErrorAction SilentlyContinue
-            }
-            else {
-                Write-Verbose "Temporary files kept at: $runTempPath"
-            }
-
-            # Enrich with threat scores if requested (only for non-archived data)
-            if ($IncludeThreatScores -and -not $useArchived -and $allEvents.Count -gt 0) {
-                Write-Verbose "Fetching threat scores for $($allEvents.Count) activities"
-
-                $timestamps = $allEvents | ForEach-Object { $_.timestamp } | Where-Object { $_ -gt 0 }
-                if ($timestamps.Count -gt 0) {
-                    $minTimestamp = ($timestamps | Measure-Object -Minimum).Minimum
-                    $maxTimestamp = ($timestamps | Measure-Object -Maximum).Maximum
-
-                    $startDate = [DateTimeOffset]::FromUnixTimeMilliseconds($minTimestamp).UtcDateTime.AddDays(-1)
-                    $endDate = [DateTimeOffset]::FromUnixTimeMilliseconds($maxTimestamp).UtcDateTime.AddDays(1)
-
-                    $recordIds = @($allEvents | ForEach-Object { $_._id } | Where-Object { $_ })
-
-                    if ($recordIds.Count -gt 0) {
+                    $attempt = 0
+                    $response = $null
+                    while ($attempt -lt $Params.MaxRetries) {
+                        $attempt++
                         try {
-                            $threatScores = Get-XdrCloudAppsActivityThreatScore -RecordIds $recordIds -StartDate $startDate -EndDate $endDate -ErrorAction SilentlyContinue
-
-                            if ($threatScores -and $threatScores.data -and $threatScores.data.Count -gt 0) {
-                                Write-Verbose "Found $($threatScores.data.Count) threat scores"
-                                $scoresByRecordId = @{}
-                                foreach ($score in $threatScores.data) {
-                                    if ($score.recordId) { $scoresByRecordId[$score.recordId] = $score }
-                                }
-                                foreach ($activity in $allEvents) {
-                                    if ($scoresByRecordId.ContainsKey($activity._id)) {
-                                        $activity | Add-Member -NotePropertyName 'ThreatScore' -NotePropertyValue $scoresByRecordId[$activity._id] -Force
-                                    }
-                                }
-                            }
+                            $response = Invoke-RestMethod -Uri $uri -Method Post -Body $body -ContentType 'application/json' -WebSession $webSession -Headers $HeaderInfo -TimeoutSec $Params.RequestTimeoutSeconds -ErrorAction Stop
+                            break
                         }
                         catch {
-                            Write-Warning "Failed to retrieve threat scores: $_"
+                            $statusCode = $null
+                            if ($_.Exception.Response) { $statusCode = [int]$_.Exception.Response.StatusCode }
+                            if ($attempt -ge $Params.MaxRetries) { throw }
+                            $retryCount++
+                            $delay = [math]::Min(300, [int]($Params.RetryDelaySeconds * [math]::Pow(2, $attempt - 1)))
+                            if ($statusCode -eq 429 -or $statusCode -eq 403) { $delay = [math]::Max($delay, 30) }
+                            $delay += Get-Random -Minimum 0 -Maximum 5
+                            $retryErrors.Add("Page $pagesRetrieved attempt $attempt failed: $($_.Exception.Message)")
+                            Start-Sleep -Seconds $delay
                         }
+                    }
+
+                    if ($response -is [string] -and -not [string]::IsNullOrWhiteSpace($response)) {
+                        $response = $response | ConvertFrom-Json
+                    }
+                    foreach ($item in @($response.data)) {
+                        if (-not $first) { $writer.Write(',') }
+                        $writer.Write(($item | ConvertTo-Json -Depth 20 -Compress))
+                        $first = $false
+                        $eventCount++
+                    }
+                    $pagesRetrieved++
+                    Set-Content -Path $progressPath -Value $pagesRetrieved -Encoding UTF8
+                    $hasMore = $response.hasNext -eq $true
+                    $skip += $Params.PageSize
+                }
+                $writer.Write('],"EventCount":' + $eventCount + '}')
+                $writer.Close()
+                $writer.Dispose()
+                $writer = $null
+                $chunkStopwatch.Stop()
+
+                [PSCustomObject]@{
+                    ChunkIndex     = $Chunk.Index
+                    FromDate       = $Chunk.FromDate
+                    ToDate         = $Chunk.ToDate
+                    Archived       = $Chunk.Archived
+                    FilePath       = $filePath
+                    EventCount     = $eventCount
+                    PagesRetrieved = $pagesRetrieved
+                    RetryCount     = $retryCount
+                    RetryErrors    = $retryErrors.ToArray()
+                    FileSizeKB     = [math]::Round((Get-Item $filePath).Length / 1KB, 2)
+                    ElapsedSeconds = [math]::Round($chunkStopwatch.Elapsed.TotalSeconds, 2)
+                    Success        = $true
+                }
+            }
+            catch {
+                if ($writer) {
+                    try {
+                        $writer.Dispose()
+                    }
+                    catch {
+                        Write-Verbose "Failed to dispose Cloud Apps activity chunk writer: $($_.Exception.Message)"
+                    }
+                }
+                $chunkStopwatch.Stop()
+                [PSCustomObject]@{
+                    ChunkIndex     = $Chunk.Index
+                    FromDate       = $Chunk.FromDate
+                    ToDate         = $Chunk.ToDate
+                    Archived       = $Chunk.Archived
+                    FilePath       = $filePath
+                    EventCount     = $eventCount
+                    PagesRetrieved = $pagesRetrieved
+                    RetryCount     = $retryCount
+                    RetryErrors    = $retryErrors.ToArray()
+                    ElapsedSeconds = [math]::Round($chunkStopwatch.Elapsed.TotalSeconds, 2)
+                    Success        = $false
+                    Error          = $_.Exception.Message
+                }
+            }
+            finally {
+                Remove-Item -Path $progressPath -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        $operationStart = [System.Diagnostics.Stopwatch]::StartNew()
+        $results = @()
+        try {
+            if ($PSVersionTable.PSVersion.Major -ge 7) {
+                $parallelJob = Start-ThreadJob -ScriptBlock {
+                    param($Chunks, $Throttle, $Params, $CookieInfo, $HeaderInfo, $ScriptText)
+                    $Chunks | ForEach-Object -Parallel {
+                        & ([scriptblock]::Create($using:ScriptText)) -Chunk $_ -Params $using:Params -CookieInfo $using:CookieInfo -HeaderInfo $using:HeaderInfo
+                    } -ThrottleLimit $Throttle
+                } -ArgumentList $dateChunks.ToArray(), $ThrottleLimit, $baseParams, $cookieData, $headersData, $chunkScript.ToString()
+
+                $lastProgress = [System.Diagnostics.Stopwatch]::StartNew()
+                $lastCompleted = 0
+                while ($parallelJob.State -in @('NotStarted', 'Running')) {
+                    if ($operationStart.Elapsed.TotalSeconds -gt $TimeoutSeconds) {
+                        Stop-Job -Job $parallelJob -ErrorAction SilentlyContinue
+                        throw "Activity timeline timed out after $TimeoutSeconds seconds."
+                    }
+                    $completedFiles = @(Get-ChildItem -Path $runTempPath -Filter 'chunk_*.json' -ErrorAction SilentlyContinue).Count
+                    $recentProgress = Get-ChildItem -Path $runTempPath -Filter 'progress_*.txt' -ErrorAction SilentlyContinue |
+                        Where-Object { ([datetime]::UtcNow - $_.LastWriteTimeUtc).TotalSeconds -lt 60 }
+                    if ($completedFiles -gt $lastCompleted -or $recentProgress) {
+                        $lastCompleted = $completedFiles
+                        $lastProgress.Restart()
+                    }
+                    elseif ($lastProgress.Elapsed.TotalSeconds -gt 180 -and $completedFiles -lt $dateChunks.Count) {
+                        Stop-Job -Job $parallelJob -ErrorAction SilentlyContinue
+                        throw 'Activity timeline stalled with no chunk or page progress for 180 seconds.'
+                    }
+                    $percent = [math]::Min(99, [math]::Round(($completedFiles / [math]::Max(1, $dateChunks.Count)) * 100))
+                    Write-Progress -Activity 'Retrieving Cloud Apps Activity Timeline' -Status "Downloaded $completedFiles of $($dateChunks.Count) chunks" -PercentComplete $percent
+                    Start-Sleep -Milliseconds 300
+                }
+                $results = Receive-Job -Job $parallelJob -Wait
+                Remove-Job -Job $parallelJob -Force
+            }
+            else {
+                foreach ($chunk in $dateChunks) {
+                    $results += & $chunkScript -Chunk $chunk -Params $baseParams -CookieInfo $cookieData -HeaderInfo $headersData
+                }
+            }
+
+            Write-Progress -Activity 'Retrieving Cloud Apps Activity Timeline' -Completed
+            $failures = @($results | Where-Object { -not $_.Success })
+            if ($failures.Count -gt 0 -and -not $AllowPartial) {
+                $failedIds = ($failures | Sort-Object ChunkIndex | ForEach-Object { $_.ChunkIndex }) -join ', '
+                throw "Failed to retrieve Cloud Apps activity chunks: $failedIds. Re-run with -AllowPartial to return completed chunks."
+            }
+            elseif ($failures.Count -gt 0) {
+                Write-Warning "Returning partial timeline data; failed chunks: $(($failures.ChunkIndex | Sort-Object) -join ', ')"
+            }
+
+            $eventRows = [System.Collections.Generic.List[object]]::new()
+            $seenKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+            $sha256 = [System.Security.Cryptography.SHA256]::Create()
+            $fromUtc = $FromDate.ToUniversalTime()
+            $toUtc = $ToDate.ToUniversalTime()
+            $jsonFiles = Get-ChildItem -Path $runTempPath -Filter 'chunk_*.json' -ErrorAction SilentlyContinue | Sort-Object Name
+            foreach ($file in $jsonFiles) {
+                $chunkData = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json
+                foreach ($activity in @($chunkData.Events)) {
+                    $eventUtc = $null
+                    if ($activity.PSObject.Properties['timestamp'] -and $activity.timestamp) {
+                        $timestampValue = [double]$activity.timestamp
+                        $eventUtc = if ($timestampValue -gt 9999999999) {
+                            [DateTimeOffset]::FromUnixTimeMilliseconds([long]$timestampValue).UtcDateTime
+                        }
+                        else {
+                            [DateTimeOffset]::FromUnixTimeSeconds([long]$timestampValue).UtcDateTime
+                        }
+                    }
+                    elseif ($activity.PSObject.Properties['date'] -and $activity.date) {
+                        $eventUtc = ([datetime]$activity.date).ToUniversalTime()
+                    }
+                    elseif ($activity.PSObject.Properties['Date'] -and $activity.Date) {
+                        $eventUtc = ([datetime]$activity.Date).ToUniversalTime()
+                    }
+
+                    if ($null -eq $eventUtc -or $eventUtc -lt $fromUtc -or $eventUtc -ge $toUtc) {
+                        continue
+                    }
+
+                    $stableKey = if ($activity.PSObject.Properties['_id'] -and $activity._id) {
+                        [string]$activity._id
+                    }
+                    elseif ($activity.PSObject.Properties['id'] -and $activity.id) {
+                        [string]$activity.id
+                    }
+                    elseif ($activity.PSObject.Properties['recordId'] -and $activity.recordId) {
+                        [string]$activity.recordId
+                    }
+                    else {
+                        $stableJson = $activity | ConvertTo-Json -Depth 20 -Compress
+                        [System.BitConverter]::ToString($sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($stableJson))).Replace('-', '')
+                    }
+
+                    if ($seenKeys.Add($stableKey)) {
+                        $activity.PSObject.TypeNames.Insert(0, 'XdrCloudAppsActivity')
+                        $eventRows.Add([PSCustomObject]@{
+                            Event        = $activity
+                            TimestampKey = $eventUtc.ToString('o')
+                            StableKey    = $stableKey
+                        })
                     }
                 }
             }
-            elseif ($IncludeThreatScores -and $useArchived) {
-                Write-Warning "Threat scores are not available for archived activities (older than $($script:MaxDaysRegularApi) days)."
+            $sha256.Dispose()
+
+            $sortedEvents = $eventRows |
+                Sort-Object -Property @{ Expression = 'TimestampKey'; Descending = $true }, @{ Expression = 'StableKey'; Descending = $false } |
+                ForEach-Object { $_.Event }
+
+            if ($IncludeThreatScores -and $sortedEvents.Count -gt 0) {
+                if ($FromDate -lt $regularBoundaryUtc) {
+                    Write-Warning 'Threat scores are only requested for recent Cloud Apps activities; archived events will not have scores.'
+                }
+                $recordIds = @($sortedEvents | ForEach-Object { $_._id } | Where-Object { $_ })
+                for ($i = 0; $i -lt $recordIds.Count; $i += 500) {
+                    $batchEnd = [math]::Min($i + 499, $recordIds.Count - 1)
+                    $batchIds = $recordIds[$i..$batchEnd]
+                    try {
+                        $scores = Get-XdrCloudAppsActivityThreatScore -RecordIds $batchIds -StartDate $FromDate -EndDate $ToDate
+                        $scoreMap = @{}
+                        foreach ($score in @($scores.data)) {
+                            if ($score.recordId) { $scoreMap[$score.recordId] = $score }
+                        }
+                        foreach ($activity in $sortedEvents) {
+                            if ($activity._id -and $scoreMap.ContainsKey($activity._id)) {
+                                $activity | Add-Member -NotePropertyName ThreatScore -NotePropertyValue $scoreMap[$activity._id] -Force
+                            }
+                        }
+                    }
+                    catch {
+                        Write-Warning "Failed to enrich Cloud Apps activity threat scores: $($_.Exception.Message)"
+                    }
+                }
             }
 
-            $result = $allEvents.ToArray()
-            $allEvents.Clear()
-            $allEvents = $null
-            [System.GC]::Collect()
+            $operationStart.Stop()
+            $successCount = @($results | Where-Object { $_.Success }).Count
+            $eventCount = @($sortedEvents).Count
+            Write-Information "Retrieved $eventCount Cloud Apps activities from $successCount chunk(s) in $([math]::Round($operationStart.Elapsed.TotalSeconds, 1)) seconds." -InformationAction Continue
 
-            return $result
+            if ($ExportPath) {
+                $parent = Split-Path -Path $ExportPath -Parent
+                if ($parent -and -not (Test-Path $parent)) { New-Item -Path $parent -ItemType Directory -Force | Out-Null }
+                if ($Compress) {
+                    $sortedEvents | ConvertTo-Json -Depth 20 -Compress | Set-Content -Path $ExportPath -Encoding UTF8
+                }
+                else {
+                    $sortedEvents | ConvertTo-Json -Depth 20 | Set-Content -Path $ExportPath -Encoding UTF8
+                }
+                if (-not $PassThru) {
+                    return [PSCustomObject]@{
+                        PSTypeName       = 'XdrCloudAppsActivityTimelineExport'
+                        ExportPath       = $ExportPath
+                        TotalEvents      = $eventCount
+                        TotalChunks      = $dateChunks.Count
+                        FailedChunks     = @($failures).Count
+                        WallClockSeconds = [math]::Round($operationStart.Elapsed.TotalSeconds, 2)
+                        FromDate         = $FromDate
+                        ToDate           = $ToDate
+                    }
+                }
+            }
+
+            return $sortedEvents
         }
-        catch {
-            Write-Progress -Activity "Retrieving Cloud Apps Activity Timeline" -Completed -Id 1
-            Write-Progress -Activity "Processing Results" -Completed -Id 2
-            Write-Error "Failed to retrieve activity timeline: $_"
+        finally {
+            Get-ChildItem -Path $runTempPath -Filter 'progress_*.txt' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+            if (-not $KeepTempFiles -and (Test-Path $runTempPath)) {
+                Remove-Item -Path $runTempPath -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            elseif ($KeepTempFiles) {
+                Write-Information "Temporary Cloud Apps timeline files preserved in: $runTempPath" -InformationAction Continue
+            }
         }
-        #endregion
     }
 }
+

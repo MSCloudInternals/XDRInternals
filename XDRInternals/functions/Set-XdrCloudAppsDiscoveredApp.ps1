@@ -35,7 +35,7 @@
     .PARAMETER StreamId
         The Cloud Discovery stream identifier where the app was discovered.
         Required when using -Sanctioned or -Score parameters.
-        Use Get-XdrCloudAppsConfigurationDiscoveryStream to retrieve available streams.
+        Use Get-XdrCloudAppsConfiguration -Type DiscoveryStream to retrieve available streams.
 
     .EXAMPLE
         Set-XdrCloudAppsDiscoveredApp -AppId "12345" -Note "Approved for marketing team use"
@@ -58,7 +58,7 @@
         Sets a high risk score of 8 for the discovered app.
 
     .EXAMPLE
-        Get-XdrCloudAppsDiscoveredApp -StreamId "stream-abc123" | Where-Object { $_.name -like "*Dropbox*" } |
+        Get-XdrCloudAppsApp -Type Discovered -StreamId "stream-abc123" | Where-Object { $_.name -like "*Dropbox*" } |
             Set-XdrCloudAppsDiscoveredApp -Sanctioned $false -StreamId "stream-abc123"
 
         Finds Dropbox apps and marks them as unsanctioned.
@@ -176,3 +176,4 @@
     end {
     }
 }
+

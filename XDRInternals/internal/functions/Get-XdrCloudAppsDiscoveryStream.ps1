@@ -4,9 +4,9 @@
         Internal function to get discovery streams by ID, name pattern, or return all streams.
 
     .DESCRIPTION
-        Gets discovery streams for use by Get-XdrCloudAppsDiscoveredApp and Get-XdrCloudAppsDiscovery.
+        Gets discovery streams for use by grouped Cloud Apps discovery commands.
         Supports explicit StreamId, wildcard StreamName matching, or returning all streams when neither
-        is specified. Uses cached stream data from Get-XdrCloudAppsConfigurationDiscoveryStream.
+        is specified.
 
     .PARAMETER StreamId
         Explicit stream ID to use. If specified, validates the stream exists.
@@ -45,8 +45,12 @@
         [switch]$Force
     )
 
-    # Get all streams (uses caching internally)
-    $allStreams = Get-XdrCloudAppsConfigurationDiscoveryStream -Force:$Force
+    $allStreams = Invoke-XdrCloudAppsRequest `
+        -Path '/mcas/cas/api/discovery/streams/' `
+        -TypeName 'XdrCloudAppsConfigurationDiscoveryStream' `
+        -CacheKey 'XdrCloudAppsConfigurationDiscoveryStream' `
+        -TTLMinutes 15 `
+        -Force:$Force
 
     if (-not $allStreams) {
         Write-Error "No discovery streams found. Ensure Cloud Discovery is configured in your tenant."
@@ -78,3 +82,4 @@
     # Return all streams
     return @($allStreams)
 }
+

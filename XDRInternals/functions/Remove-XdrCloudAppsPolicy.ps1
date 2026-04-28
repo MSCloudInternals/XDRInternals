@@ -28,7 +28,7 @@
         Removes the policy without confirmation prompt.
 
     .EXAMPLE
-        Get-XdrCloudAppsFilePolicy | Where-Object { $_.name -like "*test*" } | Remove-XdrCloudAppsPolicy
+        Get-XdrCloudAppsPolicy -Type File | Where-Object { $_.name -like "*test*" } | Remove-XdrCloudAppsPolicy
 
         Removes all file policies with "test" in their name using pipeline input.
 
@@ -77,3 +77,4 @@
         }
     }
 }
+

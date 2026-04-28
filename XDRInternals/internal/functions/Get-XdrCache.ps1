@@ -38,7 +38,7 @@
     
     process {
         # Get current tenant ID if not provided and cache key is not XdrTenantId itself
-        if (-not $TenantId -and $CacheKey -ne "XdrTenantId") {
+        if (-not $TenantId -and $CacheKey -notin @("XdrTenantId", "XdrTenantContext")) {
             $cachedTenantId = Get-XdrCache -CacheKey "XdrTenantId" -ErrorAction SilentlyContinue
             if ($cachedTenantId) {
                 $TenantId = $cachedTenantId.Value

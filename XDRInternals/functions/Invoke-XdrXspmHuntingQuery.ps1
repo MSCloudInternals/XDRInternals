@@ -100,21 +100,23 @@
         Write-Verbose "Executing XSPM hunting query (Top: $Top, Skip: $Skip)"
         Write-Verbose "Query: $Query"
 
-        # Get tenant context for X-Tid header
+        # Get tenant context for x-tid header
         $XdrTenantId = Get-XdrCache -CacheKey "XdrTenantId" -ErrorAction SilentlyContinue
         $tenantId = $XdrTenantId.Value
 
         # Build custom headers
         $customHeaders = $script:headers.Clone()
         if ($tenantId) {
-            $customHeaders['X-Tid'] = $tenantId
-            Write-Verbose "Added X-Tid header: $tenantId"
+            $customHeaders['x-tid'] = $tenantId
+            Write-Verbose "Added x-tid header: $tenantId"
         }
         $customHeaders['x-ms-scenario-name'] = $ScenarioName
         Write-Verbose "Added x-ms-scenario-name header: $ScenarioName"
 
         try {
             $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $customHeaders
+            # Reset web session to avoid issues with custom headers in subsequent calls
+            Set-XdrConnectionSettings -ResetWebSession
 
             Set-XdrCache -CacheKey $cacheKey -Value $result -TTLMinutes 30
             return $result

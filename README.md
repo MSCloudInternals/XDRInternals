@@ -1,4 +1,4 @@
-![](./images/xdrinternals-banner.jpg "XDRInternals")
+﻿![](./images/xdrinternals-banner.jpg "XDRInternals")
 
 # XDRInternals
 
@@ -43,177 +43,139 @@ Get-XdrTenantContext -Force
 
 ## Available Cmdlets
 
-| Cmdlet                                                      | Description                                                   |
-| ----------------------------------------------------------- | ------------------------------------------------------------- |
-| Connect-XdrByEstsCookie                                     | Authenticate to Microsoft Defender XDR using ESTS cookie      |
-| ConvertTo-XdrEncodedAdvancedHuntingQuery                    | Encode Advanced Hunting queries for URL/API usage             |
-| Get-XdrActionsCenterHistory                                 | Retrieve historical actions from the Action Center            |
-| Get-XdrActionsCenterPending                                 | Retrieve pending actions from the Action Center               |
-| Get-XdrAdvancedHuntingFunction                              | Get saved Advanced Hunting functions                          |
-| Get-XdrAdvancedHuntingTableSchema                           | Get the schema for Advanced Hunting tables                    |
-| Get-XdrAdvancedHuntingUnifiedDetectionRules                 | Get unified detection rules from Advanced Hunting             |
-| Get-XdrAdvancedHuntingUserHistory                           | Retrieve user's Advanced Hunting query history                |
-| Get-XdrAlert                                                | Retrieve alerts with filtering and pagination                 |
-| Get-XdrCloudAppsActivityThreatScore                         | Get threat scores for activity records                        |
-| Get-XdrCloudAppsActivityTimeline                            | Get activity timeline data                                    |
-| Get-XdrCloudAppsAiAgents                                    | Retrieve AI agent data from Microsoft Defender for Cloud Apps |
-| Get-XdrCloudAppsAppCatalog                                  | Get cloud apps from the app catalog                           |
-| Get-XdrCloudAppsAppGovernance                               | Get App Governance data                                       |
-| Get-XdrCloudAppsAppGovernanceApp                            | Get governed applications                                     |
-| Get-XdrCloudAppsAppGovernanceLabel                          | Get App Governance labels                                     |
-| Get-XdrCloudAppsAppGovernancePolicy                         | Get App Governance policies                                   |
-| Get-XdrCloudAppsAppGovernancePolicyInsight                  | Get App Governance policy insights                            |
-| Get-XdrCloudAppsAppGovernancePredefinedPolicy               | Get App Governance predefined policies                        |
-| Get-XdrCloudAppsAppGovernanceUserProfile                    | Get App Governance user profiles                              |
-| Get-XdrCloudAppsAutocomplete                                | Get autocomplete suggestions                                  |
-| Get-XdrCloudAppsConfigurationApiToken                       | Get Cloud Apps API tokens                                     |
-| Get-XdrCloudAppsConfigurationAutocomplete                   | Get configuration autocomplete suggestions                    |
-| Get-XdrCloudAppsConfigurationConnectedService               | Get connected service configurations                          |
-| Get-XdrCloudAppsConfigurationConnector                      | Get app connectors                                            |
-| Get-XdrCloudAppsConfigurationCustomParser                   | Get custom log parsers                                        |
-| Get-XdrCloudAppsConfigurationDiscoveryAppTag                | Get Cloud Discovery app tags                                  |
-| Get-XdrCloudAppsConfigurationDiscoveryDataSource            | Get Cloud Discovery data sources                              |
-| Get-XdrCloudAppsConfigurationDiscoveryEncryption            | Get Cloud Discovery encryption settings                       |
-| Get-XdrCloudAppsConfigurationDiscoveryExclusion             | Get Cloud Discovery exclusions                                |
-| Get-XdrCloudAppsConfigurationDiscoveryReport                | Get Cloud Discovery reports                                   |
-| Get-XdrCloudAppsConfigurationDiscoveryStream                | Get Cloud Discovery stream data                               |
-| Get-XdrCloudAppsConfigurationDiscoveryWeight                | Get Cloud Discovery app weights                               |
-| Get-XdrCloudAppsConfigurationInfo                           | Get Cloud Apps configuration info                             |
-| Get-XdrCloudAppsConfigurationIpTag                          | Get IP address tags                                           |
-| Get-XdrCloudAppsConfigurationLocation                       | Get configured locations                                      |
-| Get-XdrCloudAppsConfigurationLogCollector                   | Get log collectors                                            |
-| Get-XdrCloudAppsConfigurationScopedDeployment               | Get scoped deployments                                        |
-| Get-XdrCloudAppsConfigurationScopedProfile                  | Get scoped profiles                                           |
-| Get-XdrCloudAppsConfigurationSettings                       | Get Cloud Apps configuration settings                         |
-| Get-XdrCloudAppsConfigurationSiemAgent                      | Get SIEM agent configurations                                 |
-| Get-XdrCloudAppsConfigurationSubnet                         | Get configured subnets                                        |
-| Get-XdrCloudAppsConfigurationUserTag                        | Get user tags                                                 |
-| Get-XdrCloudAppsConnectedServiceApp                         | Get connected service apps                                    |
-| Get-XdrCloudAppsDiscoveredApp                               | Get discovered cloud apps                                     |
-| Get-XdrCloudAppsDiscovery                                   | Get Cloud Discovery data                                      |
-| Get-XdrCloudAppsFeatureFlag                                 | Get Cloud Apps feature flags                                  |
-| Get-XdrCloudAppsFile                                        | Get file information from Cloud Apps                          |
-| Get-XdrCloudAppsGeneralSetting                              | Get Cloud Apps general settings                               |
-| Get-XdrCloudAppsGovernanceLog                               | Get governance log entries                                    |
-| Get-XdrCloudAppsLCNCSetting                                 | Get Low Code/No Code (LCNC) settings                          |
-| Get-XdrCloudAppsOAuthApp                                    | Get OAuth applications                                        |
-| Get-XdrCloudAppsPolicy                                      | Get Cloud Apps policies                                       |
-| Get-XdrCloudAppsWindowsDefenderStreamAvailable              | Check Windows Defender stream availability                    |
-| Get-XdrConfigurationAlertServiceSetting                     | Get alert service configuration settings                      |
-| Get-XdrConfigurationAlertTuning                             | Retrieve alert tuning and suppression rules                   |
-| Get-XdrConfigurationAssetRuleManagement                     | Get asset rule management configuration                       |
-| Get-XdrConfigurationCriticalAssetManagementClassification   | Retrieve critical asset management classification rules       |
-| Get-XdrConfigurationCriticalAssetManagementClassificationSchema | Get available properties for classification rules         |
-| Get-XdrConfigurationCriticalAssetManagement                 | Retrieve critical asset management settings                   |
-| Get-XdrConfigurationPreviewFeatures                         | Get and manage XDR preview features                           |
-| Get-XdrConfigurationServiceAccountClassification            | Get service account classification configuration              |
-| Get-XdrConfigurationUnifiedRBACWorkload                     | Retrieve Unified RBAC workload configuration                  |
-| Get-XdrDatalakeDatabase                                     | Get available datalake databases                              |
-| Get-XdrDatalakeTableSchema                                  | Retrieve schema for datalake tables                           |
-| Get-XdrEndpointAdvancedFeatures                             | Get endpoint advanced features settings                       |
-| Get-XdrEndpointConfigurationAdvancedFeatures                | Retrieve endpoint advanced features configuration             |
-| Get-XdrEndpointConfigurationAuthenticatedTelemetry          | Get authenticated telemetry configuration                     |
-| Get-XdrEndpointConfigurationCustomCollectionRule            | Get custom collection rules for MDE                           |
-| Get-XdrEndpointConfigurationIntuneConnection                | Retrieve Intune connection configuration                      |
-| Get-XdrEndpointConfigurationLiveResponse                    | Get Live Response configuration settings                      |
-| Get-XdrEndpointConfigurationPotentiallyUnwantedApplications | Retrieve PUA configuration                                    |
-| Get-XdrEndpointConfigurationPreviewFeature                  | Get preview feature configuration                             |
-| Get-XdrEndpointConfigurationPurviewSharing                  | Retrieve Purview data sharing configuration                   |
-| Get-XdrEndpointDevice                                       | Get endpoint devices with filtering and pagination            |
-| Get-XdrEndpointDeviceModel                                  | Retrieve device models                                        |
-| Get-XdrEndpointDeviceOsVersionFriendlyName                  | Get friendly names for OS versions                            |
-| Get-XdrEndpointDeviceRbacGroup                              | Retrieve RBAC groups for devices                              |
-| Get-XdrEndpointDeviceRbacGroupScope                         | Retrieve RBAC groups scope for devices                        |
-| Get-XdrEndpointDeviceTag                                    | Get device tags                                               |
-| Get-XdrEndpointDeviceTimeline                               | Retrieve timeline events for a specific device                |
-| Get-XdrEndpointDeviceTotals                                 | Get total counts of endpoint devices                          |
-| Get-XdrEndpointDeviceVendor                                 | Retrieve device vendor information                            |
-| Get-XdrEndpointDeviceWindowsReleaseVersion                  | Get Windows release version information                       |
-| Get-XdrEndpointLicenseReport                                | Retrieve endpoint license report                              |
-| Get-XdrExposureManagementRecommendations                    | Get security recommendations from Exposure Management         |
-| Get-XdrIdentityAlertThreshold                               | Get alert threshold configuration for Defender for Identity   |
-| Get-XdrIdentityConfigurationDirectoryServiceAccount         | Retrieve directory service account configuration              |
-| Get-XdrIdentityConfigurationRemediationActionAccount        | Get remediation action account configuration                  |
-| Get-XdrIdentityDomainControllerCoverage                     | Retrieve domain controller coverage information               |
-| Get-XdrIdentityIdentity                                     | Get identities from Microsoft Defender for Identity           |
-| Get-XdrIdentityOnboardingStatus                             | Get onboarding status for Defender for Identity               |
-| Get-XdrIdentityServiceAccount                               | Retrieve service account information                          |
-| Get-XdrIdentityStatistic                                    | Get identity statistics                                       |
-| Get-XdrIncident                                             | Retrieve incidents with filtering and pagination              |
-| Get-XdrIncidentAssociatedAlert                              | Retrieve alerts associated with a specific incident           |
-| Get-XdrStreamingApiConfiguration                            | Get Streaming API configuration                               |
-| Get-XdrSuppressionRule                                      | Retrieve alert suppression rules                              |
-| Get-XdrTenantContext                                        | Retrieve tenant context information                           |
-| Get-XdrTenants                                              | Retrieve list of accessible tenants                           |
-| Get-XdrTenantWorkloadStatus                                 | Get workload status for the tenant                            |
-| Get-XdrThreatAnalyticsOutbreaks                             | Retrieve threat analytics outbreak data (-ChangeCount, -TopThreats) |
-| Get-XdrUserPreference                                       | Get user preferences from Microsoft Defender XDR              |
-| Get-XdrVulnerabilityManagementAdvisories                    | Retrieve security advisories from TVM                         |
-| Get-XdrVulnerabilityManagementBaseline                      | Get security baseline assessment data from TVM                |
-| Get-XdrVulnerabilityManagementCertificates                  | Retrieve certificate inventory from TVM                       |
-| Get-XdrVulnerabilityManagementChangeEvents                  | Get change events from TVM                                    |
-| Get-XdrVulnerabilityManagementDashboard                     | Retrieve TVM dashboard data                                   |
-| Get-XdrVulnerabilityManagementExtensions                    | Get browser extension inventory from TVM                      |
-| Get-XdrVulnerabilityManagementProducts                      | Retrieve product information from TVM                         |
-| Get-XdrVulnerabilityManagementRemediationTasks              | Get remediation tasks and exceptions from TVM                 |
-| Get-XdrVulnerabilityManagementVulnerabilities               | Retrieve vulnerabilities from TVM (-Summary for stats)        |
-| Get-XdrXspmAttackPath                                       | Retrieve attack path data from XSPM                           |
-| Get-XdrXspmChokePoint                                       | Get choke points in attack paths                              |
-| Get-XdrXspmTopEntryPoint                                    | Retrieve top entry points from attack paths                   |
-| Get-XdrXspmTopTarget                                        | Get top targets from attack paths                             |
-| Invoke-XdrHuntingQueryValidation                            | Validate an Advanced Hunting query for custom detection rules |
-| Invoke-XdrRestMethod                                        | Invoke REST API calls to XDR endpoints                        |
-| Invoke-XdrXspmHuntingQuery                                  | Execute hunting queries against XSPM attack surface API       |
-| Merge-XdrIncident                                           | Merge multiple incidents into a single incident               |
-| Move-XdrAlertToIncident                                     | Move alerts to a specific incident or create a new one        |
-| New-XdrAdvancedHuntingFunction                              | Create new Advanced Hunting functions                         |
-| New-XdrCloudAppsConfigurationApiToken                       | Create new Cloud Apps API token                               |
-| New-XdrCloudAppsConfigurationDiscoveryAppTag                | Create new Cloud Discovery app tag                            |
-| New-XdrCloudAppsConfigurationDiscoveryExclusion             | Create new Cloud Discovery exclusion                          |
-| New-XdrCloudAppsConfigurationScopedDeployment               | Create new scoped deployment                                  |
-| New-XdrCloudAppsConfigurationScopedProfile                  | Create new scoped profile                                     |
-| New-XdrCloudAppsConfigurationSubnet                         | Create new subnet configuration                               |
-| New-XdrCloudAppsConfigurationUserTag                        | Create new user tag                                           |
-| New-XdrCloudAppsDiscoveryPolicy                             | Create new Cloud Discovery policy                             |
-| New-XdrCloudAppsFilePolicy                                  | Create new file policy                                        |
-| New-XdrConfigurationCriticalAssetManagementClassification   | Create critical asset management classification rules         |
-| New-XdrEndpointConfigurationCustomCollectionRule            | Create custom collection rules from YAML files                |
-| New-XdrEndpointDeviceRbacGroup                              | Create new endpoint device groups                             |
-| New-XdrIdentityConfigurationRemediationActionAccount        | Create new remediation action account configuration           |
-| Remove-XdrAdvancedHuntingFunction                           | Remove Advanced Hunting functions                             |
-| Remove-XdrCloudAppsConfigurationDiscoveryAppTag             | Remove Cloud Discovery app tag                                |
-| Remove-XdrCloudAppsConfigurationDiscoveryDataSource         | Remove Cloud Discovery data source                            |
-| Remove-XdrCloudAppsConfigurationDiscoveryExclusion          | Remove Cloud Discovery exclusion                              |
-| Remove-XdrCloudAppsConfigurationLogCollector                | Remove log collector                                          |
-| Remove-XdrCloudAppsConfigurationScopedDeployment            | Remove scoped deployment                                      |
-| Remove-XdrCloudAppsConfigurationScopedProfile               | Remove scoped profile                                         |
-| Remove-XdrCloudAppsConfigurationSubnet                      | Remove subnet configuration                                   |
-| Remove-XdrCloudAppsConfigurationUserTag                     | Remove user tag                                               |
-| Remove-XdrCloudAppsPolicy                                   | Remove Cloud Apps policy                                      |
-| Remove-XdrConfigurationCriticalAssetManagementClassification| Remove critical asset management classification rules         |
-| Remove-XdrIdentityConfigurationRemediationActionAccount     | Remove remediation action account configuration               |
-| Reset-XdrCloudAppsConfigurationDiscoveryWeight              | Reset Cloud Discovery app weights to defaults                 |
-| Revoke-XdrCloudAppsConfigurationApiToken                    | Revoke Cloud Apps API token                                   |
-| Set-XdrAdvancedHuntingFunction                              | Update existing Advanced Hunting functions                    |
-| Set-XdrCloudAppsConfigurationDiscoveryEncryption            | Set Cloud Discovery encryption settings                       |
-| Set-XdrCloudAppsConfigurationDiscoveryWeight                | Set Cloud Discovery app weights                               |
-| Set-XdrCloudAppsConfigurationLCNC                           | Set Low Code/No Code configuration                            |
-| Set-XdrCloudAppsConfigurationNotifications                  | Set Cloud Apps notification settings                          |
-| Set-XdrCloudAppsConfigurationProxyTrafficLogs               | Set proxy traffic log settings                                |
-| Set-XdrCloudAppsConfigurationScopedDeployment               | Update scoped deployment                                      |
-| Set-XdrCloudAppsConfigurationScopedProfile                  | Update scoped profile                                         |
-| Set-XdrCloudAppsConfigurationSubnet                         | Update subnet configuration                                   |
-| Set-XdrCloudAppsConfigurationTenantConfig                   | Set tenant configuration settings                             |
-| Set-XdrCloudAppsDiscoveredApp                               | Update discovered app properties                              |
-| Set-XdrCloudAppsPolicy                                      | Update Cloud Apps policy                                      |
-| Set-XdrConfigurationCriticalAssetManagementClassification   | Enable or disable classification rules                        |
-| Set-XdrConfigurationPreviewFeatures                         | Enable or disable XDR preview features                        |
-| Set-XdrConnectionSettings                                   | Configure connection settings for XDR                         |
-| Set-XdrEndpointAdvancedFeatures                             | Set endpoint advanced features configuration                  |
-| Set-XdrEndpointConfigurationCustomCollectionRule            | Update existing custom collection rules                       |
-| Set-XdrEndpointDeviceRbacGroup                              | Update endpoint device groups                                 |
-| Set-XdrIdentityConfigurationRemediationActionAccount        | Update remediation action account configuration               |
-| Update-XdrConnectionSettings                                | Update and refresh connection settings                        |
+| Cmdlet | Description |
+| --- | --- |
+| Connect-XdrByBrowser | Authenticate or connect to Defender XDR |
+| Connect-XdrByCredential | Authenticate or connect to Defender XDR |
+| Connect-XdrByEstsCookie | Authenticate or connect to Defender XDR |
+| Connect-XdrByPhoneSignIn | Authenticate or connect to Defender XDR |
+| Connect-XdrBySoftwarePasskey | Authenticate or connect to Defender XDR |
+| Connect-XdrBySSO | Authenticate or connect to Defender XDR |
+| Connect-XdrByTemporaryAccessPass | Authenticate or connect to Defender XDR |
+| Connect-XdrEndpointDeviceLiveResponse | Authenticate or connect to Defender XDR |
+| ConvertTo-XdrEncodedAdvancedHuntingQuery | Defender XDR helper command |
+| Disconnect-XdrEndpointDeviceLiveResponse | Defender XDR helper command |
+| Export-XdrToSentinel | Defender XDR helper command |
+| Get-XdrActionsCenterHistory | Retrieve Defender XDR data |
+| Get-XdrActionsCenterPending | Retrieve Defender XDR data |
+| Get-XdrAdvancedHuntingFunction | Retrieve Defender XDR data |
+| Get-XdrAdvancedHuntingTableSchema | Retrieve Defender XDR data |
+| Get-XdrAdvancedHuntingUnifiedDetectionRules | Retrieve Defender XDR data |
+| Get-XdrAdvancedHuntingUserHistory | Retrieve Defender XDR data |
+| Get-XdrAlert | Retrieve Defender XDR data |
+| Get-XdrCloudAppsActivityTimeline | Retrieve Cloud Apps activity timeline data |
+| Get-XdrCloudAppsApp | Retrieve Cloud Apps app, OAuth, catalog, service, tag, and file data |
+| Get-XdrCloudAppsConfiguration | Retrieve grouped Cloud Apps configuration data |
+| Get-XdrCloudAppsDiscovery | Retrieve Cloud Discovery data |
+| Get-XdrCloudAppsGovernance | Retrieve Cloud Apps governance and App Governance data |
+| Get-XdrCloudAppsPolicy | Retrieve Cloud Apps policies, policy metadata, actions, and limits |
+| Get-XdrConfigurationAlertServiceSetting | Retrieve Defender XDR data |
+| Get-XdrConfigurationAlertTuning | Retrieve Defender XDR data |
+| Get-XdrConfigurationAssetRuleManagement | Retrieve Defender XDR data |
+| Get-XdrConfigurationCriticalAssetManagementClassification | Retrieve Defender XDR data |
+| Get-XdrConfigurationCriticalAssetManagementClassificationSchema | Retrieve Defender XDR data |
+| Get-XdrConfigurationPreviewFeatures | Retrieve Defender XDR data |
+| Get-XdrConfigurationServiceAccountClassification | Retrieve Defender XDR data |
+| Get-XdrConfigurationUnifiedRBACWorkload | Retrieve Defender XDR data |
+| Get-XdrDatalakeDatabase | Retrieve Defender XDR data |
+| Get-XdrDatalakeTableSchema | Retrieve Defender XDR data |
+| Get-XdrEndpointAdvancedFeatures | Retrieve Defender XDR data |
+| Get-XdrEndpointConfigurationAdvancedFeatures | Retrieve Defender XDR data |
+| Get-XdrEndpointConfigurationAuthenticatedTelemetry | Retrieve Defender XDR data |
+| Get-XdrEndpointConfigurationCustomCollectionRule | Retrieve Defender XDR data |
+| Get-XdrEndpointConfigurationIntuneConnection | Retrieve Defender XDR data |
+| Get-XdrEndpointConfigurationLiveResponse | Retrieve Defender XDR data |
+| Get-XdrEndpointConfigurationPotentiallyUnwantedApplications | Retrieve Defender XDR data |
+| Get-XdrEndpointConfigurationPreviewFeature | Retrieve Defender XDR data |
+| Get-XdrEndpointConfigurationPurviewSharing | Retrieve Defender XDR data |
+| Get-XdrEndpointDevice | Retrieve Defender XDR data |
+| Get-XdrEndpointDeviceActionResult | Retrieve Defender XDR data |
+| Get-XdrEndpointDeviceLiveResponseLibrary | Retrieve Defender XDR data |
+| Get-XdrEndpointDeviceLiveResponseLibraryFile | Retrieve Defender XDR data |
+| Get-XdrEndpointDeviceModel | Retrieve Defender XDR data |
+| Get-XdrEndpointDeviceOsVersionFriendlyName | Retrieve Defender XDR data |
+| Get-XdrEndpointDeviceRbacGroup | Retrieve Defender XDR data |
+| Get-XdrEndpointDeviceRbacGroupScope | Retrieve Defender XDR data |
+| Get-XdrEndpointDeviceTag | Retrieve Defender XDR data |
+| Get-XdrEndpointDeviceTimeline | Retrieve Defender XDR data |
+| Get-XdrEndpointDeviceTotals | Retrieve Defender XDR data |
+| Get-XdrEndpointDeviceVendor | Retrieve Defender XDR data |
+| Get-XdrEndpointDeviceWindowsReleaseVersion | Retrieve Defender XDR data |
+| Get-XdrEndpointLicenseReport | Retrieve Defender XDR data |
+| Get-XdrExposureManagementRecommendations | Retrieve Defender XDR data |
+| Get-XdrIdentityAlertThreshold | Retrieve Defender XDR data |
+| Get-XdrIdentityConfigurationDirectoryServiceAccount | Retrieve Defender XDR data |
+| Get-XdrIdentityConfigurationRemediationActionAccount | Retrieve Defender XDR data |
+| Get-XdrIdentityDomainControllerCoverage | Retrieve Defender XDR data |
+| Get-XdrIdentityIdentity | Retrieve Defender XDR data |
+| Get-XdrIdentityOnboardingStatus | Retrieve Defender XDR data |
+| Get-XdrIdentityServiceAccount | Retrieve Defender XDR data |
+| Get-XdrIdentityStatistic | Retrieve Defender XDR data |
+| Get-XdrIdentityUser | Retrieve Defender XDR data |
+| Get-XdrIdentityUserTimeline | Retrieve Defender XDR data |
+| Get-XdrIncident | Retrieve Defender XDR data |
+| Get-XdrIncidentAssociatedAlert | Retrieve Defender XDR data |
+| Get-XdrMtoTenantList | Retrieve Defender XDR data |
+| Get-XdrStreamingApiConfiguration | Retrieve Defender XDR data |
+| Get-XdrSuppressionRule | Retrieve Defender XDR data |
+| Get-XdrTenantContext | Retrieve Defender XDR data |
+| Get-XdrTenantWorkloadStatus | Retrieve Defender XDR data |
+| Get-XdrThreatAnalyticsOutbreaks | Retrieve Defender XDR data |
+| Get-XdrVulnerabilityManagementAdvisories | Retrieve Defender XDR data |
+| Get-XdrVulnerabilityManagementBaseline | Retrieve Defender XDR data |
+| Get-XdrVulnerabilityManagementCertificates | Retrieve Defender XDR data |
+| Get-XdrVulnerabilityManagementChangeEvents | Retrieve Defender XDR data |
+| Get-XdrVulnerabilityManagementDashboard | Retrieve Defender XDR data |
+| Get-XdrVulnerabilityManagementExtensions | Retrieve Defender XDR data |
+| Get-XdrVulnerabilityManagementProducts | Retrieve Defender XDR data |
+| Get-XdrVulnerabilityManagementRemediationTasks | Retrieve Defender XDR data |
+| Get-XdrVulnerabilityManagementVulnerabilities | Retrieve Defender XDR data |
+| Get-XdrXspmAttackPath | Retrieve Defender XDR data |
+| Get-XdrXspmChokePoint | Retrieve Defender XDR data |
+| Get-XdrXspmTopEntryPoint | Retrieve Defender XDR data |
+| Get-XdrXspmTopTarget | Retrieve Defender XDR data |
+| Invoke-XdrEndpointDeviceAction | Invoke Defender XDR operations |
+| Invoke-XdrEndpointDeviceAutomatedInvestigation | Invoke Defender XDR operations |
+| Invoke-XdrEndpointDeviceLiveResponseCommand | Invoke Defender XDR operations |
+| Invoke-XdrEndpointDevicePolicySync | Invoke Defender XDR operations |
+| Invoke-XdrHuntingQueryValidation | Invoke Defender XDR operations |
+| Invoke-XdrMtoAdvancedHunting | Invoke Defender XDR operations |
+| Invoke-XdrRestMethod | Invoke Defender XDR operations |
+| Invoke-XdrXspmHuntingQuery | Invoke Defender XDR operations |
+| Merge-XdrIncident | Defender XDR helper command |
+| Move-XdrAlertToIncident | Defender XDR helper command |
+| New-XdrAdvancedHuntingFunction | Create Defender XDR resources |
+| New-XdrCloudAppsConfiguration | Create supported Cloud Apps configuration objects |
+| New-XdrCloudAppsPolicy | Create Cloud Apps policies |
+| New-XdrConfigurationCriticalAssetManagementClassification | Create Defender XDR resources |
+| New-XdrEndpointConfigurationCustomCollectionRule | Create Defender XDR resources |
+| New-XdrEndpointDeviceLiveResponseLibraryFile | Create Defender XDR resources |
+| New-XdrEndpointDeviceRbacGroup | Create Defender XDR resources |
+| New-XdrIdentityConfigurationRemediationActionAccount | Create Defender XDR resources |
+| Remove-XdrAdvancedHuntingFunction | Remove Defender XDR resources |
+| Remove-XdrCloudAppsConfiguration | Remove supported Cloud Apps configuration objects |
+| Remove-XdrCloudAppsPolicy | Remove a Cloud Apps policy |
+| Remove-XdrConfigurationCriticalAssetManagementClassification | Remove Defender XDR resources |
+| Remove-XdrEndpointDeviceLiveResponseLibraryFile | Remove Defender XDR resources |
+| Remove-XdrIdentityConfigurationRemediationActionAccount | Remove Defender XDR resources |
+| Set-XdrAdvancedHuntingFunction | Update Defender XDR configuration or state |
+| Set-XdrCloudAppsConfiguration | Update supported Cloud Apps configuration objects and settings |
+| Set-XdrCloudAppsDiscoveredApp | Update discovered app state such as sanctioning or tags |
+| Set-XdrCloudAppsPolicy | Update or enable/disable Cloud Apps policies |
+| Set-XdrConfigurationCriticalAssetManagementClassification | Update Defender XDR configuration or state |
+| Set-XdrConfigurationPreviewFeatures | Update Defender XDR configuration or state |
+| Set-XdrConnectionSettings | Update Defender XDR configuration or state |
+| Set-XdrEndpointAdvancedFeatures | Update Defender XDR configuration or state |
+| Set-XdrEndpointConfigurationCustomCollectionRule | Update Defender XDR configuration or state |
+| Set-XdrEndpointDeviceAssetValue | Update Defender XDR configuration or state |
+| Set-XdrEndpointDeviceCriticalityLevel | Update Defender XDR configuration or state |
+| Set-XdrEndpointDeviceExclusionState | Update Defender XDR configuration or state |
+| Set-XdrEndpointDeviceRbacGroup | Update Defender XDR configuration or state |
+| Set-XdrEndpointDeviceTag | Update Defender XDR configuration or state |
+| Set-XdrIdentityConfigurationRemediationActionAccount | Update Defender XDR configuration or state |
+| Set-XdrSentinelConnection | Update Defender XDR configuration or state |
+| Stop-XdrEndpointDeviceAction | Defender XDR helper command |
+| Update-XdrConnectionSettings | Defender XDR helper command |
 
 ## Installation
 
@@ -247,8 +209,43 @@ Connect-XdrByEstsCookie
 ```
 
 ```powershell
-# Configure connection settings with manually acquired SCC auth and XSRF token
-Set-XdrConnectionSettings -SccAuth $scc -Xsrf $xsrf -Verbose
+# Connect to Microsoft Defender XDR using an interactive browser sign-in
+# Uses a dedicated secondary browser profile by default
+# Useful for passkey/FIDO2 or Temporary Access Pass flows
+Connect-XdrByBrowser -Username 'admin@contoso.com'
+```
+
+`Connect-XdrByBrowser` uses Chromium-compatible browser automation and cookie capture. On macOS, Microsoft Edge, Google Chrome, Brave, and Chromium are the supported browsers today. Safari is not currently supported by this flow.
+
+On macOS and Linux, `Connect-XdrByBrowser` is still an interactive flow. Complete any prompts until Defender XDR finishes loading so the cmdlet can capture the final session cookies.
+
+```powershell
+# Connect to Microsoft Defender XDR using Windows/browser single sign-on
+Connect-XdrBySSO
+```
+
+`Connect-XdrBySSO` is still a Windows-first flow, but it can also reuse existing Chromium browser session state on macOS and Linux when a supported browser profile already has the required sign-in state.
+
+`Connect-XdrBySSO -Visible` is useful for validating or troubleshooting the flow because it lets you confirm the browser reached Defender XDR before the cmdlet captures the session cookies.
+
+```powershell
+# Connect to Microsoft Defender XDR using a Temporary Access Pass
+$tap = ConvertTo-SecureString '+&YZuead' -AsPlainText -Force
+Connect-XdrByTemporaryAccessPass -Username 'admin@contoso.com' -TemporaryAccessPass $tap -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
+```
+
+```powershell
+# Connect to Microsoft Defender XDR using Microsoft Authenticator phone sign-in
+Connect-XdrByPhoneSignIn -Username 'admin@contoso.com'
+```
+
+Phone sign-in starts the Defender portal flow directly and shows the number returned by Entra ID when the service exposes it through the resume URL. Some tenants or accounts currently land in a `login.microsoft.com` passkey/native-bridge interstitial instead of inline `PhoneAppNotification`; in that case the cmdlet fails fast and `Connect-XdrByBrowser` remains the supported fallback.
+
+Or alternatively:
+
+```powershell
+# Configure connection settings with SCC auth (XSRF token is obtained automatically)
+Set-XdrConnectionSettings -SccAuth $sccauth
 ```
 
 ### Examples
@@ -309,6 +306,56 @@ Get-XdrXspmTopTarget
 Invoke-XdrXspmHuntingQuery -Query "AttackPathsV2 | where RiskLevel == 'High'" -ScenarioName "CustomQuery"
 ```
 
+#### Cloud Apps
+
+```powershell
+# Get recent Cloud Apps activity with admin-friendly output
+Get-XdrCloudAppsActivityTimeline -LastNDays 1
+
+# Push harder for time-sensitive incident response while preserving completeness checks
+Get-XdrCloudAppsActivityTimeline -LastNDays 7 -Aggressive -ExportPath ".\cloud-apps-activity.json"
+
+# Explore grouped app and discovery surfaces
+Get-XdrCloudAppsApp -Type Discovered -Limit 50
+Get-XdrCloudAppsDiscovery -ListStreams
+Get-XdrCloudAppsConfiguration -Type DiscoveryStream
+
+# Review governance and policy data
+Get-XdrCloudAppsGovernance
+Get-XdrCloudAppsPolicy -Type File -Metadata
+```
+
+#### Live Response
+
+```powershell
+# Open an interactive Live Response shell
+Connect-XdrEndpointDeviceLiveResponse -DeviceId $deviceId
+
+# Create one or more non-interactive sessions for automation
+$sessions = Get-XdrEndpointDevice -MachineSearchPrefix sml |
+	Select-Object -First 2 |
+	Connect-XdrEndpointDeviceLiveResponse -NonInteractive
+
+# Run a command and get PowerShell-native row output for common table responses
+$sessions |
+	Invoke-XdrEndpointDeviceLiveResponseCommand -Command 'processes' -ExpandTableOutput |
+	Select-Object DeviceName, Name, Pid, MemoryKB
+
+# Keep the original API wrapper object instead of expanding table rows
+$sessions[0] |
+	Invoke-XdrEndpointDeviceLiveResponseCommand -Command 'drivers -name cdd.dll' -RawCommandResult
+
+# Disconnect sessions through the pipeline
+$sessions | Disconnect-XdrEndpointDeviceLiveResponse
+```
+
+Notes:
+
+- `Connect-XdrEndpointDeviceLiveResponse -NonInteractive` accepts pipeline input from `Get-XdrEndpointDevice` and supports `-NoStatusTable` when connecting to multiple devices.
+- `Invoke-XdrEndpointDeviceLiveResponseCommand` expands common table outputs such as `processes`, `services`, `drivers`, `connections`, `dir`, and `persistence` into typed row objects by default. Use `-RawCommandResult` to keep the original API response shape, or `-IncludeCommandResult` together with `-ExpandTableOutput` to emit both forms.
+- `Disconnect-XdrEndpointDeviceLiveResponse` accepts session objects or raw session IDs from the pipeline.
+
 ## License
 
 See LICENSE file for details.
+

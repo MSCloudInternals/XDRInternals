@@ -64,7 +64,7 @@ Get-XdrTenantContext -Force
 | Get-XdrAdvancedHuntingUserHistory | Retrieve Defender XDR data |
 | Get-XdrAlert | Retrieve Defender XDR data |
 | Get-XdrCloudAppsActivityTimeline | Retrieve Cloud Apps activity timeline data |
-| Get-XdrCloudAppsApp | Retrieve Cloud Apps app, OAuth, catalog, service, tag, and file data |
+| Get-XdrCloudAppsApp | Retrieve live-validated Cloud Apps app, OAuth, catalog, service, tag, and file data |
 | Get-XdrCloudAppsConfiguration | Retrieve grouped Cloud Apps configuration data |
 | Get-XdrCloudAppsDiscovery | Retrieve Cloud Discovery data |
 | Get-XdrCloudAppsGovernance | Retrieve Cloud Apps governance and App Governance data |
@@ -145,23 +145,17 @@ Get-XdrTenantContext -Force
 | Merge-XdrIncident | Defender XDR helper command |
 | Move-XdrAlertToIncident | Defender XDR helper command |
 | New-XdrAdvancedHuntingFunction | Create Defender XDR resources |
-| New-XdrCloudAppsConfiguration | Create supported Cloud Apps configuration objects |
-| New-XdrCloudAppsPolicy | Create Cloud Apps policies |
 | New-XdrConfigurationCriticalAssetManagementClassification | Create Defender XDR resources |
 | New-XdrEndpointConfigurationCustomCollectionRule | Create Defender XDR resources |
 | New-XdrEndpointDeviceLiveResponseLibraryFile | Create Defender XDR resources |
 | New-XdrEndpointDeviceRbacGroup | Create Defender XDR resources |
 | New-XdrIdentityConfigurationRemediationActionAccount | Create Defender XDR resources |
 | Remove-XdrAdvancedHuntingFunction | Remove Defender XDR resources |
-| Remove-XdrCloudAppsConfiguration | Remove supported Cloud Apps configuration objects |
-| Remove-XdrCloudAppsPolicy | Remove a Cloud Apps policy |
 | Remove-XdrConfigurationCriticalAssetManagementClassification | Remove Defender XDR resources |
 | Remove-XdrEndpointDeviceLiveResponseLibraryFile | Remove Defender XDR resources |
 | Remove-XdrIdentityConfigurationRemediationActionAccount | Remove Defender XDR resources |
 | Set-XdrAdvancedHuntingFunction | Update Defender XDR configuration or state |
-| Set-XdrCloudAppsConfiguration | Update supported Cloud Apps configuration objects and settings |
-| Set-XdrCloudAppsDiscoveredApp | Update discovered app state such as sanctioning or tags |
-| Set-XdrCloudAppsPolicy | Update or enable/disable Cloud Apps policies |
+| Set-XdrCloudAppsDiscoveredApp | Update a discovered app note |
 | Set-XdrConfigurationCriticalAssetManagementClassification | Update Defender XDR configuration or state |
 | Set-XdrConfigurationPreviewFeatures | Update Defender XDR configuration or state |
 | Set-XdrConnectionSettings | Update Defender XDR configuration or state |
@@ -313,7 +307,7 @@ Invoke-XdrXspmHuntingQuery -Query "AttackPathsV2 | where RiskLevel == 'High'" -S
 Get-XdrCloudAppsActivityTimeline -LastNDays 1
 
 # Push harder for time-sensitive incident response while preserving completeness checks
-Get-XdrCloudAppsActivityTimeline -LastNDays 7 -Aggressive -ExportPath ".\cloud-apps-activity.json"
+Get-XdrCloudAppsActivityTimeline -LastNDays 7 -Aggressive -ExportPath ".\cloud-apps-activity.ndjson" -ExportFormat Ndjson
 
 # Explore grouped app and discovery surfaces
 Get-XdrCloudAppsApp -Type Discovered -Limit 50
@@ -322,7 +316,7 @@ Get-XdrCloudAppsConfiguration -Type DiscoveryStream
 
 # Review governance and policy data
 Get-XdrCloudAppsGovernance
-Get-XdrCloudAppsPolicy -Type File -Metadata
+Get-XdrCloudAppsPolicy -Type OAuth -Metadata
 ```
 
 #### Live Response
@@ -358,4 +352,3 @@ Notes:
 ## License
 
 See LICENSE file for details.
-

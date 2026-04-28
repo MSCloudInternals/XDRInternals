@@ -4,8 +4,8 @@
         Retrieves app-focused Microsoft Defender for Cloud Apps data.
 
     .DESCRIPTION
-        Retrieves app catalog, discovered app, OAuth app permission, connected service,
-        AI agent, file, service, and tag data through one grouped command.
+        Retrieves app catalog, discovered app, OAuth app permission, file, service,
+        and tag data through one grouped command.
 
     .PARAMETER Type
         App data surface to retrieve. Defaults to Discovered.
@@ -46,15 +46,6 @@
     .PARAMETER Filters
         Cloud Apps filters to include in the query body.
 
-    .PARAMETER Columns
-        Optional AI agent grid columns to request.
-
-    .PARAMETER Platforms
-        AI agent platforms to include.
-
-    .PARAMETER DaysAgo
-        Time range for AI agent discovery timeline data.
-
     .PARAMETER Force
         Bypasses cache-backed requests.
 
@@ -71,7 +62,7 @@
     [CmdletBinding(DefaultParameterSetName = 'Default')]
     param(
         [Parameter()]
-        [ValidateSet('Discovered', 'Catalog', 'CatalogCategory', 'OAuth', 'Permission', 'ConnectedService', 'ConnectedServiceInstance', 'AiAgent', 'AiAgentPlatformCount', 'AiAgentDiscoveryTimeline', 'File', 'Service', 'Tag')]
+        [ValidateSet('Discovered', 'Catalog', 'CatalogCategory', 'OAuth', 'File', 'Service', 'Tag')]
         [string]$Type = 'Discovered',
 
         [Parameter()]
@@ -115,17 +106,6 @@
         [hashtable]$Filters = @{},
 
         [Parameter()]
-        [string[]]$Columns,
-
-        [Parameter()]
-        [ValidateSet('azureFoundry', 'copilotStudio', 'awsBedrock', 'gcpVertex')]
-        [string[]]$Platforms = @('azureFoundry', 'copilotStudio', 'awsBedrock', 'gcpVertex'),
-
-        [Parameter()]
-        [ValidateSet('7d', '14d', '30d', '60d', '90d')]
-        [string]$DaysAgo = '60d',
-
-        [Parameter()]
         [switch]$Raw,
 
         [Parameter()]
@@ -153,12 +133,6 @@
             'Tag' {
                 Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/tags/' -TypeName 'XdrCloudAppsTag' -CacheKey 'XdrCloudAppsTag' -TTLMinutes 30 -Raw:$Raw -Force:$Force
             }
-            'ConnectedService' {
-                Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/connected_services/' -TypeName 'XdrCloudAppsConnectedService' -CacheKey 'XdrCloudAppsConnectedService' -TTLMinutes 15 -Raw:$Raw -Force:$Force
-            }
-            'ConnectedServiceInstance' {
-                Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/connected_services/instances/' -TypeName 'XdrCloudAppsConnectedServiceInstance' -CacheKey 'XdrCloudAppsConnectedServiceInstance' -TTLMinutes 15 -Raw:$Raw -Force:$Force
-            }
             'OAuth' {
                 if ($Metadata) {
                     Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/app_permissions/metadata/' -TypeName 'XdrCloudAppsOAuthAppMetadata' -CacheKey 'XdrCloudAppsOAuthAppMetadata' -TTLMinutes 15 -Raw:$Raw -Force:$Force
@@ -168,11 +142,8 @@
                     Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/app_permissions/count/' -Method Post -Body @{ filters = $Filters } -Raw -Force:$Force
                     return
                 }
-                $body.sortField = if ($PSBoundParameters.ContainsKey('SortField')) { $SortField } else { 'riskScore' }
+                $body.sortField = if ($PSBoundParameters.ContainsKey('SortField')) { $SortField } else { 'userCount' }
                 Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/app_permissions/' -Method Post -Body $body -TypeName 'XdrCloudAppsOAuthApp' -CacheKey "XdrCloudAppsOAuthApp-$Limit-$Skip-$($body.sortField)-$SortDirection-$(($Filters | ConvertTo-Json -Compress))" -Raw:$Raw -Force:$Force
-            }
-            'Permission' {
-                Invoke-XdrCloudAppsRequest -Path '/mcas/api/v1/autocomplete/app-permission-permissions' -TypeName 'XdrCloudAppsAppPermission' -CacheKey 'XdrCloudAppsAppPermission' -TTLMinutes 30 -Raw:$Raw -Force:$Force
             }
             'Catalog' {
                 if ($Metadata) {
@@ -232,30 +203,15 @@
                     return
                 }
                 $fileBody = $body.Clone()
+                if (-not $PSBoundParameters.ContainsKey('SortField')) {
+                    $fileBody.sortField = 'modifiedDate'
+                }
                 if ($AppId) {
                     $fileBody.filters = $Filters.Clone()
                     $fileBody.filters.appId = @{ eq = @($AppId) }
                 }
                 Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/files/' -Method Post -Body $fileBody -TypeName 'XdrCloudAppsFile' -Raw:$Raw -Force:$Force
             }
-            'AiAgent' {
-                $agentBody = @{
-                    schemaId = 'all_agents'
-                    platforms = $Platforms
-                    limit = $Limit
-                    skip = $Skip
-                    filters = @($Filters)
-                }
-                if ($Columns) { $agentBody.columns = $Columns }
-                Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/security_agent_assets/' -Method Post -Body $agentBody -TypeName 'XdrCloudAppsAiAgent' -GridResponse -Raw:$Raw -Force:$Force
-            }
-            'AiAgentPlatformCount' {
-                Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/security_agent_assets/count_by_platform/' -Method Post -Body @{ platforms = $Platforms } -TypeName 'XdrCloudAppsAiAgentPlatformCount' -Raw:$Raw -Force:$Force
-            }
-            'AiAgentDiscoveryTimeline' {
-                Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/security_agent_assets/discovered_overtime/' -Method Post -Body @{ platforms = $Platforms; daysAgo = $DaysAgo } -TypeName 'XdrCloudAppsAiAgentDiscoveryTimeline' -Raw:$Raw -Force:$Force
-            }
         }
     }
 }
-

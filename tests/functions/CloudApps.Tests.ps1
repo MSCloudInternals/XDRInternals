@@ -15,6 +15,19 @@
 
         $command.Parameters.ContainsKey('Aggressive') | Should -BeTrue
         $command.Parameters.ContainsKey('Agressive') | Should -BeFalse
+        $command.Parameters.ContainsKey('ExportFormat') | Should -BeTrue
+    }
+
+    It 'keeps only live-validated app type choices public' {
+        $typeParameter = (Get-Command Get-XdrCloudAppsApp).Parameters['Type']
+        $validValues = $typeParameter.Attributes |
+            Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] } |
+            Select-Object -ExpandProperty ValidValues
+
+        $validValues | Should -Contain 'Discovered'
+        $validValues | Should -Contain 'OAuth'
+        $validValues | Should -Not -Contain 'AiAgent'
+        $validValues | Should -Not -Contain 'ConnectedService'
     }
 
     It 'routes app catalog metadata through the grouped app command' {
@@ -45,14 +58,34 @@
             switch -Wildcard ($Path) {
                 '*istenantonboarded' { $true }
                 '*istenantinsightsready' { $true }
-                '*tenantmetrics' { [pscustomobject]@{ totalApps = 10; highPrivilegeApps = 2; overpermissionedApps = 1; unusedApps = 3; riskyApps = 4 } }
+                '*tenantmetrics' { [pscustomobject]@{ numberOfApps = 10; numberOfHighPrivilegedApps = 2; numberOfOverPermissionedApps = 1; numberOfUnusedApps = 3; numberOfRiskyApps = 4 } }
             }
         } -ModuleName XDRInternals
 
         $result = Get-XdrCloudAppsGovernance
 
         $result.TotalApps | Should -Be 10
+        $result.HighPrivilegeApps | Should -Be 2
         $result.IsOnboarded | Should -BeTrue
+    }
+
+    It 'reports File policy metadata as unsupported by the live Cloud Apps API' {
+        { Get-XdrCloudAppsPolicy -Type File -Metadata } |
+            Should -Throw -ExpectedMessage '*File policy metadata is not exposed by the live Cloud Apps API*'
+    }
+
+    It 'adds the File policy type filter without mutating caller filters' {
+        $filters = @{ enabled = @{ eq = @($true) } }
+        Mock Get-XdrCache { $null } -ModuleName XDRInternals
+        Mock Set-XdrCache {} -ModuleName XDRInternals
+        Mock Invoke-RestMethod { [pscustomobject]@{ data = @([pscustomobject]@{ name = 'File policy' }) } } -ModuleName XDRInternals
+
+        Get-XdrCloudAppsPolicy -Type File -Filters $filters | Out-Null
+
+        $filters.ContainsKey('type') | Should -BeFalse
+        Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            ($Body | ConvertFrom-Json).filters.type.eq[0] -eq 'FILE'
+        }
     }
 
     It 'splits mixed recent and archived count-only timeline requests' {
@@ -87,5 +120,18 @@ Describe 'Invoke-XdrCloudAppsRequest' {
             $result.PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsTest'
         }
     }
-}
 
+    It 'emits compact Cloud Apps request errors without portal HTML' {
+        Mock Invoke-RestMethod {
+            $exception = [System.Exception]::new('Response status code does not indicate success: 404 (Not Found).')
+            $errorRecord = [System.Management.Automation.ErrorRecord]::new($exception, 'NotFound', [System.Management.Automation.ErrorCategory]::InvalidOperation, $null)
+            $errorRecord.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('var __ADALLOM_CONSTS = {};404Page not found')
+            throw $errorRecord
+        } -ModuleName XDRInternals
+
+        InModuleScope XDRInternals {
+            { Invoke-XdrCloudAppsRequest -Path '/mcas/missing' } |
+                Should -Throw -ExpectedMessage '*Cloud Apps request failed: Get https://security.microsoft.com/apiproxy/mcas/missing returned request failure. The service returned an HTML portal error page.*'
+        }
+    }
+}

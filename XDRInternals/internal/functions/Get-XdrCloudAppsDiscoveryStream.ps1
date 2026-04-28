@@ -48,6 +48,7 @@
     $allStreams = Invoke-XdrCloudAppsRequest `
         -Path '/mcas/cas/api/discovery/streams/' `
         -TypeName 'XdrCloudAppsConfigurationDiscoveryStream' `
+        -DataProperty 'streams' `
         -CacheKey 'XdrCloudAppsConfigurationDiscoveryStream' `
         -TTLMinutes 15 `
         -Force:$Force
@@ -82,4 +83,3 @@
     # Return all streams
     return @($allStreams)
 }
-

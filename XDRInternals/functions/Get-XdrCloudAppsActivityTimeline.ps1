@@ -67,6 +67,10 @@
     .PARAMETER ExportPath
         Writes retrieved activity events to a JSON file.
 
+    .PARAMETER ExportFormat
+        Export file format. Json preserves the existing array output; Ndjson
+        streams one event per line and is preferred for large incident response exports.
+
     .PARAMETER PassThru
         Returns activity events after writing ExportPath.
 
@@ -170,6 +174,10 @@
         [string]$ExportPath,
 
         [Parameter(ParameterSetName = 'Default')]
+        [ValidateSet('Json', 'Ndjson')]
+        [string]$ExportFormat = 'Json',
+
+        [Parameter(ParameterSetName = 'Default')]
         [switch]$PassThru,
 
         [Parameter(ParameterSetName = 'Default')]
@@ -194,12 +202,12 @@
     process {
         if ($Metadata -or $ArchivedMetadata) {
             $apiType = if ($ArchivedMetadata) { 'archived_activities' } else { 'activities' }
-            $metadata = Invoke-XdrCloudAppsRequest -Path "/mcas/cas/api/v1/$apiType/metadata/?allowDeprecationFields=true" -TypeName 'XdrCloudAppsActivityMetadata' -CacheKey "XdrCloudApps-$apiType-Metadata" -TTLMinutes 15 -Raw:$Raw -Force:$Force
+            $activityMetadata = Invoke-XdrCloudAppsRequest -Path "/mcas/cas/api/v1/$apiType/metadata/?allowDeprecationFields=true" -TypeName 'XdrCloudAppsActivityMetadata' -CacheKey "XdrCloudApps-$apiType-Metadata" -TTLMinutes 15 -Raw:$Raw -Force:$Force
             if ($Raw) {
-                return $metadata
+                return $activityMetadata
             }
 
-            return $metadata.filters | ForEach-Object {
+            return $activityMetadata.filters | ForEach-Object {
                 [PSCustomObject]@{
                     PSTypeName = 'XdrCloudAppsActivityMetadata'
                     Name       = $_.name
@@ -539,12 +547,86 @@
                 Write-Warning "Returning partial timeline data; failed chunks: $(($failures.ChunkIndex | Sort-Object) -join ', ')"
             }
 
-            $eventRows = [System.Collections.Generic.List[object]]::new()
-            $seenKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
-            $sha256 = [System.Security.Cryptography.SHA256]::Create()
             $fromUtc = $FromDate.ToUniversalTime()
             $toUtc = $ToDate.ToUniversalTime()
             $jsonFiles = Get-ChildItem -Path $runTempPath -Filter 'chunk_*.json' -ErrorAction SilentlyContinue | Sort-Object Name
+
+            if ($ExportPath -and $ExportFormat -eq 'Ndjson' -and -not $PassThru -and -not $IncludeThreatScores) {
+                $parent = Split-Path -Path $ExportPath -Parent
+                if ($parent -and -not (Test-Path $parent)) { New-Item -Path $parent -ItemType Directory -Force | Out-Null }
+
+                $seenExportKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+                $exportSha256 = [System.Security.Cryptography.SHA256]::Create()
+                $exportCount = 0
+                $writer = [System.IO.StreamWriter]::new($ExportPath, $false, [System.Text.Encoding]::UTF8)
+                try {
+                    foreach ($file in @($jsonFiles | Sort-Object Name -Descending)) {
+                        $chunkData = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json
+                        foreach ($activity in @($chunkData.Events)) {
+                            $eventUtc = $null
+                            if ($activity.PSObject.Properties['timestamp'] -and $activity.timestamp) {
+                                $timestampValue = [double]$activity.timestamp
+                                $eventUtc = if ($timestampValue -gt 9999999999) {
+                                    [DateTimeOffset]::FromUnixTimeMilliseconds([long]$timestampValue).UtcDateTime
+                                }
+                                else {
+                                    [DateTimeOffset]::FromUnixTimeSeconds([long]$timestampValue).UtcDateTime
+                                }
+                            }
+                            elseif ($activity.PSObject.Properties['date'] -and $activity.date) {
+                                $eventUtc = ([datetime]$activity.date).ToUniversalTime()
+                            }
+                            elseif ($activity.PSObject.Properties['Date'] -and $activity.Date) {
+                                $eventUtc = ([datetime]$activity.Date).ToUniversalTime()
+                            }
+
+                            if ($null -eq $eventUtc -or $eventUtc -lt $fromUtc -or $eventUtc -ge $toUtc) {
+                                continue
+                            }
+
+                            $stableKey = if ($activity.PSObject.Properties['_id'] -and $activity._id) {
+                                [string]$activity._id
+                            }
+                            elseif ($activity.PSObject.Properties['id'] -and $activity.id) {
+                                [string]$activity.id
+                            }
+                            elseif ($activity.PSObject.Properties['recordId'] -and $activity.recordId) {
+                                [string]$activity.recordId
+                            }
+                            else {
+                                $stableJson = $activity | ConvertTo-Json -Depth 20 -Compress
+                                [System.BitConverter]::ToString($exportSha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($stableJson))).Replace('-', '')
+                            }
+
+                            if ($seenExportKeys.Add($stableKey)) {
+                                $writer.WriteLine(($activity | ConvertTo-Json -Depth 20 -Compress))
+                                $exportCount++
+                            }
+                        }
+                    }
+                }
+                finally {
+                    $writer.Dispose()
+                    $exportSha256.Dispose()
+                }
+
+                $operationStart.Stop()
+                return [PSCustomObject]@{
+                    PSTypeName       = 'XdrCloudAppsActivityTimelineExport'
+                    ExportPath       = $ExportPath
+                    ExportFormat     = 'Ndjson'
+                    TotalEvents      = $exportCount
+                    TotalChunks      = $dateChunks.Count
+                    FailedChunks     = @($failures).Count
+                    WallClockSeconds = [math]::Round($operationStart.Elapsed.TotalSeconds, 2)
+                    FromDate         = $FromDate
+                    ToDate           = $ToDate
+                }
+            }
+
+            $eventRows = [System.Collections.Generic.List[object]]::new()
+            $seenKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+            $sha256 = [System.Security.Cryptography.SHA256]::Create()
             foreach ($file in $jsonFiles) {
                 $chunkData = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json
                 foreach ($activity in @($chunkData.Events)) {
@@ -633,7 +715,18 @@
             if ($ExportPath) {
                 $parent = Split-Path -Path $ExportPath -Parent
                 if ($parent -and -not (Test-Path $parent)) { New-Item -Path $parent -ItemType Directory -Force | Out-Null }
-                if ($Compress) {
+                if ($ExportFormat -eq 'Ndjson') {
+                    $writer = [System.IO.StreamWriter]::new($ExportPath, $false, [System.Text.Encoding]::UTF8)
+                    try {
+                        foreach ($activity in $sortedEvents) {
+                            $writer.WriteLine(($activity | ConvertTo-Json -Depth 20 -Compress))
+                        }
+                    }
+                    finally {
+                        $writer.Dispose()
+                    }
+                }
+                elseif ($Compress) {
                     $sortedEvents | ConvertTo-Json -Depth 20 -Compress | Set-Content -Path $ExportPath -Encoding UTF8
                 }
                 else {
@@ -643,6 +736,7 @@
                     return [PSCustomObject]@{
                         PSTypeName       = 'XdrCloudAppsActivityTimelineExport'
                         ExportPath       = $ExportPath
+                        ExportFormat     = $ExportFormat
                         TotalEvents      = $eventCount
                         TotalChunks      = $dateChunks.Count
                         FailedChunks     = @($failures).Count
@@ -666,4 +760,3 @@
         }
     }
 }
-

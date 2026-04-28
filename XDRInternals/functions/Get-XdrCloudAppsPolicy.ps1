@@ -384,6 +384,10 @@
 
         # Handle Metadata request for typed policies
         if ($Metadata) {
+            if ($Type -eq "File") {
+                throw 'File policy metadata is not exposed by the live Cloud Apps API. Use Get-XdrCloudAppsPolicy -Type File for file policy data, or -Type File -Action / -PolicyLimit for supported file policy metadata surfaces.'
+            }
+
             $CacheKey = "XdrCloudAppsPolicy${Type}Metadata"
 
             if (-not $Force) {
@@ -417,6 +421,11 @@
             return
         }
 
+        $effectiveFilters = @{}
+        foreach ($filterKey in $Filters.Keys) {
+            $effectiveFilters[$filterKey] = $Filters[$filterKey]
+        }
+
         # Default: List policies (with or without Type filter)
         if ($PSBoundParameters.ContainsKey('Type')) {
             $urlSegment = $typeUrlMap[$Type]
@@ -430,8 +439,8 @@
                 # File policies use the general policies endpoint with type filter
                 $Uri = "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/policies/"
                 # Add file type filter (uses 'type' filter with string value 'FILE')
-                if (-not $Filters.ContainsKey('type')) {
-                    $Filters['type'] = @{ 'eq' = @('FILE') }
+                if (-not $effectiveFilters.ContainsKey('type')) {
+                    $effectiveFilters['type'] = @{ 'eq' = @('FILE') }
                 }
             } else {
                 $Uri = "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/policies/${urlSegment}/"
@@ -442,7 +451,7 @@
         }
 
         # Create cache key based on parameters
-        $filterHash = if ($Filters.Count -gt 0) { ($Filters | ConvertTo-Json -Compress) } else { "none" }
+        $filterHash = if ($effectiveFilters.Count -gt 0) { ($effectiveFilters | ConvertTo-Json -Compress) } else { "none" }
         $CacheKey = "${typeName}_${Limit}_${Skip}_${SortField}_${SortDirection}_${filterHash}"
 
         if (-not $Force) {
@@ -454,7 +463,7 @@
         }
 
         $body = @{
-            filters           = $Filters
+            filters           = $effectiveFilters
             limit             = $Limit
             performAsyncTotal = $true
             skip              = $Skip

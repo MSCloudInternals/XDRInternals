@@ -4,8 +4,8 @@
         Retrieves grouped Microsoft Defender for Cloud Apps configuration data.
 
     .DESCRIPTION
-        Retrieves settings, about information, discovery streams, tags, connectors,
-        and other configuration data through a single grouped command.
+        Retrieves settings, about information, discovery streams, and other
+        live-validated configuration data through a single grouped command.
 
     .PARAMETER Type
         Configuration data type to retrieve.
@@ -48,7 +48,7 @@
     [CmdletBinding()]
     param(
         [Parameter()]
-        [ValidateSet('About', 'Settings', 'MailSettings', 'TenantConfig', 'LCNC', 'Notifications', 'ApiToken', 'Connector', 'CustomParser', 'DiscoveryAppTag', 'DiscoveryDataSource', 'DiscoveryEncryption', 'DiscoveryExclusion', 'DiscoveryReport', 'DiscoveryStream', 'DiscoveryWeight', 'IpTag', 'Location', 'LogCollector', 'ScopedDeployment', 'ScopedProfile', 'SiemAgent', 'Subnet', 'UserTag')]
+        [ValidateSet('About', 'Settings', 'MailSettings', 'TenantConfig', 'LCNC', 'Notifications', 'ApiToken', 'DiscoveryDataSource', 'DiscoveryStream', 'Location', 'LogCollector', 'ScopedProfile', 'Subnet')]
         [string]$Type = 'Settings',
 
         [Parameter()]
@@ -120,27 +120,11 @@
                 }
                 Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/tokens/' -Method Post -Body $gridBody -TypeName 'XdrCloudAppsConfigurationApiToken' -Raw:$Raw -Force:$Force
             }
-            'Connector' {
-                if ($Metadata) {
-                    Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/app_connectors/metadata/' -TypeName 'XdrCloudAppsConfigurationConnectorMetadata' -CacheKey 'XdrCloudAppsConfigurationConnectorMetadata' -TTLMinutes 15 -Raw:$Raw -Force:$Force
-                    return
-                }
-                Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/app_connectors/' -Method Post -Body $gridBody -TypeName 'XdrCloudAppsConfigurationConnector' -Raw:$Raw -Force:$Force
-            }
-            'DiscoveryStream' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/discovery/streams/' -TypeName 'XdrCloudAppsConfigurationDiscoveryStream' -CacheKey 'XdrCloudAppsConfigurationDiscoveryStream' -TTLMinutes 15 -Raw:$Raw -Force:$Force }
+            'DiscoveryStream' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/discovery/streams' -TypeName 'XdrCloudAppsConfigurationDiscoveryStream' -DataProperty 'streams' -CacheKey 'XdrCloudAppsConfigurationDiscoveryStream' -TTLMinutes 15 -Raw:$Raw -Force:$Force }
             'DiscoveryDataSource' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/discovery/data_sources/' -TypeName 'XdrCloudAppsConfigurationDiscoveryDataSource' -Raw:$Raw -Force:$Force }
-            'DiscoveryEncryption' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/discovery/encryption_settings/' -TypeName 'XdrCloudAppsConfigurationDiscoveryEncryption' -Raw:$Raw -Force:$Force }
-            'DiscoveryWeight' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/discovery/discovered_app_weights/' -TypeName 'XdrCloudAppsConfigurationDiscoveryWeight' -Raw:$Raw -Force:$Force }
-            'DiscoveryReport' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/discovery/reports/' -Method Post -Body $gridBody -TypeName 'XdrCloudAppsConfigurationDiscoveryReport' -Raw:$Raw -Force:$Force }
-            'DiscoveryAppTag' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/discovery/tags/' -Method Post -Body $gridBody -TypeName 'XdrCloudAppsConfigurationDiscoveryAppTag' -Raw:$Raw -Force:$Force }
-            'DiscoveryExclusion' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/discovery/exclusions/' -Method Post -Body $gridBody -TypeName 'XdrCloudAppsConfigurationDiscoveryExclusion' -Raw:$Raw -Force:$Force }
-            'CustomParser' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/discovery/custom_parsers/' -Method Post -Body $gridBody -TypeName 'XdrCloudAppsConfigurationCustomParser' -Raw:$Raw -Force:$Force }
-            'IpTag' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/ip_tags/' -TypeName 'XdrCloudAppsConfigurationIpTag' -Raw:$Raw -Force:$Force }
-            'Location' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/discovery/locations/' -TypeName 'XdrCloudAppsConfigurationLocation' -Raw:$Raw -Force:$Force }
+            'Location' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/discovery/get_locations?locationId=&locationType=hq&search=' -TypeName 'XdrCloudAppsConfigurationLocation' -Raw:$Raw -Force:$Force }
             'LogCollector' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/discovery/log_collectors/' -TypeName 'XdrCloudAppsConfigurationLogCollector' -Raw:$Raw -Force:$Force }
-            'ScopedDeployment' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/scoped_deployments/' -Method Post -Body $gridBody -TypeName 'XdrCloudAppsConfigurationScopedDeployment' -Raw:$Raw -Force:$Force }
             'ScopedProfile' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/scoped_profiles/' -Method Post -Body $gridBody -TypeName 'XdrCloudAppsConfigurationScopedProfile' -Raw:$Raw -Force:$Force }
-            'SiemAgent' { Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/siem_agents/' -TypeName 'XdrCloudAppsConfigurationSiemAgent' -Raw:$Raw -Force:$Force }
             'Subnet' {
                 if ($Metadata) {
                     Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/subnet/metadata/' -TypeName 'XdrCloudAppsConfigurationSubnetMetadata' -CacheKey 'XdrCloudAppsConfigurationSubnetMetadata' -TTLMinutes 15 -Raw:$Raw -Force:$Force
@@ -148,14 +132,6 @@
                 }
                 Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/subnet/' -Method Post -Body $gridBody -TypeName 'XdrCloudAppsConfigurationSubnet' -Raw:$Raw -Force:$Force
             }
-            'UserTag' {
-                if ($Metadata) {
-                    Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/tags/metadata/' -TypeName 'XdrCloudAppsConfigurationUserTagMetadata' -CacheKey 'XdrCloudAppsConfigurationUserTagMetadata' -TTLMinutes 15 -Raw:$Raw -Force:$Force
-                    return
-                }
-                Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/tags/' -Method Post -Body $gridBody -TypeName 'XdrCloudAppsConfigurationUserTag' -Raw:$Raw -Force:$Force
-            }
         }
     }
 }
-

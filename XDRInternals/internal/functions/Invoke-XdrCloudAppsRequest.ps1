@@ -119,7 +119,31 @@
         }
     }
 
-    $response = Invoke-RestMethod @requestParams
+    try {
+        $response = Invoke-RestMethod @requestParams
+    }
+    catch {
+        $statusCode = $null
+        $reasonPhrase = $null
+        if ($_.Exception.Response) {
+            $statusCode = [int]$_.Exception.Response.StatusCode
+            $reasonPhrase = $_.Exception.Response.ReasonPhrase
+        }
+
+        $detail = $_.ErrorDetails.Message
+        if ([string]::IsNullOrWhiteSpace($detail)) {
+            $detail = $_.Exception.Message
+        }
+        elseif ($detail -match '<html|<!doctype|var __ADALLOM_CONSTS|Page not found') {
+            $detail = 'The service returned an HTML portal error page.'
+        }
+        elseif ($detail.Length -gt 500) {
+            $detail = $detail.Substring(0, 500) + '...'
+        }
+
+        $statusText = if ($statusCode) { "HTTP $statusCode $reasonPhrase" } else { 'request failure' }
+        throw "Cloud Apps request failed: $Method $Path returned $statusText. $detail"
+    }
     if ($response -is [string] -and -not [string]::IsNullOrWhiteSpace($response)) {
         try {
             $response = $response | ConvertFrom-Json
@@ -154,4 +178,3 @@
 
     return $result
 }
-

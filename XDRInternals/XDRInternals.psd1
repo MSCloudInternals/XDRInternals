@@ -162,23 +162,17 @@
         "Merge-XdrIncident",
         "Move-XdrAlertToIncident",
         "New-XdrAdvancedHuntingFunction",
-        "New-XdrCloudAppsConfiguration",
-        "New-XdrCloudAppsPolicy",
         "New-XdrConfigurationCriticalAssetManagementClassification",
         "New-XdrEndpointConfigurationCustomCollectionRule",
         "New-XdrEndpointDeviceLiveResponseLibraryFile",
         "New-XdrEndpointDeviceRbacGroup",
         "New-XdrIdentityConfigurationRemediationActionAccount",
         "Remove-XdrAdvancedHuntingFunction",
-        "Remove-XdrCloudAppsConfiguration",
-        "Remove-XdrCloudAppsPolicy",
         "Remove-XdrConfigurationCriticalAssetManagementClassification",
         "Remove-XdrEndpointDeviceLiveResponseLibraryFile",
         "Remove-XdrIdentityConfigurationRemediationActionAccount",
         "Set-XdrAdvancedHuntingFunction",
-        "Set-XdrCloudAppsConfiguration",
         "Set-XdrCloudAppsDiscoveredApp",
-        "Set-XdrCloudAppsPolicy",
         "Set-XdrConfigurationCriticalAssetManagementClassification",
         "Set-XdrConfigurationPreviewFeatures",
         "Set-XdrConnectionSettings",
@@ -253,5 +247,4 @@
     # DefaultCommandPrefix = ''
 
 }
-
 

@@ -1,4 +1,4 @@
-function Get-XdrAzureDataExplorerConnection {
+﻿function Get-XdrAzureDataExplorerConnection {
     [CmdletBinding()]
     param()
 
@@ -79,6 +79,40 @@ function ConvertFrom-XdrAzureDataExplorerResponseTable {
     }
 }
 
+function Test-XdrAzureDataExplorerTransientRestError {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        $ErrorRecord
+    )
+
+    $messages = [System.Collections.Generic.List[string]]::new()
+    if ($ErrorRecord.Exception) {
+        $currentException = $ErrorRecord.Exception
+        while ($currentException) {
+            if (-not [string]::IsNullOrWhiteSpace($currentException.Message)) {
+                $messages.Add($currentException.Message) | Out-Null
+            }
+            $currentException = $currentException.InnerException
+        }
+    }
+    if ($ErrorRecord.ErrorDetails -and -not [string]::IsNullOrWhiteSpace($ErrorRecord.ErrorDetails.Message)) {
+        $messages.Add($ErrorRecord.ErrorDetails.Message) | Out-Null
+    }
+    $messages.Add([string]$ErrorRecord) | Out-Null
+
+    $message = $messages -join "`n"
+    return (
+        $message -match 'unexpected EOF' -or
+        $message -match '0 bytes from the transport stream' -or
+        $message -match 'transport stream' -or
+        $message -match 'response ended prematurely' -or
+        $message -match 'connection.*closed' -or
+        $message -match 'connection.*reset'
+    )
+}
+
 function Invoke-XdrAzureDataExplorerRestRequest {
     [CmdletBinding()]
     param(
@@ -94,31 +128,63 @@ function Invoke-XdrAzureDataExplorerRestRequest {
         [ValidateSet('GET', 'POST')]
         [string]$Method = 'GET',
 
-        $Body
+        $Body,
+
+        [int]$TimeoutSec,
+
+        [ValidateRange(1, 10)]
+        [int]$RetryCount = 10
     )
 
     $requestUri = [uri]::new($BaseUri, $Path)
     $headers = @{
         'Accept'                 = 'application/json'
         'Authorization'          = "Bearer $Token"
-        'Connection'             = 'Keep-Alive'
+        'Connection'             = 'Close'
         'x-ms-app'               = 'XDRInternals'
         'x-ms-client-version'    = 'XDRInternals/1.0.12'
         'x-ms-client-request-id' = "XDRInternals.AzureDataExplorer;$([guid]::NewGuid())"
     }
 
-    if ($Method -eq 'GET') {
-        return Invoke-RestMethod -Uri $requestUri -Method Get -Headers $headers -ErrorAction Stop -Verbose:$false
+    $requestParams = @{
+        Uri         = $requestUri
+        Method      = $Method
+        Headers     = $headers
+        ErrorAction = 'Stop'
+        Verbose     = $false
     }
 
-    $requestBody = if ($Body -is [string]) {
-        $Body
-    }
-    else {
-        $Body | ConvertTo-Json -Depth 20 -Compress
+    if ($TimeoutSec -gt 0) {
+        $requestParams['TimeoutSec'] = $TimeoutSec
     }
 
-    Invoke-RestMethod -Uri $requestUri -Method Post -Headers $headers -ContentType 'application/json; charset=utf-8' -Body $requestBody -ErrorAction Stop -Verbose:$false
+    if ($Method -eq 'POST') {
+        $requestBody = if ($Body -is [string]) {
+            $Body
+        }
+        else {
+            $Body | ConvertTo-Json -Depth 20 -Compress
+        }
+
+        $requestParams['Method'] = 'Post'
+        $requestParams['ContentType'] = 'application/json; charset=utf-8'
+        $requestParams['Body'] = $requestBody
+    }
+
+    for ($attempt = 1; $attempt -le $RetryCount; $attempt++) {
+        try {
+            return Invoke-RestMethod @requestParams
+        }
+        catch {
+            if (-not (Test-XdrAzureDataExplorerTransientRestError -ErrorRecord $_) -or $attempt -ge $RetryCount) {
+                throw
+            }
+
+            $delaySeconds = [math]::Min([math]::Pow(2, $attempt - 1), 8)
+            Write-Verbose "Azure Data Explorer REST request to '$requestUri' failed with a transient transport error on attempt $attempt of $RetryCount. Retrying in $delaySeconds second(s)."
+            Start-Sleep -Seconds $delaySeconds
+        }
+    }
 }
 
 function Invoke-XdrAzureDataExplorerManagementCommand {
@@ -665,16 +731,27 @@ function Wait-XdrAzureDataExplorerQueuedIngestion {
 
     $deadline = [DateTime]::UtcNow.AddMinutes($TimeoutMinutes)
     do {
-        [pscustomobject[]]$statuses = @(
-            foreach ($currentOperationId in $OperationId) {
-                Get-XdrAzureDataExplorerQueuedIngestionStatus -IngestionUri $IngestionUri `
-                    -Database $Database `
-                    -TableName $TableName `
-                    -OperationId $currentOperationId `
-                    -Token $Token `
-                    -Details:$Details
+        try {
+            [pscustomobject[]]$statuses = @(
+                foreach ($currentOperationId in $OperationId) {
+                    Get-XdrAzureDataExplorerQueuedIngestionStatus -IngestionUri $IngestionUri `
+                        -Database $Database `
+                        -TableName $TableName `
+                        -OperationId $currentOperationId `
+                        -Token $Token `
+                        -Details:$Details
+                }
+            )
+        }
+        catch {
+            if (-not (Test-XdrAzureDataExplorerTransientRestError -ErrorRecord $_) -or [DateTime]::UtcNow -ge $deadline) {
+                throw
             }
-        )
+
+            Write-Verbose "Azure Data Explorer ingestion status polling for table '$TableName' hit a transient transport error. Retrying after $PollingIntervalSeconds second(s)."
+            Start-Sleep -Seconds $PollingIntervalSeconds
+            continue
+        }
 
         if (@($statuses | Where-Object { -not $_.IsTerminal }).Count -eq 0) {
             return [pscustomobject[]]$statuses

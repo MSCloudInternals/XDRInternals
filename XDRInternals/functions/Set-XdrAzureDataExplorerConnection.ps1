@@ -1,4 +1,4 @@
-function Set-XdrAzureDataExplorerConnection {
+﻿function Set-XdrAzureDataExplorerConnection {
     <#
     .SYNOPSIS
         Configures Azure Data Explorer connection settings for export cmdlets.

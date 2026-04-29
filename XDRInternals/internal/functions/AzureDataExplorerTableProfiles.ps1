@@ -445,6 +445,57 @@
 
         # endregion
 
+        # region Cloud Apps Tables
+
+        XDRCloudAppsActivityTimeline = @{
+            TableName     = 'XDRCloudAppsActivityTimeline'
+            Source        = 'CloudAppsActivityTimeline'
+            RoutingField  = $null
+            RoutingValues = @()
+            Columns = @(
+                @{ Name = 'Date';         Type = 'datetime' }
+                @{ Name = 'Timestamp';    Type = 'long' }
+                @{ Name = 'ActivityId';   Type = 'string' }
+                @{ Name = 'RecordId';     Type = 'string' }
+                @{ Name = 'UserName';     Type = 'string' }
+                @{ Name = 'User';         Type = 'string' }
+                @{ Name = 'Account';      Type = 'string' }
+                @{ Name = 'AppName';      Type = 'string' }
+                @{ Name = 'App';          Type = 'string' }
+                @{ Name = 'Service';      Type = 'string' }
+                @{ Name = 'ActivityType'; Type = 'string' }
+                @{ Name = 'EventType';    Type = 'string' }
+                @{ Name = 'Action';       Type = 'string' }
+                @{ Name = 'IpAddress';    Type = 'string' }
+                @{ Name = 'Ip';           Type = 'string' }
+                @{ Name = 'Location';     Type = 'string' }
+                @{ Name = 'Country';      Type = 'string' }
+                @{ Name = 'Event';        Type = 'dynamic' }
+            )
+            ColumnMappings = @(
+                @{ Column = 'Date';         Properties = @{ Path = '$.date' } }
+                @{ Column = 'Timestamp';    Properties = @{ Path = '$.timestamp' } }
+                @{ Column = 'ActivityId';   Properties = @{ Path = '$._id' } }
+                @{ Column = 'RecordId';     Properties = @{ Path = '$.recordId' } }
+                @{ Column = 'UserName';     Properties = @{ Path = '$.userName' } }
+                @{ Column = 'User';         Properties = @{ Path = '$.user' } }
+                @{ Column = 'Account';      Properties = @{ Path = '$.account' } }
+                @{ Column = 'AppName';      Properties = @{ Path = '$.appName' } }
+                @{ Column = 'App';          Properties = @{ Path = '$.app' } }
+                @{ Column = 'Service';      Properties = @{ Path = '$.service' } }
+                @{ Column = 'ActivityType'; Properties = @{ Path = '$.activityType' } }
+                @{ Column = 'EventType';    Properties = @{ Path = '$.eventType' } }
+                @{ Column = 'Action';       Properties = @{ Path = '$.action' } }
+                @{ Column = 'IpAddress';    Properties = @{ Path = '$.ipAddress' } }
+                @{ Column = 'Ip';           Properties = @{ Path = '$.ip' } }
+                @{ Column = 'Location';     Properties = @{ Path = '$.location' } }
+                @{ Column = 'Country';      Properties = @{ Path = '$.country' } }
+                @{ Column = 'Event';        Properties = @{ Path = '$' } }
+            )
+        }
+
+        # endregion
+
         # region Standalone Tables
 
         XDRAlerts = @{
@@ -606,11 +657,16 @@ function Resolve-XdrAzureDataExplorerTableProfile {
         [object]$InputEvent
     )
 
+    $resolvedSource = switch ($Source) {
+        'CloudAppsTimeline' { 'CloudAppsActivityTimeline' }
+        default { $Source }
+    }
+
     $profiles = Get-XdrAzureDataExplorerTableProfile
-    $sourceProfiles = @($profiles.Values | Where-Object { $_.Source -eq $Source })
+    $sourceProfiles = @($profiles.Values | Where-Object { $_.Source -eq $resolvedSource })
 
     if ($sourceProfiles.Count -eq 0) {
-        Write-Verbose "No table profiles found for source '$Source'"
+        Write-Verbose "No table profiles found for source '$resolvedSource'"
         return $null
     }
 
@@ -623,7 +679,7 @@ function Resolve-XdrAzureDataExplorerTableProfile {
     # Determine the routing value from the event
     $routingField = $routed[0].RoutingField
     $routingValue = $InputEvent.$routingField
-    Write-Verbose "Routing '$Source' event by $routingField = '$routingValue'"
+    Write-Verbose "Routing '$resolvedSource' event by $routingField = '$routingValue'"
 
     # Find the profile whose RoutingValues contains the routing value
     foreach ($tableProfile in $routed) {
@@ -635,11 +691,11 @@ function Resolve-XdrAzureDataExplorerTableProfile {
     # Check for a catch-all profile (empty RoutingValues)
     $catchAll = $routed | Where-Object { $_.RoutingValues.Count -eq 0 }
     if ($catchAll) {
-        Write-Verbose "No specific profile matched '$routingValue' for source '$Source', using catch-all table '$($catchAll.TableName)'"
+        Write-Verbose "No specific profile matched '$routingValue' for source '$resolvedSource', using catch-all table '$($catchAll.TableName)'"
         return $catchAll
     }
 
-    Write-Verbose "No table profile matched '$routingValue' for source '$Source'"
+    Write-Verbose "No table profile matched '$routingValue' for source '$resolvedSource'"
     return $null
 }
 

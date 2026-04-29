@@ -402,6 +402,109 @@ function Test-XdrPreferCliBridgeForResource {
     return $false
 }
 
+function Invoke-XdrAzAccessTokenRequest {
+    [OutputType([string])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Resource,
+
+        [string]$TenantId,
+
+        [string]$ResourceDisplayName = $Resource
+    )
+
+    if (-not (Get-Command Get-AzAccessToken -ErrorAction SilentlyContinue)) {
+        Write-Verbose "Az.Accounts module not loaded, skipping token acquisition for $ResourceDisplayName"
+        return $null
+    }
+
+    Write-Verbose "Az.Accounts module detected, attempting Get-AzAccessToken for $ResourceDisplayName..."
+    try {
+        $azParams = @{ ResourceUrl = $Resource }
+        if ($TenantId) {
+            $azParams.TenantId = $TenantId
+        }
+
+        $azToken = Get-AzAccessToken @azParams -ErrorAction Stop
+        $tokenValue = if ($azToken.Token -is [System.Security.SecureString]) {
+            [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR(
+                [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($azToken.Token)
+            )
+        }
+        else {
+            $azToken.Token
+        }
+
+        Write-Verbose "Successfully obtained $ResourceDisplayName token via Az.Accounts"
+        return $tokenValue
+    }
+    catch {
+        Write-Verbose "Az.Accounts token attempt failed for ${ResourceDisplayName}: $($_.Exception.Message)"
+    }
+}
+
+function Invoke-XdrAzureCliAccessTokenRequest {
+    [OutputType([string])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Resource,
+
+        [string]$TenantId,
+
+        [string]$ResourceDisplayName = $Resource
+    )
+
+    if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
+        Write-Verbose "Azure CLI (az) not found on PATH, skipping token acquisition for $ResourceDisplayName"
+        return $null
+    }
+
+    Write-Verbose "Azure CLI detected, attempting az account get-access-token for $ResourceDisplayName..."
+    try {
+        $azCliArgs = @("account", "get-access-token", "--resource", $Resource, "--output", "json")
+        if ($TenantId) {
+            $azCliArgs += @("--tenant", $TenantId)
+        }
+
+        $azCliOutput = & az @azCliArgs 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $azCliToken = ($azCliOutput | Out-String) | ConvertFrom-Json
+            Write-Verbose "Successfully obtained $ResourceDisplayName token via Azure CLI"
+            return $azCliToken.accessToken
+        }
+
+        Write-Verbose "Azure CLI token attempt failed for ${ResourceDisplayName}: $azCliOutput"
+    }
+    catch {
+        Write-Verbose "Azure CLI token attempt failed for ${ResourceDisplayName}: $($_.Exception.Message)"
+    }
+}
+
+function Invoke-XdrLocalAzureAccessTokenRequest {
+    [OutputType([string])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Resource,
+
+        [string]$TenantId,
+
+        [string]$ResourceDisplayName = $Resource
+    )
+
+    $azAccountToken = Invoke-XdrAzAccessTokenRequest -Resource $Resource -TenantId $TenantId -ResourceDisplayName $ResourceDisplayName
+    if (-not [string]::IsNullOrWhiteSpace($azAccountToken)) {
+        return $azAccountToken
+    }
+
+    $azCliToken = Invoke-XdrAzureCliAccessTokenRequest -Resource $Resource -TenantId $TenantId -ResourceDisplayName $ResourceDisplayName
+    if (-not [string]::IsNullOrWhiteSpace($azCliToken)) {
+        return $azCliToken
+    }
+}
+
 function Get-XdrAzureAccessToken {
     <#
     .SYNOPSIS
@@ -409,11 +512,12 @@ function Get-XdrAzureAccessToken {
 
     .DESCRIPTION
         Attempts to get a bearer token using, in order:
-        1. The existing Entra web session (`ESTSAUTH` / `ESTS*`) when available
-        2. An Azure CLI-style ESTS token bridge when the direct silent flow needs user confirmation
-        3. Az.Accounts (`Get-AzAccessToken`)
-        4. Azure CLI (`az account get-access-token`)
-        5. IMDS managed identity
+        1. Explicitly supplied access token
+        2. Az.Accounts or Azure CLI for Azure Data Explorer resources
+        3. The existing Entra web session (`ESTSAUTH` / `ESTS*`) when available
+        4. An Azure CLI-style ESTS token bridge when the direct silent flow needs user confirmation
+        5. Az.Accounts (`Get-AzAccessToken`) or Azure CLI (`az account get-access-token`)
+        6. IMDS managed identity
 
         An explicit access token can also be supplied to bypass acquisition.
 
@@ -478,6 +582,16 @@ function Get-XdrAzureAccessToken {
         }
     }
 
+    $preferLocalAzureAuth = Test-XdrPreferCliBridgeForResource -Resource $Resource -Scope $silentScope
+    if ($preferLocalAzureAuth) {
+        $localAzureToken = Invoke-XdrLocalAzureAccessTokenRequest -Resource $Resource -TenantId $TenantId -ResourceDisplayName $ResourceDisplayName
+        if (-not [string]::IsNullOrWhiteSpace($localAzureToken)) {
+            return $localAzureToken
+        }
+
+        Write-Verbose "No local Azure auth token was available for $ResourceDisplayName; trying the existing Entra web session."
+    }
+
     if ($script:session) {
         $preferCliBridge = Test-XdrPreferCliBridgeForResource -Resource $Resource -Scope $silentScope
         if ($preferCliBridge) {
@@ -515,57 +629,11 @@ function Get-XdrAzureAccessToken {
         "system-assigned managed identity"
     }
 
-    if (Get-Command Get-AzAccessToken -ErrorAction SilentlyContinue) {
-        Write-Verbose "Az.Accounts module detected, attempting Get-AzAccessToken for $ResourceDisplayName..."
-        try {
-            $azParams = @{ ResourceUrl = $Resource }
-            if ($TenantId) {
-                $azParams.TenantId = $TenantId
-            }
-
-            $azToken = Get-AzAccessToken @azParams -ErrorAction Stop
-            $tokenValue = if ($azToken.Token -is [System.Security.SecureString]) {
-                [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR(
-                    [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($azToken.Token)
-                )
-            } else {
-                $azToken.Token
-            }
-
-            Write-Verbose "Successfully obtained $ResourceDisplayName token via Az.Accounts"
-            return $tokenValue
+    if (-not $preferLocalAzureAuth) {
+        $localAzureToken = Invoke-XdrLocalAzureAccessTokenRequest -Resource $Resource -TenantId $TenantId -ResourceDisplayName $ResourceDisplayName
+        if (-not [string]::IsNullOrWhiteSpace($localAzureToken)) {
+            return $localAzureToken
         }
-        catch {
-            Write-Verbose "Az.Accounts token attempt failed for ${ResourceDisplayName}: $($_.Exception.Message)"
-        }
-    }
-    else {
-        Write-Verbose "Az.Accounts module not loaded, skipping token acquisition for $ResourceDisplayName"
-    }
-
-    if (Get-Command az -ErrorAction SilentlyContinue) {
-        Write-Verbose "Azure CLI detected, attempting az account get-access-token for $ResourceDisplayName..."
-        try {
-            $azCliArgs = @("account", "get-access-token", "--resource", $Resource, "--output", "json")
-            if ($TenantId) {
-                $azCliArgs += @("--tenant", $TenantId)
-            }
-
-            $azCliOutput = & az @azCliArgs 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                $azCliToken = ($azCliOutput | Out-String) | ConvertFrom-Json
-                Write-Verbose "Successfully obtained $ResourceDisplayName token via Azure CLI"
-                return $azCliToken.accessToken
-            }
-
-            Write-Verbose "Azure CLI token attempt failed for ${ResourceDisplayName}: $azCliOutput"
-        }
-        catch {
-            Write-Verbose "Azure CLI token attempt failed for ${ResourceDisplayName}: $($_.Exception.Message)"
-        }
-    }
-    else {
-        Write-Verbose "Azure CLI (az) not found on PATH, skipping token acquisition for $ResourceDisplayName"
     }
 
     Write-Verbose "Attempting IMDS managed identity for $ResourceDisplayName using $modeDescription..."

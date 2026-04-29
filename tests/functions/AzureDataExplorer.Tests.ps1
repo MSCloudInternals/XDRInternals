@@ -1,4 +1,4 @@
-Describe 'Azure Data Explorer export' {
+﻿Describe 'Azure Data Explorer export' {
     BeforeAll {
         Import-Module "$global:testroot\..\XDRInternals\XDRInternals.psd1" -Force
     }
@@ -31,6 +31,35 @@ Describe 'Azure Data Explorer export' {
 
                 (Test-XdrAzureDataExplorerNotFound -ErrorRecord $errorRecord) | Should -BeTrue
             }
+        }
+    }
+
+    Describe 'Invoke-XdrAzureDataExplorerRestRequest' {
+        It 'retries transient transport EOF failures' {
+            $script:restAttempts = 0
+
+            Mock Start-Sleep {} -ModuleName XDRInternals
+            Mock Invoke-RestMethod {
+                $script:restAttempts++
+                if ($script:restAttempts -eq 1) {
+                    throw [System.IO.IOException]::new('Received an unexpected EOF or 0 bytes from the transport stream.')
+                }
+
+                [pscustomobject]@{ ok = $true }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $result = Invoke-XdrAzureDataExplorerRestRequest `
+                    -BaseUri 'https://contoso.westeurope.kusto.windows.net' `
+                    -Path '/v1/rest/query' `
+                    -Token 'token' `
+                    -RetryCount 2
+
+                $result.ok | Should -BeTrue
+            }
+
+            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 2 -Exactly
+            Should -Invoke Start-Sleep -ModuleName XDRInternals -Times 1 -Exactly
         }
     }
 
@@ -103,7 +132,7 @@ Describe 'Azure Data Explorer export' {
                 $Uri -like 'https://login.microsoftonline.com/*/oauth2/v2.0/token'
             }
 
-            Mock Get-AzAccessToken {
+            Mock Invoke-XdrAzAccessTokenRequest {
                 throw 'Az.Accounts should not be used when the ESTS session succeeds.'
             } -ModuleName XDRInternals
 
@@ -125,10 +154,43 @@ Describe 'Azure Data Explorer export' {
                 $Body.scope -eq 'https://graph.microsoft.com/.default'
             }
 
-            Should -Invoke Get-AzAccessToken -ModuleName XDRInternals -Times 0 -Exactly
+            Should -Invoke Invoke-XdrAzAccessTokenRequest -ModuleName XDRInternals -Times 0 -Exactly
         }
 
-        It 'prefers the Azure CLI public client bridge for Azure Data Explorer' {
+        It 'prefers local Azure auth for Azure Data Explorer before the XDR web session bridge' {
+            Mock Invoke-XdrLocalAzureAccessTokenRequest {
+                'local-adx-token'
+            } -ModuleName XDRInternals
+
+            Mock Invoke-WebRequest {
+                throw 'The XDR web session bridge should not be used when local Azure auth succeeds.'
+            } -ModuleName XDRInternals
+
+            Mock Invoke-RestMethod {
+                throw 'The token endpoint should not be used when local Azure auth succeeds.'
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $token = Get-XdrAzureAccessToken -Resource 'https://api.kusto.windows.net' `
+                    -Scope 'https://contoso.westeurope.kusto.windows.net/.default' `
+                    -ResourceDisplayName 'Azure Data Explorer'
+
+                $token | Should -Be 'local-adx-token'
+            }
+
+            Should -Invoke Invoke-XdrLocalAzureAccessTokenRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Resource -eq 'https://api.kusto.windows.net'
+            }
+
+            Should -Invoke Invoke-WebRequest -ModuleName XDRInternals -Times 0 -Exactly
+            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'falls back to the XDR web session bridge for Azure Data Explorer when local Azure auth is unavailable' {
+            Mock Invoke-XdrLocalAzureAccessTokenRequest {
+                $null
+            } -ModuleName XDRInternals
+
             Mock Invoke-WebRequest {
                 return [pscustomobject]@{
                     Headers      = @{ Location = 'https://login.microsoftonline.com/common/oauth2/nativeclient?code=bridge-auth-code' }
@@ -153,10 +215,6 @@ Describe 'Azure Data Explorer export' {
             } -ModuleName XDRInternals -ParameterFilter {
                 $Uri -like 'https://login.microsoftonline.com/*/oauth2/token'
             }
-
-            Mock Get-AzAccessToken {
-                throw 'Az.Accounts should not be used when the Azure CLI-style bridge succeeds.'
-            } -ModuleName XDRInternals
 
             InModuleScope XDRInternals {
                 $token = Get-XdrAzureAccessToken -Resource 'https://api.kusto.windows.net' `
@@ -185,55 +243,6 @@ Describe 'Azure Data Explorer export' {
                 $Uri -like 'https://login.microsoftonline.com/*/oauth2/token' -and
                 $Body.grant_type -eq 'refresh_token' -and
                 $Body.resource -eq 'https://api.kusto.windows.net'
-            }
-
-            Should -Invoke Get-AzAccessToken -ModuleName XDRInternals -Times 0 -Exactly
-        }
-
-        It 'falls back to Az.Accounts when the ADX bridge cannot complete silently' {
-            Mock Invoke-WebRequest {
-                [pscustomobject]@{
-                    Headers      = @{ Location = 'https://login.microsoftonline.com/common/oauth2/nativeclient?error=interaction_required&error_description=Need%20user%20interaction' }
-                    BaseResponse = [pscustomobject]@{
-                        ResponseUri = [uri]'https://login.microsoftonline.com/organizations/oauth2/authorize'
-                        Headers     = @{ Location = 'https://login.microsoftonline.com/common/oauth2/nativeclient?error=interaction_required&error_description=Need%20user%20interaction' }
-                    }
-                }
-            } -ModuleName XDRInternals
-
-            Mock Invoke-RestMethod {
-                throw 'The token endpoint should not be called when silent auth returns interaction_required.'
-            } -ModuleName XDRInternals
-
-            Mock Get-AzAccessToken {
-                [pscustomobject]@{
-                    Token = 'az-fallback-token'
-                }
-            } -ModuleName XDRInternals
-
-            InModuleScope XDRInternals {
-                $token = Get-XdrAzureAccessToken -Resource 'https://api.kusto.windows.net' `
-                    -Scope 'https://contoso.westeurope.kusto.windows.net/.default' `
-                    -ResourceDisplayName 'Azure Data Explorer'
-
-                $token | Should -Be 'az-fallback-token'
-            }
-
-            Should -Invoke Invoke-WebRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
-                $Uri -like 'https://login.microsoftonline.com/*/oauth2/authorize*' -and
-                $Uri -notlike 'https://login.microsoftonline.com/*/oauth2/v2.0/authorize*'
-            }
-
-            Should -Invoke Invoke-WebRequest -ModuleName XDRInternals -Times 0 -Exactly -ParameterFilter {
-                $Uri -like 'https://login.microsoftonline.com/*/oauth2/v2.0/authorize*'
-            }
-
-            Should -Invoke Get-AzAccessToken -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
-                $ResourceUrl -eq 'https://api.kusto.windows.net'
-            }
-
-            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 0 -Exactly -ParameterFilter {
-                $Uri -like 'https://login.microsoftonline.com/*/oauth2/v2.0/token'
             }
         }
     }
@@ -528,6 +537,49 @@ Describe 'Azure Data Explorer export' {
         }
     }
 
+    Describe 'Wait-XdrAzureDataExplorerQueuedIngestion' {
+        It 'continues polling after transient status transport failures' {
+            $script:statusAttempts = 0
+
+            Mock Start-Sleep {} -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerQueuedIngestionStatus {
+                $script:statusAttempts++
+                if ($script:statusAttempts -eq 1) {
+                    throw [System.IO.IOException]::new('Received an unexpected EOF or 0 bytes from the transport stream.')
+                }
+
+                [pscustomobject]@{
+                    OperationId = $OperationId
+                    Status      = 'Succeeded'
+                    Succeeded   = 1
+                    Failed      = 0
+                    InProgress  = 0
+                    Canceled    = 0
+                    IsTerminal  = $true
+                    HasFailures = $false
+                    Details     = @()
+                }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $result = Wait-XdrAzureDataExplorerQueuedIngestion `
+                    -IngestionUri 'https://ingest-contoso.westeurope.kusto.windows.net' `
+                    -Database 'Investigations' `
+                    -TableName 'DeviceTimeline' `
+                    -OperationId 'ingest-op-1' `
+                    -Token 'token' `
+                    -TimeoutMinutes 1 `
+                    -PollingIntervalSeconds 1
+
+                $result.Count | Should -Be 1
+                $result[0].Status | Should -Be 'Succeeded'
+            }
+
+            Should -Invoke Get-XdrAzureDataExplorerQueuedIngestionStatus -ModuleName XDRInternals -Times 2 -Exactly
+            Should -Invoke Start-Sleep -ModuleName XDRInternals -Times 1 -Exactly
+        }
+    }
+
     Describe 'Table Profiles' {
         It 'returns a non-empty hashtable with all expected table names' {
             InModuleScope XDRInternals {
@@ -547,6 +599,7 @@ Describe 'Azure Data Explorer export' {
                     'XDRIdentityTimelineCloudAppEvents'
                     'XDRIdentityTimelineSignInEvents'
                     'XDRIdentityTimelineAlerts'
+                    'XDRCloudAppsActivityTimeline'
                     'XDRAlerts'
                     'XDRIncidents'
                     'XDRDevices'
@@ -669,6 +722,22 @@ Describe 'Azure Data Explorer export' {
                 $event = [pscustomobject]@{ SourceTable = 'Alerts' }
                 $result = Resolve-XdrAzureDataExplorerTableProfile -Source 'IdentityTimeline' -InputEvent $event
                 $result.TableName | Should -Be 'XDRIdentityTimelineAlerts'
+            }
+        }
+
+        It 'routes CloudAppsActivityTimeline source to XDRCloudAppsActivityTimeline' {
+            InModuleScope XDRInternals {
+                $event = [pscustomobject]@{ _id = 'activity-1'; appName = 'Microsoft 365' }
+                $result = Resolve-XdrAzureDataExplorerTableProfile -Source 'CloudAppsActivityTimeline' -InputEvent $event
+                $result.TableName | Should -Be 'XDRCloudAppsActivityTimeline'
+            }
+        }
+
+        It 'routes CloudAppsTimeline alias to XDRCloudAppsActivityTimeline' {
+            InModuleScope XDRInternals {
+                $event = [pscustomobject]@{ _id = 'activity-1'; appName = 'Microsoft 365' }
+                $result = Resolve-XdrAzureDataExplorerTableProfile -Source 'CloudAppsTimeline' -InputEvent $event
+                $result.TableName | Should -Be 'XDRCloudAppsActivityTimeline'
             }
         }
 
@@ -795,6 +864,40 @@ Describe 'Azure Data Explorer export' {
                 $record['Event']          | Should -Not -BeNullOrEmpty
             }
         }
+
+        It 'converts a Cloud Apps activity event to the activity timeline table shape' {
+            InModuleScope XDRInternals {
+                $profiles = Get-XdrAzureDataExplorerTableProfile
+                $profile = $profiles['XDRCloudAppsActivityTimeline']
+
+                $event = [pscustomobject]@{
+                    date         = '2026-04-28T12:00:00Z'
+                    timestamp    = 1777377600000
+                    _id          = 'activity-1'
+                    recordId     = 'record-1'
+                    userName     = 'user@contoso.com'
+                    appName      = 'Microsoft 365'
+                    activityType = 'Login'
+                    ipAddress    = '203.0.113.10'
+                    location     = 'Anchorage'
+                    country      = 'US'
+                }
+
+                $record = ConvertTo-XdrAzureDataExplorerTypedRecord -InputEvent $event -TableProfile $profile
+
+                $record['Date']         | Should -Be '2026-04-28T12:00:00Z'
+                $record['Timestamp']    | Should -Be 1777377600000
+                $record['ActivityId']   | Should -Be 'activity-1'
+                $record['RecordId']     | Should -Be 'record-1'
+                $record['UserName']     | Should -Be 'user@contoso.com'
+                $record['AppName']      | Should -Be 'Microsoft 365'
+                $record['ActivityType'] | Should -Be 'Login'
+                $record['IpAddress']    | Should -Be '203.0.113.10'
+                $record['Location']     | Should -Be 'Anchorage'
+                $record['Country']      | Should -Be 'US'
+                $record['Event']        | Should -Not -BeNullOrEmpty
+            }
+        }
     }
 
     Describe 'Export-XdrAzureDataExplorer with Source mode' {
@@ -899,6 +1002,47 @@ Describe 'Azure Data Explorer export' {
             }
         }
 
+        It 'routes Cloud Apps activity timeline events to the typed Cloud Apps table' {
+            $records = @(
+                [pscustomobject]@{
+                    date         = '2026-04-28T12:00:00Z'
+                    timestamp    = 1777377600000
+                    _id          = 'activity-1'
+                    userName     = 'user@contoso.com'
+                    appName      = 'Microsoft 365'
+                    activityType = 'Login'
+                }
+            )
+
+            $null = @($records | Export-XdrAzureDataExplorer -Source 'CloudAppsActivityTimeline' -TempPath $TestDrive)
+
+            Should -Invoke Initialize-XdrAzureDataExplorerTable -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $TableName -eq 'XDRCloudAppsActivityTimeline' -and $TableProfile -ne $null
+            }
+            Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $TableName -eq 'XDRCloudAppsActivityTimeline' -and
+                $MappingName -eq 'XDRCloudAppsActivityTimeline_EventMapping'
+            }
+        }
+
+        It 'routes Cloud Apps timeline alias to the typed Cloud Apps table' {
+            $records = @(
+                [pscustomobject]@{
+                    timestamp    = 1777377600000
+                    _id          = 'activity-1'
+                    userName     = 'user@contoso.com'
+                    appName      = 'Microsoft 365'
+                    activityType = 'Login'
+                }
+            )
+
+            $null = @($records | Export-XdrAzureDataExplorer -Source 'CloudAppsTimeline' -TempPath $TestDrive)
+
+            Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $TableName -eq 'XDRCloudAppsActivityTimeline'
+            }
+        }
+
         It 'returns original objects with PassThru in Source mode' {
             $records = @(
                 [pscustomobject]@{ ActionType = 'ProcessCreated'; DeviceId = 'device-pass-1' },
@@ -964,7 +1108,8 @@ Describe 'Azure Data Explorer export' {
                 Should -Invoke Invoke-XdrAzureDataExplorerRestRequest -Times 1 -Exactly -ParameterFilter {
                     $Path -eq '/v2/rest/query' -and
                     $Body.db -eq 'Investigations' -and
-                    $Body.csl -eq 'MyTable | take 10'
+                    $Body.csl -eq 'MyTable | take 10' -and
+                    $TimeoutSec -eq 300
                 }
 
                 $results | Should -HaveCount 2

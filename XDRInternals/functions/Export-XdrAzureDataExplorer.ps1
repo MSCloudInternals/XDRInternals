@@ -1,4 +1,4 @@
-function Export-XdrAzureDataExplorer {
+﻿function Export-XdrAzureDataExplorer {
     <#
     .SYNOPSIS
         Exports pipeline data to Azure Data Explorer using queued ingestion.
@@ -23,7 +23,8 @@ function Export-XdrAzureDataExplorer {
     .NOTES
         AUTHENTICATION: This cmdlet requires a separate Azure Data Explorer token, independent
         of your XDR portal session. The token is acquired automatically with the following
-        priority: ESTS CLI bridge > Az.Accounts > Azure CLI > Managed Identity > explicit token.
+        priority: explicit token > Az.Accounts/Azure CLI for ADX resources > ESTS CLI bridge >
+        Managed Identity.
 
         Connect-XdrBySSO and Set-XdrConnection (with raw sccauth/xsrf tokens) do NOT capture
         ESTS cookies, so the silent CLI bridge is unavailable. When using these methods, ensure
@@ -126,7 +127,7 @@ function Export-XdrAzureDataExplorer {
         [string]$TableName,
 
         [Parameter(Mandatory, ParameterSetName = 'TypedSource')]
-        [ValidateSet('DeviceTimeline', 'IdentityTimeline', 'Alert', 'Incident', 'Device', 'AdvancedHunting')]
+        [ValidateSet('DeviceTimeline', 'IdentityTimeline', 'CloudAppsActivityTimeline', 'CloudAppsTimeline', 'Alert', 'Incident', 'Device', 'AdvancedHunting')]
         [string]$Source,
 
         [Parameter(ParameterSetName = 'ManualTable')]

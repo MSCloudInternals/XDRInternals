@@ -1,4 +1,4 @@
-function Get-XdrAzureDataExplorerIngestionStatus {
+﻿function Get-XdrAzureDataExplorerIngestionStatus {
     <#
     .SYNOPSIS
         Gets the status of queued Azure Data Explorer ingestion operations.

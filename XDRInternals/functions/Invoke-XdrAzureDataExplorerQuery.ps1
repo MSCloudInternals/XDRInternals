@@ -34,6 +34,7 @@
 
         Runs a query against a specific database with a custom server timeout.
     #>
+    [OutputType([pscustomobject[]])]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -84,7 +85,8 @@
             -Path $path `
             -Method POST `
             -Token $token `
-            -Body $body
+            -Body $body `
+            -TimeoutSec $RequestTimeout
 
         if ($Raw) {
             return $response
@@ -96,7 +98,7 @@
         else {
             $primaryResult = $response | Where-Object { $_.FrameType -eq 'DataTable' -and $_.TableKind -eq 'PrimaryResult' }
             if (-not $primaryResult -or -not $primaryResult.Columns -or -not $primaryResult.Rows) {
-                return @()
+                return
             }
 
             foreach ($row in @($primaryResult.Rows)) {

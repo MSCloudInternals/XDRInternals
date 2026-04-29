@@ -58,7 +58,7 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/discovery/get_unsanctioned_apps/",
     "Parameters": {
       "Justification": "body.justification",
-      "Usernames": "body.usernames"
+      "Type": "body.entityType"
     }
   },
   {
@@ -66,7 +66,7 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/{endpoint}/",
     "Parameters": {
       "Justification": "body.justification",
-      "Usernames": "body.usernames"
+      "Type": "body.entityType"
     }
   },
   {
@@ -74,7 +74,7 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/categories/",
     "Parameters": {
       "Justification": "body.justification",
-      "Usernames": "body.usernames"
+      "Type": "body.entityType"
     }
   },
   {
@@ -82,7 +82,7 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/category_stats/",
     "Parameters": {
       "Justification": "body.justification",
-      "Usernames": "body.usernames"
+      "Type": "body.entityType"
     }
   },
   {
@@ -90,7 +90,7 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/constants/",
     "Parameters": {
       "Justification": "body.justification",
-      "Usernames": "body.usernames"
+      "Type": "body.entityType"
     }
   },
   {
@@ -106,7 +106,7 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/get_locations/",
     "Parameters": {
       "Justification": "body.justification",
-      "Usernames": "body.usernames"
+      "Type": "body.entityType"
     }
   },
   {
@@ -114,7 +114,7 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/top_apps/",
     "Parameters": {
       "Justification": "body.justification",
-      "Usernames": "body.usernames"
+      "Type": "body.entityType"
     }
   },
   {
@@ -122,7 +122,7 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/top_categories/",
     "Parameters": {
       "Justification": "body.justification",
-      "Usernames": "body.usernames"
+      "Type": "body.entityType"
     }
   },
   {
@@ -130,7 +130,7 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/top_entities/",
     "Parameters": {
       "Justification": "body.justification",
-      "Usernames": "body.usernames"
+      "Type": "body.entityType"
     }
   },
   {

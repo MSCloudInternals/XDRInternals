@@ -279,7 +279,7 @@
 
     begin {
         Update-XdrConnectionSettings
-        $deanonymizedUsernames = [System.Collections.Generic.List[string]]::new()
+        $usernamesToDeanonymize = [System.Collections.Generic.List[string]]::new()
 
         if ($PSCmdlet.ParameterSetName -eq 'Default') {
             # Validate EntityType is provided when Type is Entity
@@ -307,7 +307,7 @@
 
         if ($PSCmdlet.ParameterSetName -eq 'DeanonymizeUser') {
             foreach ($username in $Usernames) {
-                $deanonymizedUsernames.Add($username)
+                $usernamesToDeanonymize.Add($username)
             }
             return
         }
@@ -768,14 +768,16 @@
 
     end {
         if ($PSCmdlet.ParameterSetName -eq 'DeanonymizeUser') {
-            if ($deanonymizedUsernames.Count -eq 0) {
+            if ($usernamesToDeanonymize.Count -eq 0) {
                 return
             }
 
+            $userEntityType = 1
+
             $body = @{
-                usernames     = @($deanonymizedUsernames)
+                usernames     = @($usernamesToDeanonymize)
                 justification = $Justification
-                entityType    = 1
+                entityType    = $userEntityType
             }
 
             return Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/discovery/deanonymize_entity_names/' -Method Post -Body $body -TypeName 'XdrCloudAppsDiscoveryDeanonymizedUser' -Force:$Force

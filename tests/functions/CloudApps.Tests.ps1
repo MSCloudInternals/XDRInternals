@@ -178,6 +178,47 @@
         }
     }
 
+    It 'skips unreadable activity chunk files when partial data is allowed' {
+        $chunkPath = Join-Path $TestDrive 'chunk_bad.json'
+        Set-Content -Path $chunkPath -Value '{"Events":[{"_id":"activity-1"}' -Encoding UTF8
+
+        InModuleScope -ModuleName XDRInternals -Parameters @{ ChunkPath = $chunkPath } {
+            param($ChunkPath)
+
+            $result = Read-XdrCloudAppsActivityChunkFile -File (Get-Item -Path $ChunkPath) -AllowPartial -WarningAction SilentlyContinue
+
+            $result | Should -BeNullOrEmpty
+        }
+    }
+
+    It 'reads activity chunk files that contain keys differing only by case' {
+        $chunkPath = Join-Path $TestDrive 'chunk_case_keys.json'
+        Set-Content -Path $chunkPath -Value '{"Events":[{"_id":"activity-1","timestamp":1710000000000,"level":"low","Level":"High"}],"EventCount":1}' -Encoding UTF8
+
+        InModuleScope -ModuleName XDRInternals -Parameters @{ ChunkPath = $chunkPath } {
+            param($ChunkPath)
+
+            $result = Read-XdrCloudAppsActivityChunkFile -File (Get-Item -Path $ChunkPath)
+            $activity = @(Get-XdrCloudAppsObjectValue -InputObject $result -Name 'Events')[0]
+
+            (Get-XdrCloudAppsObjectValue -InputObject $activity -Name 'level') | Should -Be 'low'
+            (Get-XdrCloudAppsObjectValue -InputObject $activity -Name 'Level') | Should -Be 'High'
+            (Get-XdrCloudAppsActivityEventTime -Activity $activity).Kind | Should -Be ([DateTimeKind]::Utc)
+        }
+    }
+
+    It 'throws unreadable activity chunk errors when partial data is not allowed' {
+        $chunkPath = Join-Path $TestDrive 'chunk_bad_strict.json'
+        Set-Content -Path $chunkPath -Value '{"Events":[{"_id":"activity-1"}' -Encoding UTF8
+
+        InModuleScope -ModuleName XDRInternals -Parameters @{ ChunkPath = $chunkPath } {
+            param($ChunkPath)
+
+            { Read-XdrCloudAppsActivityChunkFile -File (Get-Item -Path $ChunkPath) } |
+                Should -Throw -ExpectedMessage '*Conversion from JSON failed*'
+        }
+    }
+
     It 'routes discovered app note updates through the write cmdlet' {
         Set-XdrCloudAppsDiscoveredApp -AppId '12345' -Note 'Approved' -Confirm:$false | Out-Null
 

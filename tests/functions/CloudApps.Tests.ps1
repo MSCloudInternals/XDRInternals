@@ -53,6 +53,27 @@
         }
     }
 
+    It 'keeps the legacy general settings wrapper routed through grouped configuration' {
+        Mock Get-XdrCloudAppsConfiguration {
+            $result = [pscustomobject]@{
+                environmentName = 'Commercial'
+                orgDisplayName  = 'Contoso'
+            }
+            $result.PSObject.TypeNames.Insert(0, 'XdrCloudAppsConfigurationSettings')
+            $result
+        } -ModuleName XDRInternals
+
+        $result = Get-XdrCloudAppsGeneralSetting -Force
+
+        $result.environmentName | Should -Be 'Commercial'
+        $result.orgDisplayName | Should -Be 'Contoso'
+        $result.PSObject.TypeNames | Should -Not -Contain 'XdrCloudAppsConfigurationSettings'
+        Should -Invoke Get-XdrCloudAppsConfiguration -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $Type -eq 'Settings' -and
+            $Force
+        }
+    }
+
     It 'returns discovery streams from the dedicated parameter set' {
         $result = Get-XdrCloudAppsDiscovery -ListStreams
 

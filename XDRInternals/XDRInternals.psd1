@@ -84,6 +84,7 @@
         "Get-XdrCloudAppsApp",
         "Get-XdrCloudAppsConfiguration",
         "Get-XdrCloudAppsDiscovery",
+        "Get-XdrCloudAppsGeneralSetting",
         "Get-XdrCloudAppsGovernance",
         "Get-XdrCloudAppsPolicy",
         "Get-XdrConfigurationAlertServiceSetting",

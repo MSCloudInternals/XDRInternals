@@ -98,6 +98,10 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/top_entities/"
   },
   {
+    "Cmdlet": "Get-XdrCloudAppsGeneralSetting",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/settings/"
+  },
+  {
     "Cmdlet": "Get-XdrCloudAppsPolicy",
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/${urlSegment}/",
     "Parameters": {

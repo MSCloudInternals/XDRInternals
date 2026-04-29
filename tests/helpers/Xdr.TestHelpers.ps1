@@ -258,6 +258,24 @@ function Get-XdrRequiredWorkload {
     return $null
 }
 
+function Test-XdrCommandRequiresMutationOptIn {
+    param (
+        [System.Management.Automation.CommandInfo]$Command
+    )
+
+    if ($Command.Name -match '^(New|Set|Remove|Move|Merge)-Xdr') {
+        return $true
+    }
+
+    return $Command.Name -in @(
+        'Invoke-XdrEndpointDeviceAction',
+        'Invoke-XdrEndpointDeviceAutomatedInvestigation',
+        'Invoke-XdrEndpointDeviceLiveResponseCommand',
+        'Invoke-XdrEndpointDevicePolicySync',
+        'Invoke-XdrRestMethod'
+    )
+}
+
 function Get-XdrWorkloadStatusTable {
     if ($script:XdrWorkloadStatus) {
         return $script:XdrWorkloadStatus
@@ -896,6 +914,10 @@ function New-XdrAutoScenarioForParameterSet {
         return $null
     }
 
+    if ((Test-XdrCommandRequiresMutationOptIn -Command $Command) -and -not $settings['execution']['enableMutationTests'] -and -not $Command.Parameters.ContainsKey('WhatIf')) {
+        return $null
+    }
+
     $parameters = @{}
     foreach ($mandatoryParameter in ($ParameterSet.Parameters | Where-Object IsMandatory)) {
         $value = Resolve-XdrParameterValue -Command $Command -Parameter $mandatoryParameter -ParameterSetName $ParameterSet.Name
@@ -969,6 +991,10 @@ function Get-XdrConfiguredScenarios {
 
     $settings = Get-XdrTestSettings
     if (-not $settings['scenarios'].ContainsKey($Command.Name)) {
+        return @()
+    }
+
+    if ((Test-XdrCommandRequiresMutationOptIn -Command $Command) -and -not $settings['execution']['enableMutationTests'] -and -not $Command.Parameters.ContainsKey('WhatIf')) {
         return @()
     }
 

@@ -1,4 +1,4 @@
-![](./images/xdrinternals-banner.jpg "XDRInternals")
+﻿![](./images/xdrinternals-banner.jpg "XDRInternals")
 
 # XDRInternals
 
@@ -45,123 +45,125 @@ Get-XdrTenantContext -Force
 
 | Cmdlet                                                          | Description                                                         |
 | --------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Connect-XdrByBrowser                                            | Authenticate to Microsoft Defender XDR using an interactive browser sign-in |
-| Connect-XdrByEstsCookie                                         | Authenticate to Microsoft Defender XDR using ESTS cookie            |
-| Connect-XdrByPhoneSignIn                                        | Authenticate to Microsoft Defender XDR using Microsoft Authenticator phone sign-in |
-| Connect-XdrBySoftwarePasskey                                    | Authenticate to Microsoft Defender XDR using a software FIDO2 passkey (local or Azure Key Vault) |
-| Connect-XdrBySSO                                                | Authenticate to Microsoft Defender XDR using browser-based single sign-on |
-| Connect-XdrByTemporaryAccessPass                                | Authenticate to Microsoft Defender XDR using a Temporary Access Pass |
-| Connect-XdrEndpointDeviceLiveResponse                           | Start interactive or non-interactive Live Response sessions         |
-| ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encode Advanced Hunting queries for URL/API usage                   |
-| Disconnect-XdrEndpointDeviceLiveResponse                        | Close one or more active Live Response sessions                     |
-| Get-XdrActionsCenterHistory                                     | Retrieve historical actions from the Action Center                  |
-| Get-XdrActionsCenterPending                                     | Retrieve pending actions from the Action Center                     |
-| Get-XdrAdvancedHuntingFunction                                  | Get saved Advanced Hunting functions                                |
-| Get-XdrAdvancedHuntingTableSchema                               | Get the schema for Advanced Hunting tables                          |
-| Get-XdrAdvancedHuntingUnifiedDetectionRules                     | Get unified detection rules from Advanced Hunting                   |
-| Get-XdrAdvancedHuntingUserHistory                               | Retrieve user's Advanced Hunting query history                      |
-| Get-XdrAlert                                                    | Retrieve alerts with filtering and pagination                       |
-| Get-XdrCloudAppsGeneralSetting                                  | Get Cloud Apps general settings                                     |
-| Get-XdrConfigurationAlertServiceSetting                         | Get alert service configuration settings                            |
-| Get-XdrConfigurationAlertTuning                                 | Retrieve alert tuning and suppression rules                         |
-| Get-XdrConfigurationAssetRuleManagement                         | Get asset rule management configuration                             |
-| Get-XdrConfigurationCriticalAssetManagement                     | Retrieve critical asset management settings                         |
-| Get-XdrConfigurationCriticalAssetManagementClassification       | Retrieve critical asset management classification rules             |
-| Get-XdrConfigurationCriticalAssetManagementClassificationSchema | Get available properties for classification rules                   |
-| Get-XdrConfigurationPreviewFeatures                             | Get and manage XDR preview features                                 |
-| Get-XdrConfigurationServiceAccountClassification                | Get service account classification configuration                    |
-| Get-XdrConfigurationUnifiedRBACWorkload                         | Retrieve Unified RBAC workload configuration                        |
-| Get-XdrDatalakeDatabase                                         | Get available datalake databases                                    |
-| Get-XdrDatalakeTableSchema                                      | Retrieve schema for datalake tables                                 |
-| Get-XdrEndpointAdvancedFeatures                                 | Get endpoint advanced features settings                             |
-| Get-XdrEndpointConfigurationAdvancedFeatures                    | Retrieve endpoint advanced features configuration                   |
-| Get-XdrEndpointConfigurationAuthenticatedTelemetry              | Get authenticated telemetry configuration                           |
-| Get-XdrEndpointConfigurationCustomCollectionRule                | Get custom collection rules for MDE                                 |
-| Get-XdrEndpointConfigurationIntuneConnection                    | Retrieve Intune connection configuration                            |
-| Get-XdrEndpointConfigurationLiveResponse                        | Get Live Response configuration settings                            |
-| Get-XdrEndpointConfigurationPotentiallyUnwantedApplications     | Retrieve PUA configuration                                          |
-| Get-XdrEndpointConfigurationPreviewFeature                      | Get preview feature configuration                                   |
-| Get-XdrEndpointConfigurationPurviewSharing                      | Retrieve Purview data sharing configuration                         |
-| Get-XdrEndpointDevice                                           | Get endpoint devices with filtering and pagination                  |
-| Get-XdrEndpointDeviceActionResult                               | Get device action results, status, and download URIs                |
-| Get-XdrEndpointDeviceModel                                      | Retrieve device models                                              |
-| Get-XdrEndpointDeviceOsVersionFriendlyName                      | Get friendly names for OS versions                                  |
-| Get-XdrEndpointDeviceLiveResponseLibrary                        | List files in the Live Response library                             |
-| Get-XdrEndpointDeviceLiveResponseLibraryFile                    | Download a script file from the Live Response library               |
-| Get-XdrEndpointDeviceRbacGroup                                  | Retrieve RBAC groups for devices                                    |
-| Get-XdrEndpointDeviceRbacGroupScope                             | Retrieve RBAC groups scope for devices                              |
-| Get-XdrEndpointDeviceTag                                        | Get device tags                                                     |
-| Get-XdrEndpointDeviceTimeline                                   | Retrieve timeline events for a specific device                      |
-| Get-XdrEndpointDeviceTotals                                     | Get total counts of endpoint devices                                |
-| Get-XdrEndpointDeviceVendor                                     | Retrieve device vendor information                                  |
-| Get-XdrEndpointDeviceWindowsReleaseVersion                      | Get Windows release version information                             |
-| Get-XdrEndpointLicenseReport                                    | Retrieve endpoint license report                                    |
-| Get-XdrExposureManagementRecommendations                        | Get security recommendations from Exposure Management               |
-| Get-XdrIdentityAlertThreshold                                   | Get alert threshold configuration for Defender for Identity         |
-| Get-XdrIdentityConfigurationDirectoryServiceAccount             | Retrieve directory service account configuration                    |
-| Get-XdrIdentityConfigurationRemediationActionAccount            | Get remediation action account configuration                        |
-| Get-XdrIdentityDomainControllerCoverage                         | Retrieve domain controller coverage information                     |
-| Get-XdrIdentityIdentity                                         | Get identities from Microsoft Defender for Identity                 |
-| Get-XdrIdentityOnboardingStatus                                 | Get onboarding status for Defender for Identity                     |
-| Get-XdrIdentityServiceAccount                                   | Retrieve service account information                                |
-| Get-XdrIdentityStatistic                                        | Get identity statistics                                             |
-| Get-XdrIncident                                                 | Retrieve incidents with filtering and pagination                    |
-| Get-XdrIncidentAssociatedAlert                                  | Retrieve alerts associated with a specific incident                 |
-| Get-XdrMtoTenantList                                            | Get list of tenants in MTO multi-tenant view                        |
-| Get-XdrStreamingApiConfiguration                                | Get Streaming API configuration                                     |
-| Get-XdrSuppressionRule                                          | Retrieve alert suppression rules                                    |
-| Get-XdrTenantContext                                            | Retrieve tenant context information                                 |
-| Get-XdrTenantWorkloadStatus                                     | Get workload status for the tenant                                  |
-| Get-XdrThreatAnalyticsOutbreaks                                 | Retrieve threat analytics outbreak data (-ChangeCount, -TopThreats) |
-| Get-XdrUserPreference                                           | Get user preferences from Microsoft Defender XDR                    |
-| Get-XdrVulnerabilityManagementAdvisories                        | Retrieve security advisories from TVM                               |
-| Get-XdrVulnerabilityManagementBaseline                          | Get security baseline assessment data from TVM                      |
-| Get-XdrVulnerabilityManagementCertificates                      | Retrieve certificate inventory from TVM                             |
-| Get-XdrVulnerabilityManagementChangeEvents                      | Get change events from TVM                                          |
-| Get-XdrVulnerabilityManagementDashboard                         | Retrieve TVM dashboard data                                         |
-| Get-XdrVulnerabilityManagementExtensions                        | Get browser extension inventory from TVM                            |
-| Get-XdrVulnerabilityManagementProducts                          | Retrieve product information from TVM                               |
-| Get-XdrVulnerabilityManagementRemediationTasks                  | Get remediation tasks and exceptions from TVM                       |
-| Get-XdrVulnerabilityManagementVulnerabilities                   | Retrieve vulnerabilities from TVM (-Summary for stats)              |
-| Get-XdrXspmAttackPath                                           | Retrieve attack path data from XSPM                                 |
-| Get-XdrXspmChokePoint                                           | Get choke points in attack paths                                    |
-| Get-XdrXspmTopEntryPoint                                        | Retrieve top entry points from attack paths                         |
-| Get-XdrXspmTopTarget                                            | Get top targets from attack paths                                   |
-| Invoke-XdrEndpointDeviceAction                                  | Unified cmdlet for all endpoint device actions                      |
-| Invoke-XdrEndpointDeviceAutomatedInvestigation                  | Start an automated investigation on a device                        |
-| Invoke-XdrEndpointDeviceLiveResponseCommand                     | Execute Live Response commands programmatically with optional row expansion |
-| Invoke-XdrEndpointDevicePolicySync                              | Force a policy sync on a device                                     |
-| Invoke-XdrHuntingQueryValidation                                | Validate an Advanced Hunting query for custom detection rules       |
-| Invoke-XdrMtoAdvancedHunting                                    | Execute Advanced Hunting queries across multiple tenants            |
-| Invoke-XdrRestMethod                                            | Invoke REST API calls to XDR endpoints                              |
-| Invoke-XdrXspmHuntingQuery                                      | Execute hunting queries against XSPM attack surface API             |
-| Merge-XdrIncident                                               | Merge multiple incidents into a single incident                     |
-| Move-XdrAlertToIncident                                         | Move alerts to a specific incident or create a new one              |
-| New-XdrAdvancedHuntingFunction                                  | Create new Advanced Hunting functions                               |
-| New-XdrConfigurationCriticalAssetManagementClassification       | Create critical asset management classification rules               |
-| New-XdrEndpointConfigurationCustomCollectionRule                | Create custom collection rules from YAML files                      |
-| New-XdrEndpointDeviceLiveResponseLibraryFile                    | Upload a script file to the Live Response library                   |
-| New-XdrEndpointDeviceRbacGroup                                  | Create new endpoint device groups                                   |
-| New-XdrIdentityConfigurationRemediationActionAccount            | Create new remediation action account configuration                 |
-| Remove-XdrAdvancedHuntingFunction                               | Remove Advanced Hunting functions                                   |
-| Remove-XdrConfigurationCriticalAssetManagementClassification    | Remove critical asset management classification rules               |
-| Remove-XdrEndpointDeviceLiveResponseLibraryFile                 | Delete a file from the Live Response library                        |
-| Remove-XdrIdentityConfigurationRemediationActionAccount         | Remove remediation action account configuration                     |
-| Set-XdrAdvancedHuntingFunction                                  | Update existing Advanced Hunting functions                          |
-| Set-XdrConfigurationCriticalAssetManagementClassification       | Enable or disable classification rules                              |
-| Set-XdrConfigurationPreviewFeatures                             | Enable or disable XDR preview features                              |
-| Set-XdrConnectionSettings                                       | Configure connection settings for XDR                               |
-| Set-XdrEndpointAdvancedFeatures                                 | Set endpoint advanced features configuration                        |
-| Set-XdrEndpointConfigurationCustomCollectionRule                | Update existing custom collection rules                             |
-| Set-XdrEndpointDeviceAssetValue                                 | Set the asset value for one or more devices                         |
-| Set-XdrEndpointDeviceCriticalityLevel                           | Set the criticality level for one or more devices                   |
-| Set-XdrEndpointDeviceExclusionState                             | Set device exclusion state (Excluded/Included)                      |
-| Set-XdrEndpointDeviceRbacGroup                                  | Update endpoint device groups                                       |
-| Set-XdrEndpointDeviceTag                                        | Set user-defined tags on one or more devices                        |
-| Set-XdrIdentityConfigurationRemediationActionAccount            | Update remediation action account configuration                     |
-| Stop-XdrEndpointDeviceAction                                    | Cancel a pending device action by request GUID                      |
-| Update-XdrConnectionSettings                                    | Update and refresh connection settings                              |
-
+| Connect-XdrByBrowser                                            | Authenticates to Microsoft Defender XDR using an interactive browser sign-in. |
+| Connect-XdrByCredential                                         | Authenticates to Microsoft Defender XDR using username, password, and optional TOTP MFA. |
+| Connect-XdrByEstsCookie                                         | Establishes an authenticated session to the Microsoft Defender XDR portal. |
+| Connect-XdrByPhoneSignIn                                        | Authenticates to Microsoft Defender XDR using Microsoft Authenticator phone sign-in. |
+| Connect-XdrBySoftwarePasskey                                    | Authenticates to Microsoft Defender XDR using a software passkey. |
+| Connect-XdrBySSO                                                | Authenticates to Microsoft Defender XDR using browser-based single sign-on. |
+| Connect-XdrByTemporaryAccessPass                                | Authenticates to Microsoft Defender XDR using a Temporary Access Pass (TAP). |
+| Connect-XdrEndpointDeviceLiveResponse                           | Opens a Live Response session to an endpoint device in Microsoft Defender XDR. |
+| ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encodes an Advanced Hunting query for use in Microsoft Defender XDR. |
+| Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
+| Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |
+| Get-XdrActionsCenterHistory                                     | Retrieves historical actions from the Microsoft Defender XDR Action Center. |
+| Get-XdrActionsCenterPending                                     | Retrieves pending actions from the Microsoft Defender XDR Action Center. |
+| Get-XdrAdvancedHuntingFunction                                  | Retrieves Advanced Hunting functions from Microsoft Defender XDR. |
+| Get-XdrAdvancedHuntingTableSchema                               | Retrieves the Advanced Hunting table schema from Microsoft Defender XDR. |
+| Get-XdrAdvancedHuntingUnifiedDetectionRules                     | Retrieves the Unified Detection Rules from Advanced Hunting. |
+| Get-XdrAdvancedHuntingUserHistory                               | Retrieves Advanced Hunting user history from Microsoft Defender XDR. |
+| Get-XdrAlert                                                    | Retrieves alerts from Microsoft Defender XDR. |
+| Get-XdrCloudAppsGeneralSetting                                  | Retrieves general settings from Microsoft Defender for Cloud Apps (Cloud Apps). |
+| Get-XdrConfigurationAlertServiceSetting                         | Retrieves alert service settings from Microsoft Defender XDR. |
+| Get-XdrConfigurationAlertTuning                                 | Retrieves alert tuning configuration from Microsoft Defender XDR. |
+| Get-XdrConfigurationAssetRuleManagement                         | Retrieves asset rule management configuration from Microsoft Defender XDR. |
+| Get-XdrConfigurationCriticalAssetManagementClassification       | Retrieves critical asset management classification rules from Microsoft Defender XDR. |
+| Get-XdrConfigurationCriticalAssetManagementClassificationSchema | Retrieves the schema for Critical Asset Management rules from Microsoft Defender XDR. |
+| Get-XdrConfigurationPreviewFeatures                             | Retrieves the configuration for Defender XDR Preview features. |
+| Get-XdrConfigurationServiceAccountClassification                | Retrieves service account classification rules from Microsoft Defender XDR. |
+| Get-XdrConfigurationUnifiedRBACWorkload                         | Retrieves Unified RBAC workload configuration from Microsoft Defender XDR. |
+| Get-XdrDatalakeDatabase                                         | Retrieves databases from Microsoft Defender XDR datalake. |
+| Get-XdrDatalakeTableSchema                                      | Retrieves database entities schema from Microsoft Defender XDR datalake. |
+| Get-XdrEndpointAdvancedFeatures                                 | Retrieves comprehensive advanced features configuration for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationAdvancedFeatures                    | Retrieves the advanced features configuration settings for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationAuthenticatedTelemetry              | Retrieves the Authenticated Telemetry status for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationCustomCollectionRule                | Retrieves custom collection rules for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationIntuneConnection                    | Retrieves the Intune connection status for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationLiveResponse                        | Retrieves the Live Response configuration settings for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationPotentiallyUnwantedApplications     | Retrieves the potentially unwanted applications (PUA) configuration for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationPreviewFeature                      | Retrieves the preview features configuration for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationPurviewSharing                      | Retrieves the Purview alert sharing configuration for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointDevice                                           | Retrieves endpoint devices from Microsoft Defender XDR. |
+| Get-XdrEndpointDeviceActionResult                               | Gets device action results and download URIs from Microsoft Defender XDR. |
+| Get-XdrEndpointDeviceLiveResponseLibrary                        | Retrieves the Live Response library files from Microsoft Defender XDR. |
+| Get-XdrEndpointDeviceLiveResponseLibraryFile                    | Downloads a script file from the Live Response library. |
+| Get-XdrEndpointDeviceModel                                      | Retrieves all device models from Microsoft Defender for Endpoint. |
+| Get-XdrEndpointDeviceOsVersionFriendlyName                      | Retrieves all OS version friendly names from Microsoft Defender for Endpoint. |
+| Get-XdrEndpointDeviceRbacGroup                                  | Retrieves device groups for Defender for Endpoint. |
+| Get-XdrEndpointDeviceRbacGroupScope                             | Retrieves all RBAC groups from Microsoft Defender for Endpoint. |
+| Get-XdrEndpointDeviceTag                                        | Retrieves all device tags from Microsoft Defender for Endpoint. |
+| Get-XdrEndpointDeviceTimeline                                   | Retrieves the timeline of events for a specific device from Microsoft Defender XDR. |
+| Get-XdrEndpointDeviceTotals                                     | Retrieves the device totals from Microsoft Defender XDR. |
+| Get-XdrEndpointDeviceVendor                                     | Retrieves all device vendors from Microsoft Defender for Endpoint. |
+| Get-XdrEndpointDeviceWindowsReleaseVersion                      | Retrieves all Windows release versions from Microsoft Defender for Endpoint. |
+| Get-XdrEndpointLicenseReport                                    | Retrieves license usage report for Microsoft Defender for Endpoint. |
+| Get-XdrExposureManagementRecommendations                        | Retrieves recommendations from Exposure Management. |
+| Get-XdrIdentityAlertThreshold                                   | Retrieves alert threshold configuration for Microsoft Defender for Identity. |
+| Get-XdrIdentityConfigurationDirectoryServiceAccount             | Retrieves directory service accounts for Microsoft Defender for Identity. |
+| Get-XdrIdentityConfigurationRemediationActionAccount            | Retrieves the remediation action account configuration for Microsoft Defender for Identity. |
+| Get-XdrIdentityDomainControllerCoverage                         | Retrieves domain controller coverage from Microsoft Defender for Identity. |
+| Get-XdrIdentityIdentity                                         | Retrieves identities from Microsoft Defender for Identity. |
+| Get-XdrIdentityOnboardingStatus                                 | Retrieves the onboarding status of Microsoft Defender for Identity. |
+| Get-XdrIdentityServiceAccount                                   | Retrieves service accounts from Microsoft Defender for Identity. |
+| Get-XdrIdentityStatistic                                        | Retrieves aggregated identity statistics from Microsoft Defender for Identity. |
+| Get-XdrIdentityUser                                             | Retrieves detailed user identity information from Microsoft Defender for Identity. |
+| Get-XdrIdentityUserTimeline                                     | Retrieves the timeline of events for a specific user from Microsoft Defender for Identity. |
+| Get-XdrIncident                                                 | Retrieves incidents from Microsoft Defender XDR. |
+| Get-XdrIncidentAssociatedAlert                                  | Retrieves alerts associated with a specific incident from Microsoft Defender XDR. |
+| Get-XdrMtoTenantList                                            | Retrieves the list of accessible tenants from Microsoft Defender XDR. |
+| Get-XdrStreamingApiConfiguration                                | Retrieves Streaming API configuration from Microsoft Defender XDR. |
+| Get-XdrSuppressionRule                                          | Retrieves alert suppression rules from Microsoft Defender XDR. |
+| Get-XdrTenantContext                                            | Retrieves the tenant context information from Microsoft Defender XDR. |
+| Get-XdrTenantWorkloadStatus                                     | Retrieves and evaluates the workload status from Microsoft Defender XDR tenant context. |
+| Get-XdrThreatAnalyticsOutbreaks                                 | Retrieves threat analytics outbreaks from Microsoft Defender XDR. |
+| Get-XdrVulnerabilityManagementAdvisories                        | Retrieves security advisories from Vulnerability Management. |
+| Get-XdrVulnerabilityManagementBaseline                          | Retrieves security baseline assessment data from Microsoft Defender XDR. |
+| Get-XdrVulnerabilityManagementCertificates                      | Retrieves certificates from Vulnerability Management. |
+| Get-XdrVulnerabilityManagementChangeEvents                      | Retrieves change events from Vulnerability Management. |
+| Get-XdrVulnerabilityManagementDashboard                         | Retrieves Microsoft Defender Vulnerability Management dashboard analytics data. |
+| Get-XdrVulnerabilityManagementExtensions                        | Retrieves browser extensions from Vulnerability Management. |
+| Get-XdrVulnerabilityManagementProducts                          | Retrieves products from Vulnerability Management. |
+| Get-XdrVulnerabilityManagementRemediationTasks                  | Retrieves remediation tasks from Vulnerability Management. |
+| Get-XdrVulnerabilityManagementVulnerabilities                   | Retrieves vulnerabilities from Vulnerability Management. |
+| Get-XdrXspmAttackPath                                           | Retrieves attack path data from Microsoft Defender XDR XSPM. |
+| Get-XdrXspmChokePoint                                           | Retrieves choke point data from Microsoft Defender XDR XSPM. |
+| Get-XdrXspmTopEntryPoint                                        | Retrieves top entry points from Microsoft Defender XDR XSPM attack paths. |
+| Get-XdrXspmTopTarget                                            | Retrieves top targets from Microsoft Defender XDR XSPM attack paths. |
+| Invoke-XdrEndpointDeviceAction                                  | Invokes response actions on an endpoint device in Microsoft Defender XDR. |
+| Invoke-XdrEndpointDeviceAutomatedInvestigation                  | Starts an automated investigation on an endpoint device in Microsoft Defender XDR. |
+| Invoke-XdrEndpointDeviceLiveResponseCommand                     | Sends a command to an active Live Response session in Microsoft Defender XDR. |
+| Invoke-XdrEndpointDevicePolicySync                              | Forces a policy sync on an endpoint device in Microsoft Defender XDR. |
+| Invoke-XdrHuntingQueryValidation                                | Validates an Advanced Hunting query for custom detection rules in Microsoft Defender XDR. |
+| Invoke-XdrMtoAdvancedHunting                                    | Executes an Advanced Hunting query across multiple tenants in MTO (Multi-Tenant Organization). |
+| Invoke-XdrRestMethod                                            | Invokes a REST API call to Microsoft Defender XDR with authenticated session. |
+| Invoke-XdrXspmHuntingQuery                                      | Executes a hunting query against the Microsoft Defender XDR XSPM attack surface API. |
+| Merge-XdrIncident                                               | Merges multiple incidents into a single incident in Microsoft Defender XDR. |
+| Move-XdrAlertToIncident                                         | Moves alerts to a specific incident or creates a new one. |
+| New-XdrAdvancedHuntingFunction                                  | Creates a new Advanced Hunting function in Microsoft Defender XDR. |
+| New-XdrConfigurationCriticalAssetManagementClassification       | Creates a new Critical Asset Management classification rule in Microsoft Defender XDR. |
+| New-XdrEndpointConfigurationCustomCollectionRule                | Creates a new custom collection rule for Microsoft Defender for Endpoint from a YAML file. |
+| New-XdrEndpointDeviceLiveResponseLibraryFile                    | Uploads a script file to the Live Response library. |
+| New-XdrEndpointDeviceRbacGroup                                  | Creates a device group in Defender for Endpoint used for RBAC and policies. |
+| New-XdrIdentityConfigurationRemediationActionAccount            | Registers a new remediation action account for Microsoft Defender for Identity. |
+| Remove-XdrAdvancedHuntingFunction                               | Removes an Advanced Hunting function from Microsoft Defender XDR. |
+| Remove-XdrConfigurationCriticalAssetManagementClassification    | Removes a Critical Asset Management classification rule from Microsoft Defender XDR. |
+| Remove-XdrEndpointDeviceLiveResponseLibraryFile                 | Deletes a file from the Live Response library. |
+| Remove-XdrIdentityConfigurationRemediationActionAccount         | Removes a remediation action account from Microsoft Defender for Identity. |
+| Set-XdrAdvancedHuntingFunction                                  | Updates an existing Advanced Hunting function in Microsoft Defender XDR. |
+| Set-XdrConfigurationCriticalAssetManagementClassification       | Updates critical asset management classification rule metadata in Microsoft Defender XDR. |
+| Set-XdrConfigurationPreviewFeatures                             | Sets the configuration for Defender XDR Preview features. |
+| Set-XdrConnectionSettings                                       | Creates XDR connection settings using authentication cookies. |
+| Set-XdrEndpointAdvancedFeatures                                 | Configures advanced features settings for Microsoft Defender for Endpoint. |
+| Set-XdrEndpointConfigurationCustomCollectionRule                | Updates an existing custom collection rule for Microsoft Defender for Endpoint. |
+| Set-XdrEndpointDeviceAssetValue                                 | Sets the asset value on endpoint devices in Microsoft Defender XDR. |
+| Set-XdrEndpointDeviceCriticalityLevel                           | Sets the criticality level on endpoint devices in Microsoft Defender XDR. |
+| Set-XdrEndpointDeviceExclusionState                             | Sets the exclusion state on endpoint devices in Microsoft Defender XDR. |
+| Set-XdrEndpointDeviceRbacGroup                                  | Updates Defender for Endpoint device groups. |
+| Set-XdrEndpointDeviceTag                                        | Sets, adds, or removes user-defined tags on endpoint devices in Microsoft Defender XDR. |
+| Set-XdrIdentityConfigurationRemediationActionAccount            | Configures the remediation action account type for Microsoft Defender for Identity. |
+| Set-XdrSentinelConnection                                       | Configures the Sentinel (Log Analytics) workspace connection for data export. |
+| Stop-XdrEndpointDeviceAction                                    | Cancels a pending device action in Microsoft Defender XDR. |
+| Update-XdrConnectionSettings                                    | Updates XDR connection session cookies and authentication tokens. |
 ## Installation
 
 ### From the PowerShell Gallery

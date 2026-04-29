@@ -1,296 +1,573 @@
 ﻿[
-    {
-        "Cmdlet": "Get-XdrActionsCenterHistory",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/actionCenter/actioncenterui/history-actions/"
-    },
-    {
-        "Cmdlet": "Get-XdrActionsCenterPending",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/actionCenter/actioncenterui/pending-actions/"
-    },
-    {
-        "Cmdlet": "Get-XdrAdvancedHuntingFunction",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/functions/defender/savedfunctions/{Id}"
-    },
-    {
-        "Cmdlet": "Get-XdrAdvancedHuntingFunction",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions"
-    },
-    {
-        "Cmdlet": "ConvertTo-XdrEncodedAdvancedHuntingQuery",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/queries/encode"
-    },
-    {
-        "Cmdlet": "Get-XdrAdvancedHuntingTableSchema",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/schema"
-    },
-    {
-        "Cmdlet": "Get-XdrAdvancedHuntingUserHistory",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/reports/userHistory"
-    },
-    {
-        "Cmdlet": "Get-XdrAlert",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/alertsApiService/alerts"
-    },
-    {
-        "Cmdlet": "Get-XdrAlertSearch",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/alerts/searchAlertTitlesandId"
-    },
-    {
-        "Cmdlet": "Get-XdrConfigurationAlertServiceSetting",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/alertsApiService/workloads/disabled"
-    },
-    {
-        "Cmdlet": "Get-XdrConfigurationAlertTuning",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/suppressionRulesService/suppressionRules"
-    },
-    {
-        "Cmdlet": "Get-XdrConfigurationAssetRuleManagement",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/rulesengine/rules"
-    },
-    {
-        "Cmdlet": "Get-XdrConfigurationCriticalAssetManagement",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/xspmatlas/assetrules"
-    },
-    {
-        "Cmdlet": "Get-XdrConfigurationServiceAccountClassification",
-        "ApiUri": "https://security.microsoft.com/apiproxy/radius/api/radius/serviceaccounts/classificationrule/getall"
-    },
-    {
-        "Cmdlet": "Get-XdrConfigurationUnifiedRBACWorkload",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/urbacConfiguration/gw/unifiedrbac/configuration/tenantinfo/"
-    },
-    {
-        "Cmdlet": "Get-XdrDatalakeDatabase",
-        "ApiUri": "https://security.microsoft.com/apiproxy/securityplatform/lake/databases"
-    },
-    {
-        "Cmdlet": "Get-XdrDatalakeTableSchema",
-        "ApiUri": "https://security.microsoft.com/apiproxy/securityplatform/lake/kql/v1/rest/mgmt"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointConfigurationAdvancedFeatures",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/GetAdvancedFeaturesSetting"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointConfigurationAuthenticatedTelemetry",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointConfigurationCustomCollectionRule",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdeCustomCollection/rules"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointConfigurationIntuneConnection",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/status"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointConfigurationLiveResponse",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/get_properties"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointConfigurationPotentiallyUnwantedApplications",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/ui/properties/"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointConfigurationPreviewFeature",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/GetPreviewExperienceSetting"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointConfigurationPurviewSharing",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/wdatpInternalApi/compliance/alertSharing/status"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointDevice",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointDeviceModel",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allModels"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointDeviceOsVersionFriendlyName",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allOsVersionFriendlyNames"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointDeviceRbacGroup",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/userExposedRbacGroups/UserExposedRbacGroups"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointDeviceTag",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allMachinesTags"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointDeviceTimeline",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdeTimelineExperience/machines/{deviceIdentifier}/events/"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointDeviceTotals",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/deviceTotals/"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointDeviceVendor",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allVendors"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointDeviceWindowsReleaseVersion",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allWindowsReleaseVersions"
-    },
-    {
-        "Cmdlet": "Get-XdrEndpointLicenseReport",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/k8sMachineApi/ine/machineapiservice/machines/skuReport"
-    },
-    {
-        "Cmdlet": "Get-XdrIdentityAlertThreshold",
-        "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/alertthresholds/withExpiry"
-    },
-    {
-        "Cmdlet": "Get-XdrIdentityConfigurationDirectoryServiceAccount",
-        "ApiUri": "https://security.microsoft.com/apiproxy/aatp/odata/directoryServices"
-    },
-    {
-        "Cmdlet": "Get-XdrIdentityConfigurationRemediationActionAccount",
-        "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/remediationActions/configuration"
-    },
-    {
-        "Cmdlet": "Get-XdrIdentityConfigurationRemediationActionAccount",
-        "ApiUri": "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials"
-    },
-    {
-        "Cmdlet": "Get-XdrIdentityDomainControllerCoverage",
-        "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/sensors/domainControllerCoverage"
-    },
-    {
-        "Cmdlet": "Get-XdrIdentityIdentity",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities"
-    },
-    {
-        "Cmdlet": "Get-XdrIdentityIdentityCount",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities/count"
-    },
-    {
-        "Cmdlet": "Get-XdrIdentityOnboardingStatus",
-        "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/workspaces/isWorkspaceExists/"
-    },
-    {
-        "Cmdlet": "Get-XdrIdentityServiceAccount",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/serviceAccounts"
-    },
-    {
-        "Cmdlet": "Get-XdrIdentityStatistic",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities/aggregatedData"
-    },
-    {
-        "Cmdlet": "Get-XdrIncident",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidentQueue/incidents/{IncidentId}"
-    },
-    {
-        "Cmdlet": "Get-XdrIncident",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidentQueue/incidents/alerts"
-    },
-    {
-        "Cmdlet": "Get-XdrIncidentAssociatedAlert",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidents/{IncidentId}/AssociatedAlerts"
-    },
-    {
-        "Cmdlet": "Get-XdrIncidentSearch",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidentSearch"
-    },
-    {
-        "Cmdlet": "Get-XdrStreamingApiConfiguration",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/wdatpApi/dataexportsettings"
-    },
-    {
-        "Cmdlet": "Get-XdrSuppressionRule",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/suppressionRulesService/suppressionRules"
-    },
-    {
-        "Cmdlet": "Get-XdrTenantContext",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/sccManagement/mgmt/TenantContext"
-    },
-    {
-        "Cmdlet": "Get-XdrMtoTenantList",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtoapi/tenants/TenantPicker"
-    },
-    {
-        "Cmdlet": "Invoke-XdrHuntingQueryValidation",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/rules/validateQuery"
-    },
-    {
-        "Cmdlet": "Invoke-XdrXspmHuntingQuery",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/xspmatlas/attacksurface/query",
-        "Parameters": {
-            "Query": "body.query",
-            "Top": "body.options.top",
-            "Skip": "body.options.skip",
-            "ScenarioName": "header:x-ms-scenario-name"
-        }
-    },
-    {
-        "Cmdlet": "Merge-XdrIncident",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidents/merge"
-    },
-    {
-        "Cmdlet": "Move-XdrAlertToIncident",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/alertsLinks/alerts/incidentLinks"
-    },
-    {
-        "Cmdlet": "New-XdrAdvancedHuntingFunction",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions"
-    },
-    {
-        "Cmdlet": "New-XdrEndpointConfigurationCustomCollectionRule",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdeCustomCollection/rules"
-    },
-    {
-        "Cmdlet": "New-XdrIdentityConfigurationRemediationActionAccount",
-        "ApiUri": "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials"
-    },
-    {
-        "Cmdlet": "Remove-XdrAdvancedHuntingFunction",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions/{Id}"
-    },
-    {
-        "Cmdlet": "Remove-XdrIdentityConfigurationRemediationActionAccount",
-        "ApiUri": "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials/delete"
-    },
-    {
-        "Cmdlet": "Set-XdrAdvancedHuntingFunction",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions/{Id}"
-    },
-    {
-        "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SaveAdvancedFeaturesSetting"
-    },
-    {
-        "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/update_properties"
-    },
-    {
-        "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting"
-    },
-    {
-        "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/wdatpInternalApi/compliance/alertSharing/status/"
-    },
-    {
-        "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/provision"
-    },
-    {
-        "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/deprovision"
-    },
-    {
-        "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense"
-    },
-    {
-        "Cmdlet": "Set-XdrEndpointConfigurationCustomCollectionRule",
-        "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdeCustomCollection/rules/{RuleId}"
-    },
-    {
-        "Cmdlet": "Set-XdrIdentityConfigurationRemediationActionAccount",
-        "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/remediationActions/configuration"
+  {
+    "Cmdlet": "ConvertTo-XdrEncodedAdvancedHuntingQuery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/queries/encode",
+    "Parameters": {
+      "QueryText": "body.QueryText"
     }
+  },
+  {
+    "Cmdlet": "Disconnect-XdrEndpointDeviceLiveResponse",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/close_session",
+    "Parameters": {
+      "SessionId": "body.session_id"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrActionsCenterHistory",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/actionCenter/actioncenterui/history-actions/"
+  },
+  {
+    "Cmdlet": "Get-XdrActionsCenterPending",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/actionCenter/actioncenterui/pending-actions/"
+  },
+  {
+    "Cmdlet": "Get-XdrAdvancedHuntingFunction",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/functions/defender/savedfunctions/{Id}"
+  },
+  {
+    "Cmdlet": "Get-XdrAdvancedHuntingFunction",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions"
+  },
+  {
+    "Cmdlet": "Get-XdrAdvancedHuntingTableSchema",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/schema"
+  },
+  {
+    "Cmdlet": "Get-XdrAdvancedHuntingUnifiedDetectionRules",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/rules/unified"
+  },
+  {
+    "Cmdlet": "Get-XdrAdvancedHuntingUserHistory",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/reports/userHistory",
+    "Parameters": {
+      "MaxResults": "body.maxResults"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrAlert",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/alertsApiService/alerts",
+    "Parameters": {
+      "Order": "body.order",
+      "PageNumber": "body.pageNumber",
+      "PageSize": "body.pageSize"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsGeneralSetting",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/settings/"
+  },
+  {
+    "Cmdlet": "Get-XdrConfigurationAlertServiceSetting",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/alertsApiService/workloads/disabled"
+  },
+  {
+    "Cmdlet": "Get-XdrConfigurationAlertTuning",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/suppressionRulesService/suppressionRules"
+  },
+  {
+    "Cmdlet": "Get-XdrConfigurationAssetRuleManagement",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/rulesengine/rules"
+  },
+  {
+    "Cmdlet": "Get-XdrConfigurationCriticalAssetManagementClassification",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/xspmatlas/assetrules"
+  },
+  {
+    "Cmdlet": "Get-XdrConfigurationCriticalAssetManagementClassificationSchema",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/xspmatlas/assetrules/querybuilder/schema"
+  },
+  {
+    "Cmdlet": "Get-XdrConfigurationServiceAccountClassification",
+    "ApiUri": "https://security.microsoft.com/apiproxy/radius/api/radius/serviceaccounts/classificationrule/getall"
+  },
+  {
+    "Cmdlet": "Get-XdrConfigurationUnifiedRBACWorkload",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/urbacConfiguration/gw/unifiedrbac/configuration/tenantinfo/"
+  },
+  {
+    "Cmdlet": "Get-XdrDatalakeDatabase",
+    "ApiUri": "https://security.microsoft.com/apiproxy/securityplatform/lake/databases"
+  },
+  {
+    "Cmdlet": "Get-XdrDatalakeTableSchema",
+    "ApiUri": "https://security.microsoft.com/apiproxy/securityplatform/lake/kql/v1/rest/mgmt"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/GetAdvancedFeaturesSetting"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationAuthenticatedTelemetry",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationCustomCollectionRule",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdeCustomCollection/rules"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationIntuneConnection",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/status"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationLiveResponse",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/get_properties"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationPotentiallyUnwantedApplications",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/ui/properties/"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationPreviewFeature",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/GetPreviewExperienceSetting"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationPurviewSharing",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/wdatpInternalApi/compliance/alertSharing/status"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDevice",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceActionResult",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/requests/forensics/downloaduribyguid/V2"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceActionResult",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/requests/latest"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceActionResult",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/requests/logscollection/downloaduribyguid/V2"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceLiveResponseLibrary",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/library/get_files"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceLiveResponseLibraryFile",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/library/download_file"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceModel",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allModels"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceOsVersionFriendlyName",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allOsVersionFriendlyNames"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceRbacGroup",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/rbacManagementApi/rbac/machine_groups"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceRbacGroup",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/userExposedRbacGroups/UserExposedRbacGroups"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceRbacGroupScope",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/userExposedRbacGroups/UserExposedRbacGroups"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceTag",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allMachinesTags"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceTimeline",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdeTimelineExperience/machines/{deviceIdentifier}/events/"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceTotals",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/deviceTotals/"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceVendor",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allVendors"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointDeviceWindowsReleaseVersion",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/allWindowsReleaseVersions"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointLicenseReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/k8sMachineApi/ine/machineapiservice/machines/skuReport"
+  },
+  {
+    "Cmdlet": "Get-XdrExposureManagementRecommendations",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/recommendations"
+  },
+  {
+    "Cmdlet": "Get-XdrIdentityAlertThreshold",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/alertthresholds/withExpiry"
+  },
+  {
+    "Cmdlet": "Get-XdrIdentityConfigurationDirectoryServiceAccount",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/odata/directoryServices"
+  },
+  {
+    "Cmdlet": "Get-XdrIdentityConfigurationRemediationActionAccount",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/remediationActions/configuration"
+  },
+  {
+    "Cmdlet": "Get-XdrIdentityConfigurationRemediationActionAccount",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials"
+  },
+  {
+    "Cmdlet": "Get-XdrIdentityDomainControllerCoverage",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/sensors/domainControllerCoverage"
+  },
+  {
+    "Cmdlet": "Get-XdrIdentityIdentity",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities",
+    "Parameters": {
+      "All": "body.Skip",
+      "PageSize": "body.PageSize",
+      "SearchText": "body.SearchText",
+      "Skip": "body.Skip",
+      "SortByField": "body.SortBy.Field",
+      "SortDirection": "body.SortBy.Direction"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrIdentityOnboardingStatus",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/workspaces/isWorkspaceExists/"
+  },
+  {
+    "Cmdlet": "Get-XdrIdentityServiceAccount",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/serviceAccounts",
+    "Parameters": {
+      "IncludeAccountActivity": "body.IncludeAccountActivity",
+      "PageSize": "body.PageSize",
+      "Skip": "body.Skip"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrIdentityStatistic",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/identities/aggregatedData"
+  },
+  {
+    "Cmdlet": "Get-XdrIncident",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidentQueue/incidents/{IncidentId}",
+    "Parameters": {
+      "DefenderExpertsLicensed": "body.isDexLicense",
+      "PageIndex": "body.pageIndex",
+      "PageSize": "body.pageSize",
+      "SortByField": "body.sortByField",
+      "SortOrder": "body.sortOrder"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrIncident",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidentQueue/incidents/alerts",
+    "Parameters": {
+      "DefenderExpertsLicensed": "body.isDexLicense",
+      "PageIndex": "body.pageIndex",
+      "PageSize": "body.pageSize",
+      "SortByField": "body.sortByField",
+      "SortOrder": "body.sortOrder"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrIncidentAssociatedAlert",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidents/{IncidentId}/AssociatedAlerts"
+  },
+  {
+    "Cmdlet": "Get-XdrMtoTenantList",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtoapi/tenants/TenantPicker"
+  },
+  {
+    "Cmdlet": "Get-XdrStreamingApiConfiguration",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/wdatpApi/dataexportsettings"
+  },
+  {
+    "Cmdlet": "Get-XdrSuppressionRule",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/suppressionRulesService/suppressionRules"
+  },
+  {
+    "Cmdlet": "Get-XdrTenantContext",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/sccManagement/mgmt/TenantContext"
+  },
+  {
+    "Cmdlet": "Get-XdrThreatAnalyticsOutbreaks",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks"
+  },
+  {
+    "Cmdlet": "Get-XdrThreatAnalyticsOutbreaks",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks/changeCount"
+  },
+  {
+    "Cmdlet": "Get-XdrThreatAnalyticsOutbreaks",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/threatAnalytics/outbreaks/topThreats"
+  },
+  {
+    "Cmdlet": "Invoke-XdrEndpointDeviceAction",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/requests/create",
+    "Parameters": {
+      "Comment": "body.RequestorComment",
+      "DeviceId": "body.MachineId",
+      "Isolate": "body.IsolationType",
+      "Scan": "body.Params.ScanType",
+      "TroubleshootDurationHours": "body.TroubleshootExpirationDateTimeUtc"
+    }
+  },
+  {
+    "Cmdlet": "Invoke-XdrEndpointDeviceAutomatedInvestigation",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/ui/investigations/",
+    "Parameters": {
+      "DeviceId": "body.machine"
+    }
+  },
+  {
+    "Cmdlet": "Invoke-XdrEndpointDevicePolicySync",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/siamApi/machines/{DeviceId}/forceDeviceSync",
+    "Parameters": {
+      "Comment": "body.RequestorComment"
+    }
+  },
+  {
+    "Cmdlet": "Invoke-XdrHuntingQueryValidation",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/rules/validateQuery",
+    "Parameters": {
+      "HuntingRule": "body.HuntingRule",
+      "QueryText": "body.QueryText"
+    }
+  },
+  {
+    "Cmdlet": "Invoke-XdrXspmHuntingQuery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/xspmatlas/attacksurface/query",
+    "Parameters": {
+      "Query": "body.query",
+      "ScenarioName": "header:x-ms-scenario-name",
+      "Skip": "body.options.skip",
+      "Top": "body.options.top"
+    }
+  },
+  {
+    "Cmdlet": "Merge-XdrIncident",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidents/merge",
+    "Parameters": {
+      "Comment": "body.Comment",
+      "IncidentIds": "body.IncidentIds"
+    }
+  },
+  {
+    "Cmdlet": "Move-XdrAlertToIncident",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/alertsLinks/alerts/incidentLinks",
+    "Parameters": {
+      "AlertIds": "body.AlertIds",
+      "Comment": "body.Comment",
+      "TargetIncidentId": "body.IncidentId"
+    }
+  },
+  {
+    "Cmdlet": "New-XdrAdvancedHuntingFunction",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions",
+    "Parameters": {
+      "Description": "body.Description",
+      "FolderPath": "body.Path",
+      "IsShared": "body.IsShared",
+      "KQLQuery": "body.Body",
+      "Name": "body.Name"
+    }
+  },
+  {
+    "Cmdlet": "New-XdrConfigurationCriticalAssetManagementClassification",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/xspmatlas/assetrules",
+    "Parameters": {
+      "AssetType": "body.assetType",
+      "CriticalityLevel": "body.actions",
+      "Disabled": "body.isDisabled",
+      "RuleDescription": "body.ruleDescription",
+      "RuleName": "body.ruleName"
+    }
+  },
+  {
+    "Cmdlet": "New-XdrEndpointConfigurationCustomCollectionRule",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdeCustomCollection/rules",
+    "Parameters": {
+      "Enabled": "body.isEnabled"
+    }
+  },
+  {
+    "Cmdlet": "New-XdrEndpointDeviceLiveResponseLibraryFile",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/library/upload_file"
+  },
+  {
+    "Cmdlet": "New-XdrIdentityConfigurationRemediationActionAccount",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials",
+    "Parameters": {
+      "AccountName": "body.AccountName",
+      "DomainDnsName": "body.DomainDnsName",
+      "IsSingleLabelAccountDomainName": "body.IsSingleLabelAccountDomainName"
+    }
+  },
+  {
+    "Cmdlet": "Remove-XdrAdvancedHuntingFunction",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions/{Id}"
+  },
+  {
+    "Cmdlet": "Remove-XdrConfigurationCriticalAssetManagementClassification",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/xspmatlas/assetrules/{RuleId}",
+    "Parameters": {
+      "RuleId": "body.ruleId"
+    }
+  },
+  {
+    "Cmdlet": "Remove-XdrEndpointDeviceLiveResponseLibraryFile",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/library/delete_file"
+  },
+  {
+    "Cmdlet": "Remove-XdrIdentityConfigurationRemediationActionAccount",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials/delete",
+    "Parameters": {
+      "Id": "body.id"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrAdvancedHuntingFunction",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions/{Id}",
+    "Parameters": {
+      "Description": "body.Description",
+      "FolderPath": "body.Path",
+      "Id": "body.Id",
+      "IsShared": "body.IsShared",
+      "KQLQuery": "body.Body",
+      "Name": "body.Name"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrConfigurationCriticalAssetManagementClassification",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/xspmatlas/assetrules/{RuleId}/metadata",
+    "Parameters": {
+      "Enabled": "body.isDisabled"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrConfigurationPreviewFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/preview_features/update/",
+    "Parameters": {
+      "EnableMda": "body.previewFeaturesEnabled",
+      "EnableMde": "body.IsOptIn",
+      "EnableXdrAndMdi": "body.IsOptIn"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrConfigurationPreviewFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting",
+    "Parameters": {
+      "EnableMda": "body.previewFeaturesEnabled",
+      "EnableMde": "body.IsOptIn",
+      "EnableXdrAndMdi": "body.IsOptIn"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrConnectionSettings",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/sccManagement/mgmt/TenantContext",
+    "Parameters": {
+      "TenantId": "header:tenant-id"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/update_properties",
+    "Parameters": {
+      "PreviewFeatures": "body.IsOptIn"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/deprovision",
+    "Parameters": {
+      "PreviewFeatures": "body.IsOptIn"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/provision",
+    "Parameters": {
+      "PreviewFeatures": "body.IsOptIn"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense",
+    "Parameters": {
+      "PreviewFeatures": "body.IsOptIn"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SaveAdvancedFeaturesSetting",
+    "Parameters": {
+      "PreviewFeatures": "body.IsOptIn"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting",
+    "Parameters": {
+      "PreviewFeatures": "body.IsOptIn"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/wdatpInternalApi/compliance/alertSharing/status/",
+    "Parameters": {
+      "PreviewFeatures": "body.IsOptIn"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointConfigurationCustomCollectionRule",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdeCustomCollection/rules/{RuleId}",
+    "Parameters": {
+      "RuleId": "body.ruleId"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointDeviceAssetValue",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/assetValues",
+    "Parameters": {
+      "AssetValue": "body.AssetValue",
+      "DeviceId": "body.SenseMachineIds"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointDeviceCriticalityLevel",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/criticalityLevel",
+    "Parameters": {
+      "CriticalityLevel": "body.CriticalityLevel",
+      "DeviceId": "body.DeviceIds"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointDeviceExclusionState",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/k8s/machines/UpdateExclusionState",
+    "Parameters": {
+      "DeviceId": "body.SenseMachineIds",
+      "ExclusionState": "body.ExclusionState"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointDeviceRbacGroup",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/rbacManagementApi/rbac/machine_groups"
+  },
+  {
+    "Cmdlet": "Set-XdrEndpointDeviceTag",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/ndr/machines/editMachineTags",
+    "Parameters": {
+      "DeviceId": "body.SenseMachineIds"
+    }
+  },
+  {
+    "Cmdlet": "Set-XdrIdentityConfigurationRemediationActionAccount",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/remediationActions/configuration",
+    "Parameters": {
+      "UseLocalSystem": "body.IsRemediationWithLocalSystemEnabled"
+    }
+  },
+  {
+    "Cmdlet": "Stop-XdrEndpointDeviceAction",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/requests/cancelbyid"
+  }
 ]

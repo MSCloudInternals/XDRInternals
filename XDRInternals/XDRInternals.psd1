@@ -61,6 +61,7 @@
     # NestedModules = @()
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
+<<<<<<< HEAD
     FunctionsToExport = @(
         "Connect-XdrByBrowser",
         "Connect-XdrByCredential",
@@ -189,6 +190,27 @@
         "Update-XdrConnectionSettings"
     )
 
+=======
+        "Remove-XdrEndpointDeviceLiveResponseLibraryFile",
+        "Remove-XdrIdentityConfigurationRemediationActionAccount",
+        "Set-XdrAdvancedHuntingFunction",
+        "Set-XdrConfigurationCriticalAssetManagementClassification",
+        "Set-XdrConfigurationPreviewFeatures",
+        "Set-XdrConnectionSettings",
+        "Set-XdrEndpointAdvancedFeatures",
+        "Set-XdrEndpointConfigurationCustomCollectionRule",
+        "Set-XdrEndpointDeviceAssetValue",
+        "Set-XdrEndpointDeviceCriticalityLevel",
+        "Set-XdrEndpointDeviceExclusionState",
+        "Set-XdrEndpointDeviceRbacGroup",
+        "Set-XdrEndpointDeviceTag",
+        "Set-XdrIdentityConfigurationRemediationActionAccount",
+        "Set-XdrSentinelConnection",
+        "Stop-XdrEndpointDeviceAction",
+        "Update-XdrConnectionSettings"
+    )
+
+>>>>>>> origin/main
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
     # CmdletsToExport = '*'
 

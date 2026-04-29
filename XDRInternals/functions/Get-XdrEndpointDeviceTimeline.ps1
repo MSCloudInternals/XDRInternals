@@ -936,7 +936,10 @@
             # Check for failures
             $failures = $results | Where-Object { -not $_.Success }
             if ($failures) {
-                Write-Warning "Some chunks failed to retrieve: $($failures.ChunkIndex -join ', ')"
+                $failureDetails = $failures | Sort-Object ChunkIndex | ForEach-Object {
+                    "chunk $($_.ChunkIndex): $($_.Error)"
+                }
+                Write-Warning "Some chunks failed to retrieve: $($failureDetails -join '; ')"
             }
 
             # Output timing information for each chunk
@@ -968,7 +971,12 @@
             Write-Progress -Activity "Processing Results" -Status "Merging chunk files..." -PercentComplete 0 -Id 2
             Write-Verbose "Merging results from $($results.Count) chunk(s)..."
 
-            $jsonFiles = Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue | Sort-Object Name
+            $jsonFiles = @(
+                $results |
+                    Where-Object { $_.Success -and $_.FilePath -and (Test-Path -LiteralPath $_.FilePath) } |
+                    ForEach-Object { Get-Item -LiteralPath $_.FilePath } |
+                    Sort-Object Name
+            )
 
             # If ExportPath is specified, use pure file-based merge (most memory efficient)
             if ($PSBoundParameters.ContainsKey('ExportPath')) {
@@ -1053,9 +1061,15 @@
                 Write-Progress -Activity "Processing Results" -Status "Merging file $fileIndex of $totalFiles" -PercentComplete $percentComplete -Id 2
 
                 # Read and process file, then clear to free memory
-                $rawContent = Get-Content -Path $file.FullName -Raw
-                $chunkData = $rawContent | ConvertFrom-Json
-                $rawContent = $null  # Free the raw string memory
+                try {
+                    $rawContent = Get-Content -Path $file.FullName -Raw -ErrorAction Stop
+                    $chunkData = $rawContent | ConvertFrom-Json -ErrorAction Stop
+                    $rawContent = $null  # Free the raw string memory
+                }
+                catch {
+                    Write-Warning "Skipping unreadable device timeline chunk file '$($file.Name)': $($_.Exception.Message)"
+                    continue
+                }
 
                 if ($chunkData.Events) {
                     $allEvents.AddRange($chunkData.Events)

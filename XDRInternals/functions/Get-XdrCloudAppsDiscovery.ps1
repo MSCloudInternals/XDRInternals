@@ -250,24 +250,21 @@
     begin {
         Update-XdrConnectionSettings
 
-        # Handle ListStreams parameter set
-        if ($PSCmdlet.ParameterSetName -eq 'ListStreams') {
-            return
-        }
+        if ($PSCmdlet.ParameterSetName -ne 'ListStreams') {
+            # Validate EntityType is provided when Type is Entity
+            if ($Type -eq "Entity" -and -not $PSBoundParameters.ContainsKey('EntityType')) {
+                throw "The -EntityType parameter is required when -Type is 'Entity'. Valid values are: IP, Machine, User, Resource"
+            }
 
-        # Validate EntityType is provided when Type is Entity
-        if ($Type -eq "Entity" -and -not $PSBoundParameters.ContainsKey('EntityType')) {
-            throw "The -EntityType parameter is required when -Type is 'Entity'. Valid values are: IP, Machine, User, Resource"
-        }
+            # Validate TopType is provided when Type is Top
+            if ($Type -eq "Top" -and -not $PSBoundParameters.ContainsKey('TopType')) {
+                throw "The -TopType parameter is required when -Type is 'Top'. Valid values are: App, Category, Entity"
+            }
 
-        # Validate TopType is provided when Type is Top
-        if ($Type -eq "Top" -and -not $PSBoundParameters.ContainsKey('TopType')) {
-            throw "The -TopType parameter is required when -Type is 'Top'. Valid values are: App, Category, Entity"
-        }
-
-        # Validate TopEntityField is provided when TopType is Entity
-        if ($Type -eq "Top" -and $TopType -eq "Entity" -and -not $PSBoundParameters.ContainsKey('TopEntityField')) {
-            throw "The -TopEntityField parameter is required when -TopType is 'Entity'. Valid values are: users, machines, ipAddresses"
+            # Validate TopEntityField is provided when TopType is Entity
+            if ($Type -eq "Top" -and $TopType -eq "Entity" -and -not $PSBoundParameters.ContainsKey('TopEntityField')) {
+                throw "The -TopEntityField parameter is required when -TopType is 'Entity'. Valid values are: users, machines, ipAddresses"
+            }
         }
     }
 

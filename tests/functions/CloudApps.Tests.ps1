@@ -53,6 +53,13 @@
         }
     }
 
+    It 'returns discovery streams from the dedicated parameter set' {
+        $result = Get-XdrCloudAppsDiscovery -ListStreams
+
+        $result._id | Should -Be 'stream-1'
+        Should -Invoke Get-XdrCloudAppsDiscoveryStream -ModuleName XDRInternals -Times 1 -Exactly
+    }
+
     It 'routes governance summary through App Governance status APIs' {
         Mock Invoke-XdrCloudAppsRequest {
             switch -Wildcard ($Path) {
@@ -100,6 +107,23 @@
         Should -Invoke Invoke-XdrCloudAppsRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
             $Path -eq '/mcas/cas/api/v1/activities/count/'
         }
+    }
+
+    It 'routes discovered app note updates through the write cmdlet' {
+        Set-XdrCloudAppsDiscoveredApp -AppId '12345' -Note 'Approved' -Confirm:$false | Out-Null
+
+        Should -Invoke Invoke-XdrCloudAppsRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $Path -eq '/mcas/cas/api/v1/discovery/discovery_app/update_app_note/' -and
+            $Method -eq 'Post' -and
+            $Body.pk -eq '12345' -and
+            $Body.note -eq 'Approved'
+        }
+    }
+
+    It 'honors WhatIf for discovered app note updates' {
+        Set-XdrCloudAppsDiscoveredApp -AppId '12345' -Note 'Approved' -WhatIf
+
+        Should -Invoke Invoke-XdrCloudAppsRequest -ModuleName XDRInternals -Times 0 -Exactly
     }
 }
 

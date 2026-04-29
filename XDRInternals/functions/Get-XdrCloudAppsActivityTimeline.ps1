@@ -309,6 +309,9 @@
         }
 
         $baseTempPath = if ($OutputPath) { $OutputPath } else { Join-Path ([System.IO.Path]::GetTempPath()) 'XdrCloudAppsTimeline' }
+        if (-not (Test-Path -LiteralPath $baseTempPath)) {
+            New-Item -Path $baseTempPath -ItemType Directory -Force | Out-Null
+        }
         $runTempPath = Join-Path $baseTempPath ([guid]::NewGuid().ToString('N').Substring(0, 8))
         New-Item -Path $runTempPath -ItemType Directory -Force | Out-Null
 

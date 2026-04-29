@@ -711,7 +711,7 @@
                 <TableRowEntries>
                     <TableRowEntry>
                         <TableColumnItems>
-                            <TableColumnItem><ScriptBlock>if ($_.timestamp) { [DateTimeOffset]::FromUnixTimeMilliseconds([long]$_.timestamp).UtcDateTime } elseif ($_.date) { $_.date }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.date) { $_.date } elseif ($_.timestamp) { $ts = [long]$_.timestamp; if ($ts -ge 1000000000000) { [DateTimeOffset]::FromUnixTimeMilliseconds($ts).UtcDateTime } else { [DateTimeOffset]::FromUnixTimeSeconds($ts).UtcDateTime } }</ScriptBlock></TableColumnItem>
                             <TableColumnItem><ScriptBlock>if ($_.userName) { $_.userName } elseif ($_.user) { $_.user } elseif ($_.account) { $_.account }</ScriptBlock></TableColumnItem>
                             <TableColumnItem><ScriptBlock>if ($_.appName) { $_.appName } elseif ($_.app) { $_.app } elseif ($_.service) { $_.service }</ScriptBlock></TableColumnItem>
                             <TableColumnItem><ScriptBlock>if ($_.activityType) { $_.activityType } elseif ($_.eventType) { $_.eventType } elseif ($_.action) { $_.action }</ScriptBlock></TableColumnItem>

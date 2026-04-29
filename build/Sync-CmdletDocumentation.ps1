@@ -85,37 +85,262 @@ function ConvertTo-SortedHashtableFromObject {
     return $InputObject
 }
 
-# Helper function to test if URI is incomplete (just domain + placeholder)
+# Helper function to test if URI is incomplete or transient
 function Test-IncompleteUri {
     param([string]$Uri)
-    return $Uri -match '^https://[^/]+\{[\w]+\}$'
+
+    if ([string]::IsNullOrWhiteSpace($Uri)) {
+        return $true
+    }
+
+    if ($Uri -match '^https://[^/]+\{[\w]+\}$') {
+        return $true
+    }
+
+    if ($Uri -match '\{(?:Prev|Next|SkipToken|ContinuationToken)\}') {
+        return $true
+    }
+
+    return $Uri -match '\w\{[\w]+\}$'
 }
 
-# Helper function to extract API parameters from cmdlet content
+# Helper function to extract API parameters from cmdlet content using PowerShell AST
 function Get-ApiParameters {
     param([string]$Content)
-    
+
     $parameters = @{}
-    
-    # Look for body properties being set
-    if ($Content -match '(?s)\$body\s*=\s*@\{([^}]+)\}') {
-        $bodyBlock = $Matches[1]
-        $bodyMatches = [regex]::Matches($bodyBlock, '(\w+)\s*=\s*\$(\w+)')
-        foreach ($bm in $bodyMatches) {
-            $bodyKey = $bm.Groups[1].Value
-            $paramName = $bm.Groups[2].Value
-            $parameters[$paramName] = "body.$bodyKey"
+    $tokens = $null
+    $parseErrors = $null
+    $scriptAst = [System.Management.Automation.Language.Parser]::ParseInput($Content, [ref]$tokens, [ref]$parseErrors)
+
+    if ($parseErrors.Count -gt 0) {
+        return $parameters
+    }
+
+    $functionAst = @(
+        $scriptAst.FindAll({
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
+            }, $true) |
+            Select-Object -First 1
+    )[0]
+
+    if ($null -eq $functionAst) {
+        return $parameters
+    }
+
+    $commandParameterNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($parameter in @($functionAst.Body.ParamBlock.Parameters)) {
+        [void]$commandParameterNames.Add($parameter.Name.VariablePath.UserPath)
+    }
+
+    $assignments = @(
+        $functionAst.Body.FindAll({
+                param($node)
+                $node -is [System.Management.Automation.Language.AssignmentStatementAst]
+            }, $true)
+    )
+    $parameterAliases = @{}
+    $semanticParameterFallbacks = @{
+        Body                             = 'KQLQuery'
+        TroubleshootExpirationDateTimeUtc = 'TroubleshootDurationHours'
+    }
+
+    function Resolve-ExpressionAst {
+        param($Ast)
+
+        while ($Ast) {
+            if ($Ast -is [System.Management.Automation.Language.CommandExpressionAst]) {
+                $Ast = $Ast.Expression
+                continue
+            }
+
+            if ($Ast -is [System.Management.Automation.Language.ParenExpressionAst]) {
+                $Ast = $Ast.Pipeline
+                continue
+            }
+
+            if ($Ast -is [System.Management.Automation.Language.PipelineAst]) {
+                $pureExpression = $Ast.GetPureExpression()
+                $Ast = if ($pureExpression) { $pureExpression } elseif ($Ast.PipelineElements.Count -gt 0) { $Ast.PipelineElements[0] } else { $null }
+                continue
+            }
+
+            break
+        }
+
+        return $Ast
+    }
+
+    function Get-LiteralValue {
+        param($Ast)
+
+        $Ast = Resolve-ExpressionAst -Ast $Ast
+        if ($Ast -is [System.Management.Automation.Language.StringConstantExpressionAst] -or
+            $Ast -is [System.Management.Automation.Language.ExpandableStringExpressionAst] -or
+            $Ast -is [System.Management.Automation.Language.ConstantExpressionAst]) {
+            return [string]$Ast.Value
+        }
+
+        return $null
+    }
+
+    function Resolve-VariableName {
+        param([string]$VariableName)
+
+        $visited = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        while (-not [string]::IsNullOrWhiteSpace($VariableName) -and $visited.Add($VariableName)) {
+            if ($commandParameterNames.Contains($VariableName)) {
+                return $VariableName
+            }
+
+            if ($parameterAliases.ContainsKey($VariableName)) {
+                $VariableName = $parameterAliases[$VariableName]
+                continue
+            }
+
+            foreach ($parameterName in $commandParameterNames) {
+                if ($VariableName.Length -gt $parameterName.Length -and $VariableName.EndsWith($parameterName, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    return $parameterName
+                }
+            }
+
+            break
+        }
+
+        return $null
+    }
+
+    function Get-ReferencedParameterName {
+        param($Ast)
+
+        $Ast = Resolve-ExpressionAst -Ast $Ast
+        if ($null -eq $Ast) {
+            return $null
+        }
+
+        if ($Ast -is [System.Management.Automation.Language.VariableExpressionAst]) {
+            return Resolve-VariableName -VariableName $Ast.VariablePath.UserPath
+        }
+
+        if ($Ast -is [System.Management.Automation.Language.MemberExpressionAst] -and $Ast -isnot [System.Management.Automation.Language.InvokeMemberExpressionAst]) {
+            $memberName = Get-LiteralValue -Ast $Ast.Member
+            if ($memberName -eq 'IsPresent') {
+                return Get-ReferencedParameterName -Ast $Ast.Expression
+            }
+
+            return $null
+        }
+
+        $matches = @(
+            $Ast.FindAll({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.VariableExpressionAst]
+                }, $true) |
+                Where-Object {
+                    $parent = $_.Parent
+                    if ($parent -is [System.Management.Automation.Language.MemberExpressionAst]) {
+                        (Get-LiteralValue -Ast $parent.Member) -eq 'IsPresent' -and $parent.Expression -eq $_
+                    } else {
+                        $true
+                    }
+                } |
+                ForEach-Object { Resolve-VariableName -VariableName $_.VariablePath.UserPath } |
+                Where-Object { $_ } |
+                Select-Object -Unique
+        )
+
+        if (@($matches).Count -eq 1) {
+            return @($matches)[0]
+        }
+
+        return $null
+    }
+
+    function Add-PathMapping {
+        param(
+            [string]$ParameterName,
+            [string]$Path
+        )
+
+        if (-not [string]::IsNullOrWhiteSpace($ParameterName) -and -not [string]::IsNullOrWhiteSpace($Path)) {
+            $parameters[$ParameterName] = $Path
         }
     }
-    
-    # Look for custom headers
-    $headerMatches = [regex]::Matches($Content, '\$(?:custom)?[Hh]eaders\[["\''](\w-]+)["\'']]\s*=\s*\$(\w+)')
-    foreach ($hm in $headerMatches) {
-        $headerName = $hm.Groups[1].Value
-        $paramName = $hm.Groups[2].Value
-        $parameters[$paramName] = "header:$headerName"
+
+    function Add-HashtableMappings {
+        param(
+            [System.Management.Automation.Language.HashtableAst]$HashtableAst,
+            [string]$PathPrefix
+        )
+
+        foreach ($entry in $HashtableAst.KeyValuePairs) {
+            $keyName = Get-LiteralValue -Ast $entry.Item1
+            if ([string]::IsNullOrWhiteSpace($keyName)) {
+                continue
+            }
+
+            $path = "$PathPrefix.$keyName"
+            $valueAst = Resolve-ExpressionAst -Ast $entry.Item2
+            if ($valueAst -is [System.Management.Automation.Language.HashtableAst]) {
+                Add-HashtableMappings -HashtableAst $valueAst -PathPrefix $path
+                continue
+            }
+
+            $parameterName = Get-ReferencedParameterName -Ast $valueAst
+            if (-not $parameterName -and $semanticParameterFallbacks.ContainsKey($keyName)) {
+                $fallbackParameterName = $semanticParameterFallbacks[$keyName]
+                if ($commandParameterNames.Contains($fallbackParameterName)) {
+                    $parameterName = $fallbackParameterName
+                }
+            }
+
+            Add-PathMapping -ParameterName $parameterName -Path $path
+        }
     }
-    
+
+    foreach ($assignment in $assignments) {
+        if ($assignment.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and
+            $assignment.Left.VariablePath.UserPath -notmatch 'body$' -and
+            -not $commandParameterNames.Contains($assignment.Left.VariablePath.UserPath)) {
+            $aliasSourceAst = Resolve-ExpressionAst -Ast $assignment.Right
+            if ($aliasSourceAst -is [System.Management.Automation.Language.CommandAst]) {
+                continue
+            }
+
+            $aliasName = Get-ReferencedParameterName -Ast $aliasSourceAst
+            if ($aliasName) {
+                $parameterAliases[$assignment.Left.VariablePath.UserPath] = $aliasName
+            }
+        }
+    }
+
+    foreach ($assignment in $assignments) {
+        if ($assignment.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and
+            $assignment.Left.VariablePath.UserPath -match 'body$') {
+            $bodyAst = Resolve-ExpressionAst -Ast $assignment.Right
+            if ($bodyAst -is [System.Management.Automation.Language.HashtableAst]) {
+                Add-HashtableMappings -HashtableAst $bodyAst -PathPrefix 'body'
+            }
+            continue
+        }
+
+        if ($assignment.Left -isnot [System.Management.Automation.Language.IndexExpressionAst]) {
+            continue
+        }
+
+        $headerTarget = $assignment.Left.Target
+        if ($headerTarget -isnot [System.Management.Automation.Language.VariableExpressionAst]) {
+            continue
+        }
+
+        if ($headerTarget.VariablePath.UserPath -notmatch 'headers$') {
+            continue
+        }
+
+        Add-PathMapping -ParameterName (Get-ReferencedParameterName -Ast $assignment.Right) -Path ("header:{0}" -f (Get-LiteralValue -Ast $assignment.Left.Index))
+    }
+
     return $parameters
 }
 
@@ -181,6 +406,7 @@ foreach ($file in $cmdletFiles) {
     Write-Verbose "Processing: $($file.Name)"
     
     $content = Get-Content -Path $file.FullName -Raw
+    $parameters = Get-ApiParameters -Content $content
     
     # Extract function name
     if ($content -match 'function\s+([\w-]+)\s*{') {
@@ -215,9 +441,6 @@ foreach ($file in $cmdletFiles) {
             continue
         }
         
-        # Extract parameter mappings
-        $parameters = Get-ApiParameters -Content $content
-        
         # Create mapping object
         $mapping = New-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $parameters
         
@@ -243,9 +466,6 @@ foreach ($file in $cmdletFiles) {
             Write-Verbose "Skipping incomplete URI pattern in $($file.Name): $uri"
             continue
         }
-        
-        # Extract parameter mappings
-        $parameters = Get-ApiParameters -Content $content
         
         # Create mapping object
         $mapping = New-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $parameters

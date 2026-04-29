@@ -164,7 +164,6 @@ Get-XdrTenantContext -Force
 | Set-XdrSentinelConnection                                       | Configures the Sentinel (Log Analytics) workspace connection for data export. |
 | Stop-XdrEndpointDeviceAction                                    | Cancels a pending device action in Microsoft Defender XDR. |
 | Update-XdrConnectionSettings                                    | Updates XDR connection session cookies and authentication tokens. |
-
 ## Installation
 
 ### From the PowerShell Gallery

@@ -6,12 +6,13 @@
     .DESCRIPTION
         Stores a value in the cache with a specified cache key and TTL in minutes. The cached object includes the value and an expiration timestamp.
         Supports multi-tenant caching by incorporating the tenant ID into the cache key.
+        Null values are skipped to avoid persisting empty cache entries that mask subsequent refresh attempts.
     
     .PARAMETER CacheKey
         The unique key to identify the cached item.
     
     .PARAMETER Value
-        The value to store in the cache.
+        The value to store in the cache. If the value is $null, the cache write is skipped.
     
     .PARAMETER TTLMinutes
         The time-to-live in minutes for the cached item. After this time, the cache is considered expired.
@@ -34,6 +35,7 @@
         [Parameter(Mandatory = $true)]
         [string]$CacheKey,
         
+        [AllowNull()]
         [Parameter(Mandatory = $true)]
         [object]$Value,
         
@@ -45,6 +47,11 @@
     )
     
     process {
+        if ($null -eq $Value) {
+            Write-Verbose "Skipping cache write for key '$CacheKey' because the value is null"
+            return
+        }
+
         # Get current tenant ID if not provided and cache key is not XdrTenantId itself
         if (-not $TenantId -and $CacheKey -ne "XdrTenantId") {
             $cachedTenantId = Get-XdrCache -CacheKey "XdrTenantId" -ErrorAction SilentlyContinue

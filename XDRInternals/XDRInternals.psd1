@@ -1,4 +1,4 @@
-@{
+﻿@{
 
     # Script module or binary module file associated with this manifest.
     RootModule        = 'XDRInternals.psm1'
@@ -71,6 +71,9 @@
         "Connect-XdrByTemporaryAccessPass",
         "Connect-XdrEndpointDeviceLiveResponse",
         "ConvertTo-XdrEncodedAdvancedHuntingQuery",
+        "Disconnect-XdrEndpointDeviceLiveResponse",
+        "Export-XdrAzureDataExplorer",
+        "Export-XdrToSentinel",
         "Get-XdrActionsCenterHistory",
         "Get-XdrActionsCenterPending",
         "Get-XdrAdvancedHuntingFunction",
@@ -78,7 +81,13 @@
         "Get-XdrAdvancedHuntingUnifiedDetectionRules",
         "Get-XdrAdvancedHuntingUserHistory",
         "Get-XdrAlert",
-        "Get-XdrCloudAppsGeneralSetting",
+        "Get-XdrAzureDataExplorerIngestionStatus",
+        "Get-XdrCloudAppsActivityTimeline",
+        "Get-XdrCloudAppsApp",
+        "Get-XdrCloudAppsConfiguration",
+        "Get-XdrCloudAppsDiscovery",
+        "Get-XdrCloudAppsGovernance",
+        "Get-XdrCloudAppsPolicy",
         "Get-XdrConfigurationAlertServiceSetting",
         "Get-XdrConfigurationAlertTuning",
         "Get-XdrConfigurationAssetRuleManagement",
@@ -98,7 +107,6 @@
         "Get-XdrEndpointConfigurationPotentiallyUnwantedApplications",
         "Get-XdrEndpointConfigurationPreviewFeature",
         "Get-XdrEndpointConfigurationPurviewSharing",
-        "Disconnect-XdrEndpointDeviceLiveResponse",
         "Get-XdrEndpointDevice",
         "Get-XdrEndpointDeviceActionResult",
         "Get-XdrEndpointDeviceLiveResponseLibrary",
@@ -126,10 +134,10 @@
         "Get-XdrIdentityUserTimeline",
         "Get-XdrIncident",
         "Get-XdrIncidentAssociatedAlert",
+        "Get-XdrMtoTenantList",
         "Get-XdrStreamingApiConfiguration",
         "Get-XdrSuppressionRule",
         "Get-XdrTenantContext",
-        "Get-XdrMtoTenantList",
         "Get-XdrTenantWorkloadStatus",
         "Get-XdrThreatAnalyticsOutbreaks",
         "Get-XdrVulnerabilityManagementAdvisories",
@@ -151,6 +159,7 @@
         "Invoke-XdrEndpointDevicePolicySync",
         "Invoke-XdrHuntingQueryValidation",
         "Invoke-XdrMtoAdvancedHunting",
+        "Invoke-XdrAzureDataExplorerQuery",
         "Invoke-XdrRestMethod",
         "Invoke-XdrXspmHuntingQuery",
         "Merge-XdrIncident",
@@ -166,24 +175,21 @@
         "Remove-XdrEndpointDeviceLiveResponseLibraryFile",
         "Remove-XdrIdentityConfigurationRemediationActionAccount",
         "Set-XdrAdvancedHuntingFunction",
+        "Set-XdrAzureDataExplorerConnection",
+        "Set-XdrCloudAppsDiscoveredApp",
         "Set-XdrConfigurationCriticalAssetManagementClassification",
-        "Set-XdrConnectionSettings",
         "Set-XdrConfigurationPreviewFeatures",
+        "Set-XdrConnectionSettings",
         "Set-XdrEndpointAdvancedFeatures",
+        "Set-XdrEndpointConfigurationCustomCollectionRule",
         "Set-XdrEndpointDeviceAssetValue",
         "Set-XdrEndpointDeviceCriticalityLevel",
         "Set-XdrEndpointDeviceExclusionState",
-        "Set-XdrEndpointConfigurationCustomCollectionRule",
         "Set-XdrEndpointDeviceRbacGroup",
         "Set-XdrEndpointDeviceTag",
         "Set-XdrIdentityConfigurationRemediationActionAccount",
-        "Stop-XdrEndpointDeviceAction",
-        "Export-XdrAzureDataExplorer",
-        "Export-XdrToSentinel",
-        "Get-XdrAzureDataExplorerIngestionStatus",
-        "Invoke-XdrAzureDataExplorerQuery",
-        "Set-XdrAzureDataExplorerConnection",
         "Set-XdrSentinelConnection",
+        "Stop-XdrEndpointDeviceAction",
         "Update-XdrConnectionSettings"
     )
 
@@ -245,3 +251,4 @@
     # DefaultCommandPrefix = ''
 
 }
+

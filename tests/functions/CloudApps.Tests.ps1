@@ -60,6 +60,30 @@
         Should -Invoke Get-XdrCloudAppsDiscoveryStream -ModuleName XDRInternals -Times 1 -Exactly
     }
 
+    It 'keeps the default discovery parameter set working for category queries' {
+        Mock Get-XdrCache { $null } -ModuleName XDRInternals
+        Mock Set-XdrCache {} -ModuleName XDRInternals
+        Mock Invoke-RestMethod {
+            [pscustomobject]@{
+                data = @([pscustomobject]@{ categoryName = 'Storage' })
+            }
+        } -ModuleName XDRInternals
+
+        $result = Get-XdrCloudAppsDiscovery -Type Category
+
+        $result[0].categoryName | Should -Be 'Storage'
+        $result[0].PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsDiscoveryCategory'
+        Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $Uri -eq 'https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/categories/' -and
+            $Method -eq 'Get'
+        }
+    }
+
+    It 'still requires EntityType for default discovery entity queries' {
+        { Get-XdrCloudAppsDiscovery -Type Entity } |
+            Should -Throw -ExpectedMessage "*The -EntityType parameter is required when -Type is 'Entity'*"
+    }
+
     It 'routes Cloud Discovery user deanonymization through the grouped discovery command' {
         Get-XdrCloudAppsDiscovery -DeanonymizeUser -Usernames 'User_aaaaaabbbbb=' -Justification 'Incident response' | Out-Null
 

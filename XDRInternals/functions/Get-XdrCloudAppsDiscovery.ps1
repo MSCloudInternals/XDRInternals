@@ -772,6 +772,8 @@
                 return
             }
 
+            # Observed Cloud Apps deanonymization API value for user identities.
+            # The current public cmdlet surface intentionally supports users only.
             $userEntityType = 1
 
             $body = @{

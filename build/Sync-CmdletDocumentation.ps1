@@ -364,6 +364,28 @@ function New-ApiMapping {
     return $mapping
 }
 
+function Get-MappingParameters {
+    param(
+        [string]$CmdletName,
+        [string]$Uri,
+        [hashtable]$DefaultParameters
+    )
+
+    $scopedParameters = @{}
+    foreach ($key in $DefaultParameters.Keys) {
+        $scopedParameters[$key] = $DefaultParameters[$key]
+    }
+
+    # Get-XdrCloudAppsDiscovery mixes multiple discovery operations behind one cmdlet.
+    # Until the generator understands parameter-set-specific URIs, keep the shared
+    # deanonymization body parameters off the other discovery endpoints.
+    if ($CmdletName -eq 'Get-XdrCloudAppsDiscovery' -and $Uri -notmatch '/deanonymize_entity_names/$') {
+        return @{}
+    }
+
+    return $scopedParameters
+}
+
 # Helper function to normalize API URIs
 function Normalize-ApiUri {
     param([string]$Uri)
@@ -442,7 +464,8 @@ foreach ($file in $cmdletFiles) {
         }
         
         # Create mapping object
-        $mapping = New-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $parameters
+        $mappingParameters = Get-MappingParameters -CmdletName $cmdletName -Uri $uri -DefaultParameters $parameters
+        $mapping = New-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $mappingParameters
         
         # Only add unique URIs for this cmdlet
         if (-not ($apiMappings | Where-Object { $_.ApiUri -eq $uri })) {
@@ -468,7 +491,8 @@ foreach ($file in $cmdletFiles) {
         }
         
         # Create mapping object
-        $mapping = New-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $parameters
+        $mappingParameters = Get-MappingParameters -CmdletName $cmdletName -Uri $uri -DefaultParameters $parameters
+        $mapping = New-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $mappingParameters
         
         # Only add unique URIs for this cmdlet
         if (-not ($apiMappings | Where-Object { $_.ApiUri -eq $uri })) {

@@ -723,6 +723,26 @@
             </TableControl>
         </View>
         <View>
+            <Name>XdrCloudAppsDiscoveryDeanonymizedUser</Name>
+            <ViewSelectedBy>
+                <TypeName>XdrCloudAppsDiscoveryDeanonymizedUser</TypeName>
+            </ViewSelectedBy>
+            <TableControl>
+                <TableHeaders>
+                    <TableColumnHeader><Label>Masked</Label><Width>32</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Resolved</Label><Width>42</Width></TableColumnHeader>
+                </TableHeaders>
+                <TableRowEntries>
+                    <TableRowEntry>
+                        <TableColumnItems>
+                            <TableColumnItem><ScriptBlock>if ($_.username) { $_.username } elseif ($_.maskedUserName) { $_.maskedUserName } elseif ($_.anonymizedUserName) { $_.anonymizedUserName } elseif ($_.anonymizedUsername) { $_.anonymizedUsername }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.userPrincipalName) { $_.userPrincipalName } elseif ($_.resolvedUserName) { $_.resolvedUserName } elseif ($_.resolvedUsername) { $_.resolvedUsername } elseif ($_.displayName) { $_.displayName } elseif ($_.name) { $_.name }</ScriptBlock></TableColumnItem>
+                        </TableColumnItems>
+                    </TableRowEntry>
+                </TableRowEntries>
+            </TableControl>
+        </View>
+        <View>
             <Name>XdrCloudAppsApp</Name>
             <ViewSelectedBy>
                 <TypeName>XdrCloudAppsDiscoveredApp</TypeName>

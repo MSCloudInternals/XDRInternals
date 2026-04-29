@@ -90,6 +90,14 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/top_entities/"
   },
   {
+    "Cmdlet": "Get-XdrCloudAppsDiscovery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/deanonymize_entity_names/",
+    "Parameters": {
+      "Justification": "body.justification",
+      "Usernames": "body.usernames"
+    }
+  },
+  {
     "Cmdlet": "Get-XdrCloudAppsPolicy",
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/${urlSegment}/",
     "Parameters": {

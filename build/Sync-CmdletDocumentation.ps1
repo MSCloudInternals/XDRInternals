@@ -37,7 +37,7 @@ $psd1Path = Join-Path $repoRoot "XDRInternals\XDRInternals.psd1"
 $jsonPath = Join-Path $repoRoot "XDRay\CmdletApiMapping.json"
 $firefoxJsonPath = Join-Path $repoRoot "XDRay Firefox\CmdletApiMapping.json"
 
-Write-Host "🔍 Scanning cmdlet files in: $functionsPath" -ForegroundColor Cyan
+Write-Verbose "Scanning cmdlet files in: $functionsPath"
 
 # Get all cmdlet files
 $cmdletFiles = Get-ChildItem -Path $functionsPath -Filter "*.ps1" | Sort-Object Name
@@ -47,7 +47,7 @@ if ($cmdletFiles.Count -eq 0) {
     exit 1
 }
 
-Write-Host "📁 Found $($cmdletFiles.Count) cmdlet files" -ForegroundColor Green
+Write-Verbose "Found $($cmdletFiles.Count) cmdlet files"
 
 # Helper function to sort hashtable keys alphabetically
 function ConvertTo-SortedHashtable {
@@ -104,8 +104,8 @@ function Test-IncompleteUri {
     return $Uri -match '\w\{[\w]+\}$'
 }
 
-# Helper function to extract API parameters from cmdlet content using PowerShell AST
-function Get-ApiParameters {
+# Helper function to extract API parameter mappings from cmdlet content using PowerShell AST
+function Get-ApiParameterMapping {
     param([string]$Content)
 
     $parameters = @{}
@@ -142,7 +142,7 @@ function Get-ApiParameters {
     )
     $parameterAliases = @{}
     $semanticParameterFallbacks = @{
-        Body                             = 'KQLQuery'
+        Body                              = 'KQLQuery'
         TroubleshootExpirationDateTimeUtc = 'TroubleshootDurationHours'
     }
 
@@ -232,7 +232,7 @@ function Get-ApiParameters {
             return $null
         }
 
-        $matches = @(
+        $referencedParameters = @(
             $Ast.FindAll({
                     param($node)
                     $node -is [System.Management.Automation.Language.VariableExpressionAst]
@@ -250,8 +250,8 @@ function Get-ApiParameters {
                 Select-Object -Unique
         )
 
-        if (@($matches).Count -eq 1) {
-            return @($matches)[0]
+        if (@($referencedParameters).Count -eq 1) {
+            return @($referencedParameters)[0]
         }
 
         return $null
@@ -268,7 +268,7 @@ function Get-ApiParameters {
         }
     }
 
-    function Add-HashtableMappings {
+    function Add-HashtableMapping {
         param(
             [System.Management.Automation.Language.HashtableAst]$HashtableAst,
             [string]$PathPrefix
@@ -283,7 +283,7 @@ function Get-ApiParameters {
             $path = "$PathPrefix.$keyName"
             $valueAst = Resolve-ExpressionAst -Ast $entry.Item2
             if ($valueAst -is [System.Management.Automation.Language.HashtableAst]) {
-                Add-HashtableMappings -HashtableAst $valueAst -PathPrefix $path
+                Add-HashtableMapping -HashtableAst $valueAst -PathPrefix $path
                 continue
             }
 
@@ -320,7 +320,7 @@ function Get-ApiParameters {
             $assignment.Left.VariablePath.UserPath -match 'body$') {
             $bodyAst = Resolve-ExpressionAst -Ast $assignment.Right
             if ($bodyAst -is [System.Management.Automation.Language.HashtableAst]) {
-                Add-HashtableMappings -HashtableAst $bodyAst -PathPrefix 'body'
+                Add-HashtableMapping -HashtableAst $bodyAst -PathPrefix 'body'
             }
             continue
         }
@@ -344,8 +344,8 @@ function Get-ApiParameters {
     return $parameters
 }
 
-# Helper function to create API mapping object
-function New-ApiMapping {
+# Helper function to convert metadata into an API mapping object
+function ConvertTo-ApiMapping {
     param(
         [string]$CmdletName,
         [string]$Uri,
@@ -364,8 +364,30 @@ function New-ApiMapping {
     return $mapping
 }
 
+function Get-ScopedApiParameterMapping {
+    param(
+        [string]$CmdletName,
+        [string]$Uri,
+        [hashtable]$DefaultParameters
+    )
+
+    $scopedParameters = @{}
+    foreach ($key in $DefaultParameters.Keys) {
+        $scopedParameters[$key] = $DefaultParameters[$key]
+    }
+
+    # Get-XdrCloudAppsDiscovery mixes multiple discovery operations behind one cmdlet.
+    # Until the generator understands parameter-set-specific URIs, keep the shared
+    # deanonymization body parameters off the other discovery endpoints.
+    if ($CmdletName -eq 'Get-XdrCloudAppsDiscovery' -and $Uri -notmatch '/deanonymize_entity_names/$') {
+        return @{}
+    }
+
+    return $scopedParameters
+}
+
 # Helper function to normalize API URIs
-function Normalize-ApiUri {
+function ConvertTo-NormalizedApiUri {
     param([string]$Uri)
     
     # Strip query string parameters (everything after ?)
@@ -406,7 +428,7 @@ foreach ($file in $cmdletFiles) {
     Write-Verbose "Processing: $($file.Name)"
     
     $content = Get-Content -Path $file.FullName -Raw
-    $parameters = Get-ApiParameters -Content $content
+    $parameters = Get-ApiParameterMapping -Content $content
     
     # Extract function name
     if ($content -match 'function\s+([\w-]+)\s*{') {
@@ -433,7 +455,7 @@ foreach ($file in $cmdletFiles) {
         $uri = $match.Groups[1].Value.Trim()
         
         # Normalize the URI (remove query strings, convert variables to placeholders)
-        $uri = Normalize-ApiUri -Uri $uri
+        $uri = ConvertTo-NormalizedApiUri -Uri $uri
         
         # Skip URIs that are just the base domain + placeholder (incomplete URIs)
         if (Test-IncompleteUri -Uri $uri) {
@@ -442,7 +464,8 @@ foreach ($file in $cmdletFiles) {
         }
         
         # Create mapping object
-        $mapping = New-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $parameters
+        $mappingParameters = Get-ScopedApiParameterMapping -CmdletName $cmdletName -Uri $uri -DefaultParameters $parameters
+        $mapping = ConvertTo-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $mappingParameters
         
         # Only add unique URIs for this cmdlet
         if (-not ($apiMappings | Where-Object { $_.ApiUri -eq $uri })) {
@@ -456,10 +479,9 @@ foreach ($file in $cmdletFiles) {
     
     foreach ($match in $restMatches) {
         $uri = $match.Groups[1].Value.Trim()
-        $method = if ($match.Groups[2].Success) { $match.Groups[2].Value } else { "GET" }
-        
+
         # Normalize the URI (remove query strings, convert variables to placeholders)
-        $uri = Normalize-ApiUri -Uri $uri
+        $uri = ConvertTo-NormalizedApiUri -Uri $uri
         
         # Skip URIs that are just the base domain + placeholder (incomplete URIs)
         if (Test-IncompleteUri -Uri $uri) {
@@ -468,7 +490,8 @@ foreach ($file in $cmdletFiles) {
         }
         
         # Create mapping object
-        $mapping = New-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $parameters
+        $mappingParameters = Get-ScopedApiParameterMapping -CmdletName $cmdletName -Uri $uri -DefaultParameters $parameters
+        $mapping = ConvertTo-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $mappingParameters
         
         # Only add unique URIs for this cmdlet
         if (-not ($apiMappings | Where-Object { $_.ApiUri -eq $uri })) {
@@ -484,7 +507,7 @@ foreach ($file in $cmdletFiles) {
     }
 }
 
-Write-Host "✅ Extracted metadata from $($cmdlets.Count) cmdlets" -ForegroundColor Green
+Write-Verbose "Extracted metadata from $($cmdlets.Count) cmdlets"
 
 # Sort cmdlets alphabetically
 $cmdlets = $cmdlets | Sort-Object Name
@@ -493,7 +516,7 @@ $cmdlets = $cmdlets | Sort-Object Name
 # Update README.md
 # ============================================================================
 
-Write-Host "`n📄 Updating README.md..." -ForegroundColor Cyan
+Write-Verbose "`nUpdating README.md..."
 
 $readmeContent = Get-Content -Path $readmePath -Raw
 
@@ -515,7 +538,7 @@ if ($readmeContent -match '(?s)(## Available Cmdlets\s*\n+\|[^\n]+\|\s*\n\|[^\n]
     if ($PSCmdlet.ShouldProcess($readmePath, "Update cmdlet table")) {
         $utf8Bom = New-Object System.Text.UTF8Encoding $true
         [System.IO.File]::WriteAllText($readmePath, $newReadmeContent, $utf8Bom)
-        Write-Host "  ✓ Updated cmdlet table with $($cmdlets.Count) entries" -ForegroundColor Green
+        Write-Verbose "Updated cmdlet table with $($cmdlets.Count) entries"
     }
 } else {
     Write-Warning "Could not find cmdlet table in README.md"
@@ -525,7 +548,7 @@ if ($readmeContent -match '(?s)(## Available Cmdlets\s*\n+\|[^\n]+\|\s*\n\|[^\n]
 # Update XDRInternals.psd1
 # ============================================================================
 
-Write-Host "`n📦 Updating XDRInternals.psd1..." -ForegroundColor Cyan
+Write-Verbose "`nUpdating XDRInternals.psd1..."
 
 $psd1Content = Get-Content -Path $psd1Path -Raw
 
@@ -539,7 +562,7 @@ if ($psd1Content -match '(?s)FunctionsToExport\s*=\s*@\([^)]+\)') {
     if ($PSCmdlet.ShouldProcess($psd1Path, "Update FunctionsToExport array")) {
         $utf8Bom = New-Object System.Text.UTF8Encoding $true
         [System.IO.File]::WriteAllText($psd1Path, $newPsd1Content, $utf8Bom)
-        Write-Host "  ✓ Updated FunctionsToExport with $($cmdlets.Count) entries" -ForegroundColor Green
+        Write-Verbose "Updated FunctionsToExport with $($cmdlets.Count) entries"
     }
 } else {
     Write-Warning "Could not find FunctionsToExport array in PSD1"
@@ -549,7 +572,7 @@ if ($psd1Content -match '(?s)FunctionsToExport\s*=\s*@\([^)]+\)') {
 # Update API Mapping JSON files
 # ============================================================================
 
-Write-Host "`n🗺️  Building API mappings..." -ForegroundColor Cyan
+Write-Verbose "`nBuilding API mappings..."
 
 # Step 1: Load existing mappings and filter to only cmdlets that still exist
 $validCmdletNames = @($cmdlets.Name)
@@ -562,7 +585,7 @@ if (Test-Path $jsonPath) {
         foreach ($mapping in $existingApiMappings) {
             if ($validCmdletNames -contains $mapping.Cmdlet) {
                 # Normalize the existing API URI
-                $normalizedUri = Normalize-ApiUri -Uri $mapping.ApiUri
+                $normalizedUri = ConvertTo-NormalizedApiUri -Uri $mapping.ApiUri
                 
                 # Skip incomplete URIs (just domain + placeholder)
                 if (Test-IncompleteUri -Uri $normalizedUri) {
@@ -588,7 +611,7 @@ if (Test-Path $jsonPath) {
                 $deletedCount++
             }
         }
-        Write-Host "  📥 Loaded $($existingMappings.Count) existing API mappings ($deletedCount orphaned entries removed)" -ForegroundColor Cyan
+        Write-Verbose "Loaded $($existingMappings.Count) existing API mappings ($deletedCount orphaned entries removed)"
     } catch {
         Write-Warning "Could not load existing API mappings: $_"
     }
@@ -629,7 +652,7 @@ $apiMappingArray = [System.Collections.ArrayList]@()
 $existingMappings.Values | ForEach-Object {
     # Convert ordered hashtable to PSCustomObject
     [PSCustomObject]$_
-} | Sort-Object -Property @{Expression={$_.Cmdlet}; Ascending=$true}, @{Expression={$_.ApiUri}; Ascending=$true} | ForEach-Object {
+} | Sort-Object -Property @{Expression = { $_.Cmdlet }; Ascending = $true }, @{Expression = { $_.ApiUri }; Ascending = $true } | ForEach-Object {
     # Convert back to ordered hashtable for JSON serialization
     $mapping = [ordered]@{
         Cmdlet = $_.Cmdlet
@@ -644,7 +667,7 @@ $existingMappings.Values | ForEach-Object {
 # Debug: Show first few entries to verify sort
 Write-Verbose "First 5 cmdlets in sorted array: $($apiMappingArray[0..4].Cmdlet -join ', ')"
 
-Write-Host "  📊 API mappings: $($apiMappingArray.Count) total ($newCount new, $updatedCount updated, $deletedCount removed)" -ForegroundColor Green
+Write-Verbose "API mappings: $($apiMappingArray.Count) total ($newCount new, $updatedCount updated, $deletedCount removed)"
 
 # Convert to JSON with proper formatting
 $jsonContent = $apiMappingArray | ConvertTo-Json -Depth 10
@@ -653,17 +676,17 @@ $jsonContent = $apiMappingArray | ConvertTo-Json -Depth 10
 if ($PSCmdlet.ShouldProcess($jsonPath, "Update API mappings")) {
     $utf8Bom = New-Object System.Text.UTF8Encoding $true
     [System.IO.File]::WriteAllText($jsonPath, $jsonContent, $utf8Bom)
-    Write-Host "  ✓ Updated $jsonPath" -ForegroundColor Green
+    Write-Verbose "Updated $jsonPath"
 }
 
 # Update XDRay Firefox/CmdletApiMapping.json (same content)
 if ($PSCmdlet.ShouldProcess($firefoxJsonPath, "Update API mappings")) {
     $utf8Bom = New-Object System.Text.UTF8Encoding $true
     [System.IO.File]::WriteAllText($firefoxJsonPath, $jsonContent, $utf8Bom)
-    Write-Host "  ✓ Updated $firefoxJsonPath" -ForegroundColor Green
+    Write-Verbose "Updated $firefoxJsonPath"
 }
 
-Write-Host "`n✨ Synchronization complete!" -ForegroundColor Green
-Write-Host "   📄 README.md: $($cmdlets.Count) cmdlets" -ForegroundColor White
-Write-Host "   📦 PSD1 manifest: $($cmdlets.Count) exports" -ForegroundColor White
-Write-Host "   🗺️  API mappings: $($apiMappingArray.Count) entries" -ForegroundColor White
+Write-Verbose "`nSynchronization complete!"
+Write-Verbose "README.md: $($cmdlets.Count) cmdlets"
+Write-Verbose "PSD1 manifest: $($cmdlets.Count) exports"
+Write-Verbose "API mappings: $($apiMappingArray.Count) entries"

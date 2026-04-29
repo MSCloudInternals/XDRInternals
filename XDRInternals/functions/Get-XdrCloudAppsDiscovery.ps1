@@ -5,9 +5,9 @@
 
     .DESCRIPTION
         Gets Cloud Discovery data from Microsoft Defender for Cloud Apps. This consolidated
-        cmdlet provides access to all discovery data types including categories, entities,
-        top rankings, locations, constants, and unsanctioned apps through a single interface.
-        This function includes caching support to reduce API calls.
+        cmdlet provides access to discovery data types including categories, entities,
+        top rankings, locations, constants, unsanctioned apps, and user deanonymization
+        through a single interface. This function includes caching support to reduce API calls.
 
         When no StreamId or StreamName is specified for types that require streams, queries
         ALL available discovery streams and includes StreamId/StreamName properties on each result.
@@ -25,6 +25,16 @@
     .PARAMETER ListStreams
         When specified, lists all available discovery streams. Useful for discovering
         stream IDs and names before querying data.
+
+    .PARAMETER DeanonymizeUser
+        When specified, deanonymizes Cloud Discovery usernames using the provided
+        justification text.
+
+    .PARAMETER Usernames
+        One or more anonymized Cloud Discovery usernames to deanonymize.
+
+    .PARAMETER Justification
+        Required justification for deanonymizing Cloud Discovery usernames.
 
     .PARAMETER StreamId
         The ID of the discovery stream to query. If not specified for types that require it,
@@ -107,6 +117,10 @@
         Lists all available discovery streams.
 
     .EXAMPLE
+        Get-XdrCloudAppsDiscovery -DeanonymizeUser -Usernames "User_aaaaaabbbbb=" -Justification "Incident response investigation"
+        Deanonymizes a Cloud Discovery username.
+
+    .EXAMPLE
         Get-XdrCloudAppsDiscovery -Type Category
         Retrieves all app category definitions.
 
@@ -157,8 +171,12 @@
 
         XdrCloudAppsConfigurationDiscoveryStream[]
         When -ListStreams is specified, returns available discovery streams.
+
+        XdrCloudAppsDiscoveryDeanonymizedUser[]
+        When -DeanonymizeUser is specified, returns deanonymized Cloud Discovery usernames.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'ListStreams', Justification = 'Parameter used for parameter set selection')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'DeanonymizeUser', Justification = 'Parameter used for parameter set selection')]
     [CmdletBinding(DefaultParameterSetName = 'Default')]
     param (
         [Parameter(ParameterSetName = 'Default', Mandatory = $true)]
@@ -167,6 +185,18 @@
 
         [Parameter(ParameterSetName = 'ListStreams', Mandatory = $true)]
         [switch]$ListStreams,
+
+        [Parameter(ParameterSetName = 'DeanonymizeUser', Mandatory = $true)]
+        [switch]$DeanonymizeUser,
+
+        [Parameter(ParameterSetName = 'DeanonymizeUser', Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+        [Alias('Username')]
+        [ValidateNotNullOrEmpty()]
+        [string[]]$Usernames,
+
+        [Parameter(ParameterSetName = 'DeanonymizeUser', Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Justification,
 
         [Parameter(ParameterSetName = 'Default', ValueFromPipelineByPropertyName = $true)]
         [Alias('_id')]
@@ -249,8 +279,9 @@
 
     begin {
         Update-XdrConnectionSettings
+        $usernamesToDeanonymize = [System.Collections.Generic.List[string]]::new()
 
-        if ($PSCmdlet.ParameterSetName -ne 'ListStreams') {
+        if ($PSCmdlet.ParameterSetName -eq 'Default') {
             # Validate EntityType is provided when Type is Entity
             if ($Type -eq "Entity" -and -not $PSBoundParameters.ContainsKey('EntityType')) {
                 throw "The -EntityType parameter is required when -Type is 'Entity'. Valid values are: IP, Machine, User, Resource"
@@ -272,6 +303,13 @@
         # Handle ListStreams
         if ($PSCmdlet.ParameterSetName -eq 'ListStreams') {
             return Get-XdrCloudAppsDiscoveryStream -Force:$Force
+        }
+
+        if ($PSCmdlet.ParameterSetName -eq 'DeanonymizeUser') {
+            foreach ($username in $Usernames) {
+                $usernamesToDeanonymize.Add($username)
+            }
+            return
         }
 
         # Helper function to add stream context to results
@@ -729,6 +767,23 @@
     }
 
     end {
+        if ($PSCmdlet.ParameterSetName -eq 'DeanonymizeUser') {
+            if ($usernamesToDeanonymize.Count -eq 0) {
+                return
+            }
+
+            # Observed Cloud Apps deanonymization API value for user identities.
+            # The current public cmdlet surface intentionally supports users only.
+            $userEntityType = 1
+
+            $body = @{
+                usernames     = @($usernamesToDeanonymize)
+                justification = $Justification
+                entityType    = $userEntityType
+            }
+
+            return Invoke-XdrCloudAppsRequest -Path '/mcas/cas/api/v1/discovery/deanonymize_entity_names/' -Method Post -Body $body -TypeName 'XdrCloudAppsDiscoveryDeanonymizedUser' -Force:$Force
+        }
     }
 }
 

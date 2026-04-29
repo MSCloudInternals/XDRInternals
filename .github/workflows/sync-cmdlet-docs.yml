@@ -4,10 +4,7 @@ on:
   pull_request:
     paths:
       - "XDRInternals/functions/**"
-      - "README.md"
-      - "XDRInternals/XDRInternals.psd1"
-      - "XDRay/CmdletApiMapping.json"
-      - "XDRay Firefox/CmdletApiMapping.json"
+      - "build/Sync-CmdletDocumentation.ps1"
   workflow_dispatch:
 
 permissions:
@@ -16,6 +13,7 @@ permissions:
 
 jobs:
   sync-docs:
+    if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'sync-cmdlet-docs-')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

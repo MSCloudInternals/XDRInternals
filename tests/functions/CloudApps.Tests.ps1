@@ -53,11 +53,80 @@
         }
     }
 
+    It 'keeps the legacy general settings wrapper routed through grouped configuration' {
+        Mock Get-XdrCloudAppsConfiguration {
+            $result = [pscustomobject]@{
+                environmentName = 'Commercial'
+                orgDisplayName  = 'Contoso'
+            }
+            $result.PSObject.TypeNames.Insert(0, 'XdrCloudAppsConfigurationSettings')
+            $result
+        } -ModuleName XDRInternals
+
+        $result = Get-XdrCloudAppsGeneralSetting -Force
+
+        $result.environmentName | Should -Be 'Commercial'
+        $result.orgDisplayName | Should -Be 'Contoso'
+        $result.PSObject.TypeNames | Should -Not -Contain 'XdrCloudAppsConfigurationSettings'
+        Should -Invoke Get-XdrCloudAppsConfiguration -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $Type -eq 'Settings' -and
+            $Force
+        }
+    }
+
     It 'returns discovery streams from the dedicated parameter set' {
         $result = Get-XdrCloudAppsDiscovery -ListStreams
 
         $result._id | Should -Be 'stream-1'
         Should -Invoke Get-XdrCloudAppsDiscoveryStream -ModuleName XDRInternals -Times 1 -Exactly
+    }
+
+    It 'keeps the default discovery parameter set working for category queries' {
+        Mock Get-XdrCache { $null } -ModuleName XDRInternals
+        Mock Set-XdrCache {} -ModuleName XDRInternals
+        Mock Invoke-RestMethod {
+            [pscustomobject]@{
+                data = @([pscustomobject]@{ categoryName = 'Storage' })
+            }
+        } -ModuleName XDRInternals
+
+        $result = Get-XdrCloudAppsDiscovery -Type Category
+
+        $result[0].categoryName | Should -Be 'Storage'
+        $result[0].PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsDiscoveryCategory'
+        Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $Uri -eq 'https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/categories/' -and
+            $Method -eq 'Get'
+        }
+    }
+
+    It 'still requires EntityType for default discovery entity queries' {
+        { Get-XdrCloudAppsDiscovery -Type Entity } |
+            Should -Throw -ExpectedMessage "*The -EntityType parameter is required when -Type is 'Entity'*"
+    }
+
+    It 'routes Cloud Discovery user deanonymization through the grouped discovery command' {
+        Get-XdrCloudAppsDiscovery -DeanonymizeUser -Usernames 'User_aaaaaabbbbb=' -Justification 'Incident response' | Out-Null
+
+        Should -Invoke Invoke-XdrCloudAppsRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $Path -eq '/mcas/cas/api/v1/discovery/deanonymize_entity_names/' -and
+            $Method -eq 'Post' -and
+            $Body.justification -eq 'Incident response' -and
+            $Body.entityType -eq 1 -and
+            $Body.usernames.Count -eq 1 -and
+            $Body.usernames[0] -eq 'User_aaaaaabbbbb='
+        }
+    }
+
+    It 'aggregates piped usernames for grouped Cloud Discovery deanonymization' {
+        'User_aaaaaabbbbb=', 'User_zzzzzzzzXXXXXXX=' | Get-XdrCloudAppsDiscovery -DeanonymizeUser -Justification 'Incident response' | Out-Null
+
+        Should -Invoke Invoke-XdrCloudAppsRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $Path -eq '/mcas/cas/api/v1/discovery/deanonymize_entity_names/' -and
+            $Body.usernames.Count -eq 2 -and
+            $Body.usernames[0] -eq 'User_aaaaaabbbbb=' -and
+            $Body.usernames[1] -eq 'User_zzzzzzzzXXXXXXX='
+        }
     }
 
     It 'routes governance summary through App Governance status APIs' {

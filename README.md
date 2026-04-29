@@ -68,6 +68,7 @@ Get-XdrTenantContext -Force
 | Get-XdrCloudAppsApp                                             | Retrieves app-focused Microsoft Defender for Cloud Apps data. |
 | Get-XdrCloudAppsConfiguration                                   | Retrieves grouped Microsoft Defender for Cloud Apps configuration data. |
 | Get-XdrCloudAppsDiscovery                                       | Retrieves Cloud Discovery data from Microsoft Defender for Cloud Apps. |
+| Get-XdrCloudAppsGeneralSetting                                  | Retrieves general settings from Microsoft Defender for Cloud Apps (Cloud Apps). |
 | Get-XdrCloudAppsGovernance                                      | Retrieves governance data from Microsoft Defender for Cloud Apps and App Governance. |
 | Get-XdrCloudAppsPolicy                                          | Retrieves policies from Microsoft Defender for Cloud Apps. |
 | Get-XdrConfigurationAlertServiceSetting                         | Retrieves alert service settings from Microsoft Defender XDR. |

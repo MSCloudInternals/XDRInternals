@@ -1,4 +1,127 @@
-﻿function Get-XdrCloudAppsActivityTimeline {
+﻿function ConvertFrom-XdrCloudAppsActivityJson {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Json
+    )
+
+    if ((Get-Command ConvertFrom-Json -ErrorAction Stop).Parameters.ContainsKey('AsHashtable')) {
+        return $Json | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+    }
+
+    Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
+    $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+    $serializer.MaxJsonLength = [int]::MaxValue
+    return $serializer.DeserializeObject($Json)
+}
+
+function Read-XdrCloudAppsActivityChunkFile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.IO.FileInfo]$File,
+
+        [Parameter()]
+        [switch]$AllowPartial
+    )
+
+    try {
+        return ConvertFrom-XdrCloudAppsActivityJson -Json (Get-Content -Path $File.FullName -Raw -ErrorAction Stop)
+    }
+    catch {
+        if ($AllowPartial) {
+            Write-Warning "Skipping unreadable Cloud Apps activity chunk file '$($File.Name)': $($_.Exception.Message)"
+            return $null
+        }
+
+        throw
+    }
+}
+
+function Get-XdrCloudAppsObjectValue {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [object]$InputObject,
+
+        [Parameter(Mandatory)]
+        [string[]]$Name
+    )
+
+    foreach ($currentName in $Name) {
+        if ($InputObject -is [System.Collections.IDictionary]) {
+            if ($InputObject.Contains($currentName)) {
+                return $InputObject[$currentName]
+            }
+
+            foreach ($key in $InputObject.Keys) {
+                if ([string]$key -ceq $currentName) {
+                    return $InputObject[$key]
+                }
+            }
+
+            foreach ($key in $InputObject.Keys) {
+                if ([string]$key -ieq $currentName) {
+                    return $InputObject[$key]
+                }
+            }
+        }
+        elseif ($InputObject.PSObject.Properties[$currentName]) {
+            return $InputObject.$currentName
+        }
+    }
+
+    return $null
+}
+
+function Get-XdrCloudAppsActivityEventTime {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [object]$Activity
+    )
+
+    $timestampValue = Get-XdrCloudAppsObjectValue -InputObject $Activity -Name 'timestamp'
+    if ($timestampValue) {
+        $numericTimestamp = [double]$timestampValue
+        if ($numericTimestamp -gt 9999999999) {
+            return [DateTimeOffset]::FromUnixTimeMilliseconds([long]$numericTimestamp).UtcDateTime
+        }
+
+        return [DateTimeOffset]::FromUnixTimeSeconds([long]$numericTimestamp).UtcDateTime
+    }
+
+    $dateValue = Get-XdrCloudAppsObjectValue -InputObject $Activity -Name @('date', 'Date')
+    if ($dateValue) {
+        return ([datetime]$dateValue).ToUniversalTime()
+    }
+
+    return $null
+}
+
+function Get-XdrCloudAppsActivityStableKey {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [object]$Activity,
+
+        [Parameter(Mandatory)]
+        [System.Security.Cryptography.SHA256]$Sha256
+    )
+
+    foreach ($name in @('_id', 'id', 'recordId')) {
+        $value = Get-XdrCloudAppsObjectValue -InputObject $Activity -Name $name
+        if ($value) {
+            return [string]$value
+        }
+    }
+
+    $stableJson = $Activity | ConvertTo-Json -Depth 20 -Compress
+    return [System.BitConverter]::ToString($Sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($stableJson))).Replace('-', '')
+}
+
+function Get-XdrCloudAppsActivityTimeline {
     <#
     .SYNOPSIS
         Retrieves Microsoft Defender for Cloud Apps activity timeline data.
@@ -434,9 +557,18 @@
                     }
 
                     if ($response -is [string] -and -not [string]::IsNullOrWhiteSpace($response)) {
-                        $response = $response | ConvertFrom-Json
+                        if ((Get-Command ConvertFrom-Json -ErrorAction Stop).Parameters.ContainsKey('AsHashtable')) {
+                            $response = $response | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+                        }
+                        else {
+                            Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
+                            $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+                            $serializer.MaxJsonLength = [int]::MaxValue
+                            $response = $serializer.DeserializeObject($response)
+                        }
                     }
-                    foreach ($item in @($response.data)) {
+                    $responseData = if ($response -is [System.Collections.IDictionary]) { $response['data'] } else { $response.data }
+                    foreach ($item in @($responseData)) {
                         if (-not $first) { $writer.Write(',') }
                         $writer.Write(($item | ConvertTo-Json -Depth 20 -Compress))
                         $first = $false
@@ -444,7 +576,8 @@
                     }
                     $pagesRetrieved++
                     Set-Content -Path $progressPath -Value $pagesRetrieved -Encoding UTF8
-                    $hasMore = $response.hasNext -eq $true
+                    $hasMoreValue = if ($response -is [System.Collections.IDictionary]) { $response['hasNext'] } else { $response.hasNext }
+                    $hasMore = $hasMoreValue -eq $true
                     $skip += $Params.PageSize
                 }
                 $writer.Write('],"EventCount":' + $eventCount + '}')
@@ -543,16 +676,26 @@
             Write-Progress -Activity 'Retrieving Cloud Apps Activity Timeline' -Completed
             $failures = @($results | Where-Object { -not $_.Success })
             if ($failures.Count -gt 0 -and -not $AllowPartial) {
-                $failedIds = ($failures | Sort-Object ChunkIndex | ForEach-Object { $_.ChunkIndex }) -join ', '
-                throw "Failed to retrieve Cloud Apps activity chunks: $failedIds. Re-run with -AllowPartial to return completed chunks."
+                $failureDetails = $failures | Sort-Object ChunkIndex | ForEach-Object {
+                    "chunk $($_.ChunkIndex): $($_.Error)"
+                }
+                throw "Failed to retrieve Cloud Apps activity chunks: $($failureDetails -join '; '). Re-run with -AllowPartial to return completed chunks."
             }
             elseif ($failures.Count -gt 0) {
-                Write-Warning "Returning partial timeline data; failed chunks: $(($failures.ChunkIndex | Sort-Object) -join ', ')"
+                $failureDetails = $failures | Sort-Object ChunkIndex | ForEach-Object {
+                    "chunk $($_.ChunkIndex): $($_.Error)"
+                }
+                Write-Warning "Returning partial timeline data; failed chunks: $($failureDetails -join '; ')"
             }
 
             $fromUtc = $FromDate.ToUniversalTime()
             $toUtc = $ToDate.ToUniversalTime()
-            $jsonFiles = Get-ChildItem -Path $runTempPath -Filter 'chunk_*.json' -ErrorAction SilentlyContinue | Sort-Object Name
+            $jsonFiles = @(
+                $results |
+                    Where-Object { $_.Success -and $_.FilePath -and (Test-Path -LiteralPath $_.FilePath) } |
+                    ForEach-Object { Get-Item -LiteralPath $_.FilePath } |
+                    Sort-Object Name
+            )
 
             if ($ExportPath -and $ExportFormat -eq 'Ndjson' -and -not $PassThru -and -not $IncludeThreatScores) {
                 $parent = Split-Path -Path $ExportPath -Parent
@@ -564,42 +707,16 @@
                 $writer = [System.IO.StreamWriter]::new($ExportPath, $false, [System.Text.Encoding]::UTF8)
                 try {
                     foreach ($file in @($jsonFiles | Sort-Object Name -Descending)) {
-                        $chunkData = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json
-                        foreach ($activity in @($chunkData.Events)) {
-                            $eventUtc = $null
-                            if ($activity.PSObject.Properties['timestamp'] -and $activity.timestamp) {
-                                $timestampValue = [double]$activity.timestamp
-                                $eventUtc = if ($timestampValue -gt 9999999999) {
-                                    [DateTimeOffset]::FromUnixTimeMilliseconds([long]$timestampValue).UtcDateTime
-                                }
-                                else {
-                                    [DateTimeOffset]::FromUnixTimeSeconds([long]$timestampValue).UtcDateTime
-                                }
-                            }
-                            elseif ($activity.PSObject.Properties['date'] -and $activity.date) {
-                                $eventUtc = ([datetime]$activity.date).ToUniversalTime()
-                            }
-                            elseif ($activity.PSObject.Properties['Date'] -and $activity.Date) {
-                                $eventUtc = ([datetime]$activity.Date).ToUniversalTime()
-                            }
+                        $chunkData = Read-XdrCloudAppsActivityChunkFile -File $file -AllowPartial:$AllowPartial
+                        if ($null -eq $chunkData) { continue }
+                        foreach ($activity in @(Get-XdrCloudAppsObjectValue -InputObject $chunkData -Name 'Events')) {
+                            $eventUtc = Get-XdrCloudAppsActivityEventTime -Activity $activity
 
                             if ($null -eq $eventUtc -or $eventUtc -lt $fromUtc -or $eventUtc -ge $toUtc) {
                                 continue
                             }
 
-                            $stableKey = if ($activity.PSObject.Properties['_id'] -and $activity._id) {
-                                [string]$activity._id
-                            }
-                            elseif ($activity.PSObject.Properties['id'] -and $activity.id) {
-                                [string]$activity.id
-                            }
-                            elseif ($activity.PSObject.Properties['recordId'] -and $activity.recordId) {
-                                [string]$activity.recordId
-                            }
-                            else {
-                                $stableJson = $activity | ConvertTo-Json -Depth 20 -Compress
-                                [System.BitConverter]::ToString($exportSha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($stableJson))).Replace('-', '')
-                            }
+                            $stableKey = Get-XdrCloudAppsActivityStableKey -Activity $activity -Sha256 $exportSha256
 
                             if ($seenExportKeys.Add($stableKey)) {
                                 $writer.WriteLine(($activity | ConvertTo-Json -Depth 20 -Compress))
@@ -631,42 +748,16 @@
             $seenKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
             $sha256 = [System.Security.Cryptography.SHA256]::Create()
             foreach ($file in $jsonFiles) {
-                $chunkData = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json
-                foreach ($activity in @($chunkData.Events)) {
-                    $eventUtc = $null
-                    if ($activity.PSObject.Properties['timestamp'] -and $activity.timestamp) {
-                        $timestampValue = [double]$activity.timestamp
-                        $eventUtc = if ($timestampValue -gt 9999999999) {
-                            [DateTimeOffset]::FromUnixTimeMilliseconds([long]$timestampValue).UtcDateTime
-                        }
-                        else {
-                            [DateTimeOffset]::FromUnixTimeSeconds([long]$timestampValue).UtcDateTime
-                        }
-                    }
-                    elseif ($activity.PSObject.Properties['date'] -and $activity.date) {
-                        $eventUtc = ([datetime]$activity.date).ToUniversalTime()
-                    }
-                    elseif ($activity.PSObject.Properties['Date'] -and $activity.Date) {
-                        $eventUtc = ([datetime]$activity.Date).ToUniversalTime()
-                    }
+                $chunkData = Read-XdrCloudAppsActivityChunkFile -File $file -AllowPartial:$AllowPartial
+                if ($null -eq $chunkData) { continue }
+                foreach ($activity in @(Get-XdrCloudAppsObjectValue -InputObject $chunkData -Name 'Events')) {
+                    $eventUtc = Get-XdrCloudAppsActivityEventTime -Activity $activity
 
                     if ($null -eq $eventUtc -or $eventUtc -lt $fromUtc -or $eventUtc -ge $toUtc) {
                         continue
                     }
 
-                    $stableKey = if ($activity.PSObject.Properties['_id'] -and $activity._id) {
-                        [string]$activity._id
-                    }
-                    elseif ($activity.PSObject.Properties['id'] -and $activity.id) {
-                        [string]$activity.id
-                    }
-                    elseif ($activity.PSObject.Properties['recordId'] -and $activity.recordId) {
-                        [string]$activity.recordId
-                    }
-                    else {
-                        $stableJson = $activity | ConvertTo-Json -Depth 20 -Compress
-                        [System.BitConverter]::ToString($sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($stableJson))).Replace('-', '')
-                    }
+                    $stableKey = Get-XdrCloudAppsActivityStableKey -Activity $activity -Sha256 $sha256
 
                     if ($seenKeys.Add($stableKey)) {
                         $activity.PSObject.TypeNames.Insert(0, 'XdrCloudAppsActivity')
@@ -688,7 +779,7 @@
                 if ($FromDate -lt $regularBoundaryUtc) {
                     Write-Warning 'Threat scores are only requested for recent Cloud Apps activities; archived events will not have scores.'
                 }
-                $recordIds = @($sortedEvents | ForEach-Object { $_._id } | Where-Object { $_ })
+                $recordIds = @($sortedEvents | ForEach-Object { Get-XdrCloudAppsObjectValue -InputObject $_ -Name '_id' } | Where-Object { $_ })
                 for ($i = 0; $i -lt $recordIds.Count; $i += 500) {
                     $batchEnd = [math]::Min($i + 499, $recordIds.Count - 1)
                     $batchIds = $recordIds[$i..$batchEnd]
@@ -699,8 +790,14 @@
                             if ($score.recordId) { $scoreMap[$score.recordId] = $score }
                         }
                         foreach ($activity in $sortedEvents) {
-                            if ($activity._id -and $scoreMap.ContainsKey($activity._id)) {
-                                $activity | Add-Member -NotePropertyName ThreatScore -NotePropertyValue $scoreMap[$activity._id] -Force
+                            $activityId = Get-XdrCloudAppsObjectValue -InputObject $activity -Name '_id'
+                            if ($activityId -and $scoreMap.ContainsKey($activityId)) {
+                                if ($activity -is [System.Collections.IDictionary]) {
+                                    $activity['ThreatScore'] = $scoreMap[$activityId]
+                                }
+                                else {
+                                    $activity | Add-Member -NotePropertyName ThreatScore -NotePropertyValue $scoreMap[$activityId] -Force
+                                }
                             }
                         }
                     }

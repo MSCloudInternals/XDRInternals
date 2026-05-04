@@ -1,4 +1,4 @@
-﻿name: Sync Cmdlet Documentation
+name: Sync Cmdlet Documentation
 
 on:
   pull_request:
@@ -40,7 +40,7 @@ jobs:
 
       - name: Commit and push changes
         if: steps.changes.outputs.changed == 'true' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.fork == false)
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore: sync cmdlet documentation"

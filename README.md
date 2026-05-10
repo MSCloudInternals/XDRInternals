@@ -45,7 +45,7 @@ Get-XdrTenantContext -Force
 
 | Cmdlet                                                          | Description                                                         |
 | --------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Connect-XdrByBrowser                                            | Authenticates to Microsoft Defender XDR using an interactive browser sign-in. |
+| Connect-XdrByBrowser                                            | TEMP validation canary - should be rewritten by sync docs. |
 | Connect-XdrByCredential                                         | Authenticates to Microsoft Defender XDR using username, password, and optional TOTP MFA. |
 | Connect-XdrByEstsCookie                                         | Establishes an authenticated session to the Microsoft Defender XDR portal. |
 | Connect-XdrByPhoneSignIn                                        | Authenticates to Microsoft Defender XDR using Microsoft Authenticator phone sign-in. |

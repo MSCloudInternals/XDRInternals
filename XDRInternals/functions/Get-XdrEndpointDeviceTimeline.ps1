@@ -86,6 +86,10 @@
     .PARAMETER KeepTempFiles
         If specified, keeps the temporary JSON files after merging.
 
+    .PARAMETER AllowPartial
+        Returns completed chunks when one or more chunks fail or the request times out.
+        By default, the cmdlet fails rather than returning incomplete timeline data.
+
     .PARAMETER ExportPath
         Optional. Export results directly to a JSON file at the specified path.
 
@@ -206,6 +210,9 @@
 
         [Parameter()]
         [switch]$KeepTempFiles,
+
+        [Parameter()]
+        [switch]$AllowPartial,
 
         [Parameter()]
         [string]$ExportPath
@@ -371,6 +378,7 @@
             Write-Progress @progressParams
 
             $operationStartTime = [System.Diagnostics.Stopwatch]::StartNew()
+            $timedOut = $false
 
             # Process chunks in parallel using ForEach-Object -Parallel (PowerShell 7+)
             # NOTE: The chunk processing logic is duplicated between PS7 (-Parallel below) and PS5 (scriptblock
@@ -572,6 +580,7 @@
                     # Check timeout
                     if ($operationStartTime.Elapsed.TotalSeconds -gt $TimeoutSeconds) {
                         Write-Warning "Operation timed out after $TimeoutSeconds seconds. Stopping job..."
+                        $timedOut = $true
                         Stop-Job -Job $parallelJob
                         break
                     }
@@ -936,7 +945,21 @@
             # Check for failures
             $failures = $results | Where-Object { -not $_.Success }
             if ($failures) {
-                Write-Warning "Some chunks failed to retrieve: $($failures.ChunkIndex -join ', ')"
+                $failureDetails = $failures | Sort-Object ChunkIndex | ForEach-Object {
+                    "chunk $($_.ChunkIndex): $($_.Error)"
+                }
+                if (-not $AllowPartial) {
+                    throw "Failed to retrieve device timeline chunks: $($failureDetails -join '; '). Re-run with -AllowPartial to return completed chunks."
+                }
+
+                Write-Warning "Returning partial device timeline data; failed chunks: $($failureDetails -join '; ')"
+            }
+
+            if ($timedOut -and -not $AllowPartial) {
+                throw "Device timeline retrieval timed out after $TimeoutSeconds seconds before all chunks completed. Re-run with a larger -TimeoutSeconds value or use -AllowPartial to return completed chunks."
+            }
+            elseif ($timedOut) {
+                Write-Warning "Returning partial device timeline data because retrieval timed out after $TimeoutSeconds seconds."
             }
 
             # Output timing information for each chunk
@@ -968,7 +991,12 @@
             Write-Progress -Activity "Processing Results" -Status "Merging chunk files..." -PercentComplete 0 -Id 2
             Write-Verbose "Merging results from $($results.Count) chunk(s)..."
 
-            $jsonFiles = Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue | Sort-Object Name
+            $jsonFiles = @(
+                $results |
+                    Where-Object { $_.Success -and $_.FilePath -and (Test-Path -LiteralPath $_.FilePath) } |
+                    ForEach-Object { Get-Item -LiteralPath $_.FilePath } |
+                    Sort-Object Name
+            )
 
             # If ExportPath is specified, use pure file-based merge (most memory efficient)
             if ($PSBoundParameters.ContainsKey('ExportPath')) {
@@ -1053,9 +1081,19 @@
                 Write-Progress -Activity "Processing Results" -Status "Merging file $fileIndex of $totalFiles" -PercentComplete $percentComplete -Id 2
 
                 # Read and process file, then clear to free memory
-                $rawContent = Get-Content -Path $file.FullName -Raw
-                $chunkData = $rawContent | ConvertFrom-Json
-                $rawContent = $null  # Free the raw string memory
+                try {
+                    $rawContent = Get-Content -Path $file.FullName -Raw -ErrorAction Stop
+                    $chunkData = $rawContent | ConvertFrom-Json -ErrorAction Stop
+                    $rawContent = $null  # Free the raw string memory
+                }
+                catch {
+                    if (-not $AllowPartial) {
+                        throw "Device timeline chunk file '$($file.Name)' could not be read: $($_.Exception.Message). Re-run with -AllowPartial to skip unreadable completed chunks."
+                    }
+
+                    Write-Warning "Skipping unreadable device timeline chunk file '$($file.Name)': $($_.Exception.Message)"
+                    continue
+                }
 
                 if ($chunkData.Events) {
                     $allEvents.AddRange($chunkData.Events)
@@ -1119,7 +1157,7 @@
         } catch {
             Write-Progress -Activity "Retrieving Device Timeline" -Completed -Id 1
             Write-Progress -Activity "Processing Results" -Completed -Id 2
-            Write-Error "Failed to retrieve endpoint device timeline: $_"
+            throw "Failed to retrieve endpoint device timeline: $_"
         }
     }
 

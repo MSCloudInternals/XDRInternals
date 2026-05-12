@@ -52,6 +52,7 @@ Get-XdrTenantContext -Force
 | Connect-XdrBySSO                                                | Authenticates to Microsoft Defender XDR using browser-based single sign-on. |
 | Connect-XdrByTemporaryAccessPass                                | Authenticates to Microsoft Defender XDR using a Temporary Access Pass (TAP). |
 | Connect-XdrEndpointDeviceLiveResponse                           | Opens a Live Response session to an endpoint device in Microsoft Defender XDR. |
+| ConvertFrom-XdrCloudAppsActivityJson                            | Retrieves Microsoft Defender for Cloud Apps activity timeline data. |
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encodes an Advanced Hunting query for use in Microsoft Defender XDR. |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
 | Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |
@@ -62,7 +63,6 @@ Get-XdrTenantContext -Force
 | Get-XdrAdvancedHuntingUnifiedDetectionRules                     | Retrieves the Unified Detection Rules from Advanced Hunting. |
 | Get-XdrAdvancedHuntingUserHistory                               | Retrieves Advanced Hunting user history from Microsoft Defender XDR. |
 | Get-XdrAlert                                                    | Retrieves alerts from Microsoft Defender XDR. |
-| Get-XdrCloudAppsActivityTimeline                                | Retrieves Microsoft Defender for Cloud Apps activity timeline data. |
 | Get-XdrCloudAppsApp                                             | Retrieves app-focused Microsoft Defender for Cloud Apps data. |
 | Get-XdrCloudAppsConfiguration                                   | Retrieves grouped Microsoft Defender for Cloud Apps configuration data. |
 | Get-XdrCloudAppsDiscovery                                       | Retrieves Cloud Discovery data from Microsoft Defender for Cloud Apps. |

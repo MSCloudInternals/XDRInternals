@@ -35,7 +35,6 @@ Example:
 Get-XdrTenantContext
 
 # Second call uses cached data (if within TTL)
-Get-XdrTenantContext
 
 # Force fresh retrieval
 Get-XdrTenantContext -Force
@@ -43,8 +42,8 @@ Get-XdrTenantContext -Force
 
 ## Available Cmdlets
 
-| Cmdlet                                                          | Description                                                         |
-| --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Cmdlet | Description |
+| --- | --- |
 | Connect-XdrByBrowser                                            | Authenticates to Microsoft Defender XDR using an interactive browser sign-in. |
 | Connect-XdrByCredential                                         | Authenticates to Microsoft Defender XDR using username, password, and optional TOTP MFA. |
 | Connect-XdrByEstsCookie                                         | Establishes an authenticated session to the Microsoft Defender XDR portal. |
@@ -63,7 +62,13 @@ Get-XdrTenantContext -Force
 | Get-XdrAdvancedHuntingUnifiedDetectionRules                     | Retrieves the Unified Detection Rules from Advanced Hunting. |
 | Get-XdrAdvancedHuntingUserHistory                               | Retrieves Advanced Hunting user history from Microsoft Defender XDR. |
 | Get-XdrAlert                                                    | Retrieves alerts from Microsoft Defender XDR. |
+| Get-XdrCloudAppsActivityTimeline                                | Retrieves Microsoft Defender for Cloud Apps activity timeline data. |
+| Get-XdrCloudAppsApp                                             | Retrieves app-focused Microsoft Defender for Cloud Apps data. |
+| Get-XdrCloudAppsConfiguration                                   | Retrieves grouped Microsoft Defender for Cloud Apps configuration data. |
+| Get-XdrCloudAppsDiscovery                                       | Retrieves Cloud Discovery data from Microsoft Defender for Cloud Apps. |
 | Get-XdrCloudAppsGeneralSetting                                  | Retrieves general settings from Microsoft Defender for Cloud Apps (Cloud Apps). |
+| Get-XdrCloudAppsGovernance                                      | Retrieves governance data from Microsoft Defender for Cloud Apps and App Governance. |
+| Get-XdrCloudAppsPolicy                                          | Retrieves policies from Microsoft Defender for Cloud Apps. |
 | Get-XdrConfigurationAlertServiceSetting                         | Retrieves alert service settings from Microsoft Defender XDR. |
 | Get-XdrConfigurationAlertTuning                                 | Retrieves alert tuning configuration from Microsoft Defender XDR. |
 | Get-XdrConfigurationAssetRuleManagement                         | Retrieves asset rule management configuration from Microsoft Defender XDR. |
@@ -150,6 +155,7 @@ Get-XdrTenantContext -Force
 | Remove-XdrEndpointDeviceLiveResponseLibraryFile                 | Deletes a file from the Live Response library. |
 | Remove-XdrIdentityConfigurationRemediationActionAccount         | Removes a remediation action account from Microsoft Defender for Identity. |
 | Set-XdrAdvancedHuntingFunction                                  | Updates an existing Advanced Hunting function in Microsoft Defender XDR. |
+| Set-XdrCloudAppsDiscoveredApp                                   | Updates a discovered app note in Microsoft Defender for Cloud Apps. |
 | Set-XdrConfigurationCriticalAssetManagementClassification       | Updates critical asset management classification rule metadata in Microsoft Defender XDR. |
 | Set-XdrConfigurationPreviewFeatures                             | Sets the configuration for Defender XDR Preview features. |
 | Set-XdrConnectionSettings                                       | Creates XDR connection settings using authentication cookies. |
@@ -164,6 +170,7 @@ Get-XdrTenantContext -Force
 | Set-XdrSentinelConnection                                       | Configures the Sentinel (Log Analytics) workspace connection for data export. |
 | Stop-XdrEndpointDeviceAction                                    | Cancels a pending device action in Microsoft Defender XDR. |
 | Update-XdrConnectionSettings                                    | Updates XDR connection session cookies and authentication tokens. |
+
 ## Installation
 
 ### From the PowerShell Gallery
@@ -291,6 +298,25 @@ Get-XdrXspmTopTarget
 
 # Execute custom XSPM hunting queries
 Invoke-XdrXspmHuntingQuery -Query "AttackPathsV2 | where RiskLevel == 'High'" -ScenarioName "CustomQuery"
+```
+
+#### Cloud Apps
+
+```powershell
+# Get recent Cloud Apps activity with admin-friendly output
+Get-XdrCloudAppsActivityTimeline -LastNDays 1
+
+# Push harder for time-sensitive incident response while preserving completeness checks
+Get-XdrCloudAppsActivityTimeline -LastNDays 7 -Aggressive -ExportPath ".\cloud-apps-activity.ndjson" -ExportFormat Ndjson
+
+# Explore grouped app and discovery surfaces
+Get-XdrCloudAppsApp -Type Discovered -Limit 50
+Get-XdrCloudAppsDiscovery -ListStreams
+Get-XdrCloudAppsConfiguration -Type DiscoveryStream
+
+# Review governance and policy data
+Get-XdrCloudAppsGovernance
+Get-XdrCloudAppsPolicy -Type OAuth -Metadata
 ```
 
 #### Live Response

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <Configuration>
     <ViewDefinitions>
         <View>
@@ -694,5 +694,146 @@
                 </TableRowEntries>
             </TableControl>
         </View>
+        <View>
+            <Name>XdrCloudAppsActivity</Name>
+            <ViewSelectedBy>
+                <TypeName>XdrCloudAppsActivity</TypeName>
+            </ViewSelectedBy>
+            <TableControl>
+                <TableHeaders>
+                    <TableColumnHeader><Label>Time</Label><Width>24</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>User</Label><Width>30</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>App</Label><Width>28</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Activity</Label><Width>34</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>IP</Label><Width>16</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Location</Label><Width>18</Width></TableColumnHeader>
+                </TableHeaders>
+                <TableRowEntries>
+                    <TableRowEntry>
+                        <TableColumnItems>
+                            <TableColumnItem><ScriptBlock>if ($_.date) { $_.date } elseif ($_.timestamp) { $ts = [long]$_.timestamp; if ($ts -ge 1000000000000) { [DateTimeOffset]::FromUnixTimeMilliseconds($ts).UtcDateTime } else { [DateTimeOffset]::FromUnixTimeSeconds($ts).UtcDateTime } }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.userName) { $_.userName } elseif ($_.user) { $_.user } elseif ($_.account) { $_.account }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.appName) { $_.appName } elseif ($_.app) { $_.app } elseif ($_.service) { $_.service }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.activityType) { $_.activityType } elseif ($_.eventType) { $_.eventType } elseif ($_.action) { $_.action }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.ipAddress) { $_.ipAddress } elseif ($_.ip) { $_.ip }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.location) { $_.location } elseif ($_.country) { $_.country }</ScriptBlock></TableColumnItem>
+                        </TableColumnItems>
+                    </TableRowEntry>
+                </TableRowEntries>
+            </TableControl>
+        </View>
+        <View>
+            <Name>XdrCloudAppsDiscoveryDeanonymizedUser</Name>
+            <ViewSelectedBy>
+                <TypeName>XdrCloudAppsDiscoveryDeanonymizedUser</TypeName>
+            </ViewSelectedBy>
+            <TableControl>
+                <TableHeaders>
+                    <TableColumnHeader><Label>Masked</Label><Width>32</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Resolved</Label><Width>42</Width></TableColumnHeader>
+                </TableHeaders>
+                <TableRowEntries>
+                    <TableRowEntry>
+                        <TableColumnItems>
+                            <TableColumnItem><ScriptBlock>if ($_.username) { $_.username } elseif ($_.maskedUserName) { $_.maskedUserName } elseif ($_.anonymizedUserName) { $_.anonymizedUserName } elseif ($_.anonymizedUsername) { $_.anonymizedUsername }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.userPrincipalName) { $_.userPrincipalName } elseif ($_.resolvedUserName) { $_.resolvedUserName } elseif ($_.resolvedUsername) { $_.resolvedUsername } elseif ($_.displayName) { $_.displayName } elseif ($_.name) { $_.name }</ScriptBlock></TableColumnItem>
+                        </TableColumnItems>
+                    </TableRowEntry>
+                </TableRowEntries>
+            </TableControl>
+        </View>
+        <View>
+            <Name>XdrCloudAppsApp</Name>
+            <ViewSelectedBy>
+                <TypeName>XdrCloudAppsDiscoveredApp</TypeName>
+                <TypeName>XdrCloudAppsAppCatalog</TypeName>
+                <TypeName>XdrCloudAppsOAuthApp</TypeName>
+            </ViewSelectedBy>
+            <TableControl>
+                <TableHeaders>
+                    <TableColumnHeader><Label>Name</Label><Width>34</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Category</Label><Width>24</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Score</Label><Width>8</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Users</Label><Width>10</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Traffic</Label><Width>14</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Stream</Label><Width>24</Width></TableColumnHeader>
+                </TableHeaders>
+                <TableRowEntries>
+                    <TableRowEntry>
+                        <TableColumnItems>
+                            <TableColumnItem><ScriptBlock>if ($_.name) { $_.name } elseif ($_.appName) { $_.appName } elseif ($_.displayName) { $_.displayName }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.category) { $_.category } elseif ($_.appCategory) { $_.appCategory }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.score) { $_.score } elseif ($_.riskScore) { $_.riskScore }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.users) { $_.users } elseif ($_.usersCount) { $_.usersCount }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.traffic) { $_.traffic } elseif ($_.totalBytes) { $_.totalBytes }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><PropertyName>SourceStreamName</PropertyName></TableColumnItem>
+                        </TableColumnItems>
+                    </TableRowEntry>
+                </TableRowEntries>
+            </TableControl>
+        </View>
+        <View>
+            <Name>XdrCloudAppsPolicy</Name>
+            <ViewSelectedBy>
+                <TypeName>XdrCloudAppsPolicy</TypeName>
+                <TypeName>XdrCloudAppsPolicyFile</TypeName>
+                <TypeName>XdrCloudAppsPolicyOAuth</TypeName>
+                <TypeName>XdrCloudAppsPolicyDiscovery</TypeName>
+            </ViewSelectedBy>
+            <TableControl>
+                <TableHeaders>
+                    <TableColumnHeader><Label>Name</Label><Width>34</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Type</Label><Width>20</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Severity</Label><Width>10</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Enabled</Label><Width>8</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Alerts</Label><Width>8</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Id</Label><Width>30</Width></TableColumnHeader>
+                </TableHeaders>
+                <TableRowEntries>
+                    <TableRowEntry>
+                        <TableColumnItems>
+                            <TableColumnItem><PropertyName>name</PropertyName></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.policyType) { $_.policyType } elseif ($_.type) { $_.type }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><PropertyName>severity</PropertyName></TableColumnItem>
+                            <TableColumnItem><PropertyName>enabled</PropertyName></TableColumnItem>
+                            <TableColumnItem><PropertyName>alertsEnabled</PropertyName></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_._id) { $_._id } elseif ($_.id) { $_.id }</ScriptBlock></TableColumnItem>
+                        </TableColumnItems>
+                    </TableRowEntry>
+                </TableRowEntries>
+            </TableControl>
+        </View>
+        <View>
+            <Name>XdrCloudAppsConfiguration</Name>
+            <ViewSelectedBy>
+                <TypeName>XdrCloudAppsConfigurationDiscoveryStream</TypeName>
+                <TypeName>XdrCloudAppsConfigurationApiToken</TypeName>
+                <TypeName>XdrCloudAppsConfigurationConnector</TypeName>
+                <TypeName>XdrCloudAppsConfigurationSubnet</TypeName>
+                <TypeName>XdrCloudAppsConfigurationUserTag</TypeName>
+                <TypeName>XdrCloudAppsGovernanceSummary</TypeName>
+            </ViewSelectedBy>
+            <TableControl>
+                <TableHeaders>
+                    <TableColumnHeader><Label>Name</Label><Width>34</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Status</Label><Width>16</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Type</Label><Width>18</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Id</Label><Width>32</Width></TableColumnHeader>
+                    <TableColumnHeader><Label>Updated</Label><Width>24</Width></TableColumnHeader>
+                </TableHeaders>
+                <TableRowEntries>
+                    <TableRowEntry>
+                        <TableColumnItems>
+                            <TableColumnItem><ScriptBlock>if ($_.displayName) { $_.displayName } elseif ($_.name) { $_.name } elseif ($_.TotalApps) { "App Governance" }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.status) { $_.status } elseif ($_.isEnabled) { $_.isEnabled } elseif ($null -ne $_.IsOnboarded) { $_.IsOnboarded }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.type) { $_.type } elseif ($_.kind) { $_.kind } elseif ($_.policyType) { $_.policyType }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_._id) { $_._id } elseif ($_.id) { $_.id }</ScriptBlock></TableColumnItem>
+                            <TableColumnItem><ScriptBlock>if ($_.updateTime) { $_.updateTime } elseif ($_.lastModified) { $_.lastModified } elseif ($_.created) { $_.created }</ScriptBlock></TableColumnItem>
+                        </TableColumnItems>
+                    </TableRowEntry>
+                </TableRowEntries>
+            </TableControl>
+        </View>
     </ViewDefinitions>
 </Configuration>
+

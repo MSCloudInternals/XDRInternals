@@ -54,8 +54,184 @@
     }
   },
   {
+    "Cmdlet": "Get-XdrCloudAppsDiscovery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/discovery/get_unsanctioned_apps/"
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsDiscovery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/{endpoint}/"
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsDiscovery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/categories/"
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsDiscovery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/category_stats/"
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsDiscovery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/constants/"
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsDiscovery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/deanonymize_entity_names/",
+    "Parameters": {
+      "Justification": "body.justification",
+      "Usernames": "body.usernames"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsDiscovery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/get_locations/"
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsDiscovery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/top_apps/"
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsDiscovery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/top_categories/"
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsDiscovery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/top_entities/"
+  },
+  {
     "Cmdlet": "Get-XdrCloudAppsGeneralSetting",
     "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/settings/"
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/${urlSegment}/",
+    "Parameters": {
+      "Filters": "body.filters",
+      "Limit": "body.limit",
+      "Skip": "body.skip",
+      "SortDirection": "body.sortDirection",
+      "SortField": "body.sortField"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/${urlSegment}/metadata/",
+    "Parameters": {
+      "Filters": "body.filters",
+      "Limit": "body.limit",
+      "Skip": "body.skip",
+      "SortDirection": "body.sortDirection",
+      "SortField": "body.sortField"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/policies/",
+    "Parameters": {
+      "Filters": "body.filters",
+      "Limit": "body.limit",
+      "Skip": "body.skip",
+      "SortDirection": "body.sortDirection",
+      "SortField": "body.sortField"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/policies/${urlSegment}/",
+    "Parameters": {
+      "Filters": "body.filters",
+      "Limit": "body.limit",
+      "Skip": "body.skip",
+      "SortDirection": "body.sortDirection",
+      "SortField": "body.sortField"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/policies/${urlSegment}/metadata/",
+    "Parameters": {
+      "Filters": "body.filters",
+      "Limit": "body.limit",
+      "Skip": "body.skip",
+      "SortDirection": "body.sortDirection",
+      "SortField": "body.sortField"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/policies/oauth/",
+    "Parameters": {
+      "Filters": "body.filters",
+      "Limit": "body.limit",
+      "Skip": "body.skip",
+      "SortDirection": "body.sortDirection",
+      "SortField": "body.sortField"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/policies/oauth/metadata/",
+    "Parameters": {
+      "Filters": "body.filters",
+      "Limit": "body.limit",
+      "Skip": "body.skip",
+      "SortDirection": "body.sortDirection",
+      "SortField": "body.sortField"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/policy/app_permissions/actions/",
+    "Parameters": {
+      "Filters": "body.filters",
+      "Limit": "body.limit",
+      "Skip": "body.skip",
+      "SortDirection": "body.sortDirection",
+      "SortField": "body.sortField"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/policy/file/{PolicyId}/",
+    "Parameters": {
+      "Filters": "body.filters",
+      "Limit": "body.limit",
+      "Skip": "body.skip",
+      "SortDirection": "body.sortDirection",
+      "SortField": "body.sortField"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/policy/file/actions/",
+    "Parameters": {
+      "Filters": "body.filters",
+      "Limit": "body.limit",
+      "Skip": "body.skip",
+      "SortDirection": "body.sortDirection",
+      "SortField": "body.sortField"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/policy/file/get_limit/",
+    "Parameters": {
+      "Filters": "body.filters",
+      "Limit": "body.limit",
+      "Skip": "body.skip",
+      "SortDirection": "body.sortDirection",
+      "SortField": "body.sortField"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrCloudAppsPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/settings/",
+    "Parameters": {
+      "Filters": "body.filters",
+      "Limit": "body.limit",
+      "Skip": "body.skip",
+      "SortDirection": "body.sortDirection",
+      "SortField": "body.sortField"
+    }
   },
   {
     "Cmdlet": "Get-XdrConfigurationAlertServiceSetting",

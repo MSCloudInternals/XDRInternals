@@ -80,7 +80,13 @@
         "Get-XdrAdvancedHuntingUnifiedDetectionRules",
         "Get-XdrAdvancedHuntingUserHistory",
         "Get-XdrAlert",
+        "Get-XdrCloudAppsActivityTimeline",
+        "Get-XdrCloudAppsApp",
+        "Get-XdrCloudAppsConfiguration",
+        "Get-XdrCloudAppsDiscovery",
         "Get-XdrCloudAppsGeneralSetting",
+        "Get-XdrCloudAppsGovernance",
+        "Get-XdrCloudAppsPolicy",
         "Get-XdrConfigurationAlertServiceSetting",
         "Get-XdrConfigurationAlertTuning",
         "Get-XdrConfigurationAssetRuleManagement",
@@ -167,6 +173,7 @@
         "Remove-XdrEndpointDeviceLiveResponseLibraryFile",
         "Remove-XdrIdentityConfigurationRemediationActionAccount",
         "Set-XdrAdvancedHuntingFunction",
+        "Set-XdrCloudAppsDiscoveredApp",
         "Set-XdrConfigurationCriticalAssetManagementClassification",
         "Set-XdrConfigurationPreviewFeatures",
         "Set-XdrConnectionSettings",
@@ -241,3 +248,5 @@
     # DefaultCommandPrefix = ''
 
 }
+
+

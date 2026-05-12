@@ -304,6 +304,48 @@
             $createCommandBodies[0].raw_command_line | Should -Be 'ls C:\Windows'
         }
 
+        It 'normalizes nested command definitions before batching' {
+            Mock Invoke-XdrRateLimitedBatch { @() } -ModuleName XDRInternals
+
+            $nestedDefinitions = @(
+                @(
+                    [PSCustomObject]@{
+                        command_definition_id = 'processes'
+                        aliases               = @()
+                        params                = @()
+                        flags                 = @()
+                    }
+                )
+            )
+
+            $sessions = @(
+                [PSCustomObject]@{
+                    SessionId          = 'CLR1'
+                    DeviceId           = ('{0:x40}' -f 1)
+                    DeviceName         = 'device1'
+                    CurrentDirectory   = '/'
+                    CommandDefinitions = $nestedDefinitions
+                },
+                [PSCustomObject]@{
+                    SessionId          = 'CLR2'
+                    DeviceId           = ('{0:x40}' -f 2)
+                    DeviceName         = 'device2'
+                    CurrentDirectory   = '/'
+                    CommandDefinitions = $nestedDefinitions
+                }
+            )
+
+            $null = @($sessions | Invoke-XdrEndpointDeviceLiveResponseCommand -Command 'processes' -WarningAction SilentlyContinue)
+
+            Should -Invoke Invoke-XdrRateLimitedBatch -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $OperationName -eq 'Invoke-XdrEndpointDeviceLiveResponseCommand' -and
+                $Items.Count -eq 2 -and
+                (@($Items | Where-Object { @($_.CommandDefinitions).Count -ne 1 }).Count -eq 0) -and
+                (@($Items | Where-Object { $_.CommandDefinitions[0] -is [System.Array] }).Count -eq 0) -and
+                (@($Items | Where-Object { $_.CommandDefinitions[0].command_definition_id -ne 'processes' }).Count -eq 0)
+            }
+        }
+
         It 'batches piped session objects and preserves session properties' {
             Mock Invoke-XdrRateLimitedBatch {
                 param($Items)
@@ -378,6 +420,44 @@
                 $Items[0].SessionId -eq 'CLR100' -and
                 $Items[1].SessionId -eq 'CLR200'
             }
+        }
+
+        It 'does not depend on cmdlet-local helpers when batching multiple sessions' {
+            $nestedDefinitions = @(
+                @(
+                    [PSCustomObject]@{
+                        command_definition_id = 'processes'
+                        aliases               = @()
+                        params                = @()
+                        flags                 = @()
+                    }
+                )
+            )
+
+            $sessions = @(
+                [PSCustomObject]@{
+                    SessionId          = 'CLR1'
+                    DeviceId           = ('{0:x40}' -f 1)
+                    DeviceName         = 'device1'
+                    CurrentDirectory   = '/'
+                    CommandDefinitions = $nestedDefinitions
+                },
+                [PSCustomObject]@{
+                    SessionId          = 'CLR2'
+                    DeviceId           = ('{0:x40}' -f 2)
+                    DeviceName         = 'device2'
+                    CurrentDirectory   = '/'
+                    CommandDefinitions = $nestedDefinitions
+                }
+            )
+
+            $batchErrors = @()
+            $result = @($sessions | Invoke-XdrEndpointDeviceLiveResponseCommand -Command ' ' -ErrorAction SilentlyContinue -ErrorVariable batchErrors -WarningAction SilentlyContinue)
+
+            $result.Count | Should -Be 0
+            @($batchErrors).Count | Should -Be 2
+            @($batchErrors | ForEach-Object { $_.ToString() } | Where-Object { $_ -match 'Get-XdrLiveResponseCommandDefinitionList' }).Count | Should -Be 0
+            @($batchErrors | ForEach-Object { $_.ToString() } | Where-Object { $_ -match 'Empty command' }).Count | Should -Be 2
         }
 
         It 'can expand table output rows with stamped metadata' {

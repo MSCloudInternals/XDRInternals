@@ -40,27 +40,33 @@ $config.TestResult.Enabled = $true
 if ($TestGeneral)
 {
 	Write-Host  "Modules imported, proceeding with general tests"
-	foreach ($file in (Get-ChildItem "$PSScriptRoot\general" | Where-Object Name -like "*.Tests.ps1"))
+	foreach ($testDirectory in @('general', 'build'))
 	{
-		if ($file.Name -notlike $Include) { continue }
-		if ($file.Name -like $Exclude) { continue }
+		$testPath = Join-Path $PSScriptRoot $testDirectory
+		if (-not (Test-Path $testPath)) { continue }
 
-		Write-Host  "  Executing $($file.Name)"
-		$config.TestResult.OutputPath = Join-Path "$PSScriptRoot\..\TestResults" "TEST-$($file.BaseName).xml"
-		$config.Run.Path = $file.FullName
-		$config.Run.PassThru = $true
-		$config.Output.Verbosity = $Output
-    	$results = Invoke-Pester -Configuration $config
-		foreach ($result in $results)
+		foreach ($file in (Get-ChildItem $testPath -File | Where-Object Name -like "*.Tests.ps1"))
 		{
-			$totalRun += $result.TotalCount
-			$totalFailed += $result.FailedCount
-			$result.Tests | Where-Object Result -ne 'Passed' | ForEach-Object {
-				$testresults += [pscustomobject]@{
-					Block    = $_.Block
-					Name	 = "It $($_.Name)"
-					Result   = $_.Result
-					Message  = $_.ErrorRecord.DisplayErrorMessage
+			if ($file.Name -notlike $Include) { continue }
+			if ($file.Name -like $Exclude) { continue }
+
+			Write-Host  "  Executing $($file.Name)"
+			$config.TestResult.OutputPath = Join-Path "$PSScriptRoot\..\TestResults" "TEST-$($file.BaseName).xml"
+			$config.Run.Path = $file.FullName
+			$config.Run.PassThru = $true
+			$config.Output.Verbosity = $Output
+    		$results = Invoke-Pester -Configuration $config
+			foreach ($result in $results)
+			{
+				$totalRun += $result.TotalCount
+				$totalFailed += $result.FailedCount
+				$result.Tests | Where-Object Result -ne 'Passed' | ForEach-Object {
+					$testresults += [pscustomobject]@{
+						Block    = $_.Block
+						Name	 = "It $($_.Name)"
+						Result   = $_.Result
+						Message  = $_.ErrorRecord.DisplayErrorMessage
+					}
 				}
 			}
 		}

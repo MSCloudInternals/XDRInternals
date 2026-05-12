@@ -2,9 +2,10 @@
 
 This is the folder, where all the tests go.
 
-Those are subdivided in two categories:
+Those are subdivided in three categories:
 
  - General
+ - Build
  - Function
 
 ## General Tests
@@ -22,6 +23,12 @@ These test scan answer questions such as:
 Basically, these allow a general module health check.
 
 These tests are already provided as part of the template.
+
+## Build Tests
+
+Build tests validate repository tooling and generation workflows, such as scripts that update documentation, manifests, or browser-extension metadata.
+
+These tests help catch correctness regressions in the automation itself before generated changes are committed.
 
 ## Function Tests
 

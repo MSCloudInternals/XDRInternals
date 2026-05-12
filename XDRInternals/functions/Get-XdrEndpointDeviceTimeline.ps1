@@ -1,4 +1,240 @@
-﻿function Get-XdrEndpointDeviceTimeline {
+﻿∩╗┐function Read-XdrEndpointTimelineChunkFile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.IO.FileInfo]$File,
+
+        [Parameter()]
+        [switch]$AllowPartial
+    )
+
+    try {
+        return Get-Content -Path $File.FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        if ($AllowPartial) {
+            Write-Warning "Skipping unreadable endpoint timeline chunk file '$($File.Name)': $($_.Exception.Message)"
+            return $null
+        }
+
+        throw
+    }
+}
+
+function Get-XdrEndpointTimelineChunkEventsJson {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [System.IO.FileInfo]$File,
+
+        [Parameter()]
+        [switch]$AllowPartial
+    )
+
+    try {
+        $rawContent = [System.IO.File]::ReadAllText($File.FullName)
+        $eventsStart = $rawContent.IndexOf('"Events":[')
+        if ($eventsStart -lt 0) {
+            throw "Could not locate the Events array."
+        }
+
+        $eventsStart += 10
+        $eventsEnd = $rawContent.LastIndexOf('],"EventCount"')
+        if ($eventsEnd -lt 0) {
+            $eventsEnd = $rawContent.LastIndexOf(']}')
+        }
+
+        if ($eventsEnd -lt $eventsStart) {
+            throw "Could not determine the end of the Events array."
+        }
+
+        return $rawContent.Substring($eventsStart, $eventsEnd - $eventsStart)
+    }
+    catch {
+        if ($AllowPartial) {
+            Write-Warning "Skipping unreadable endpoint timeline chunk file '$($File.Name)': $($_.Exception.Message)"
+            return $null
+        }
+
+        throw
+    }
+}
+
+function Get-XdrEndpointTimelineContinuationPath {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [object]$Response
+    )
+
+    if ($Response.PSObject.Properties['Prev']) {
+        $value = [string]$Response.Prev
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            return $value
+        }
+    }
+
+    return $null
+}
+
+function Get-XdrEndpointTimelineNextUri {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$BaseUrl,
+
+        [Parameter(Mandatory)]
+        [object]$Response
+    )
+
+    $continuationPath = Get-XdrEndpointTimelineContinuationPath -Response $Response
+    if ([string]::IsNullOrWhiteSpace($continuationPath)) {
+        return $null
+    }
+
+    if ($continuationPath -match '^https?://') {
+        return $continuationPath
+    }
+
+    if ($continuationPath.StartsWith('/')) {
+        return "$BaseUrl/apiproxy/mtp/mdeTimelineExperience$continuationPath"
+    }
+
+    return "$BaseUrl/apiproxy/mtp/mdeTimelineExperience/$continuationPath"
+}
+
+function Get-XdrEndpointTimelineEventTypeName {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [object]$TimelineEvent
+    )
+
+    foreach ($propertyName in @('ActionType', 'Type', 'EventType')) {
+        if ($TimelineEvent.PSObject.Properties[$propertyName]) {
+            $value = [string]$TimelineEvent.$propertyName
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                return $value
+            }
+        }
+    }
+
+    return $null
+}
+
+function Test-XdrEndpointTimelineEventTypeMatch {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        [object]$TimelineEvent,
+
+        [Parameter()]
+        [string]$EventType
+    )
+
+    if ([string]::IsNullOrWhiteSpace($EventType)) {
+        return $true
+    }
+
+    $eventTypeName = Get-XdrEndpointTimelineEventTypeName -TimelineEvent $TimelineEvent
+    if ([string]::IsNullOrWhiteSpace($eventTypeName)) {
+        return $false
+    }
+
+    return ($eventTypeName -like $EventType)
+}
+
+function Get-XdrEndpointTimelineEventTimestamp {
+    [CmdletBinding()]
+    [OutputType([datetime])]
+    param(
+        [Parameter(Mandatory)]
+        [object]$TimelineEvent
+    )
+
+    foreach ($propertyName in @('Timestamp', 'timestamp')) {
+        if (-not $TimelineEvent.PSObject.Properties[$propertyName]) {
+            continue
+        }
+
+        $value = $TimelineEvent.$propertyName
+        if ($null -eq $value -or [string]::IsNullOrWhiteSpace([string]$value)) {
+            continue
+        }
+
+        try {
+            return ([datetime]$value).ToUniversalTime()
+        }
+        catch {
+            continue
+        }
+    }
+
+    return $null
+}
+
+function Get-XdrEndpointTimelineChunkEvent {
+    [CmdletBinding()]
+    [OutputType([object[]])]
+    param(
+        [Parameter(Mandatory)]
+        [object]$ChunkData,
+
+        [Parameter()]
+        [string]$EventType
+    )
+
+    $events = @($ChunkData.Events)
+    if ([string]::IsNullOrWhiteSpace($EventType) -or $events.Count -eq 0) {
+        return $events
+    }
+
+    $filteredEvents = [System.Collections.Generic.List[object]]::new()
+    foreach ($eventItem in $events) {
+        if (Test-XdrEndpointTimelineEventTypeMatch -TimelineEvent $eventItem -EventType $EventType) {
+            $filteredEvents.Add($eventItem)
+        }
+    }
+
+    return $filteredEvents.ToArray()
+}
+
+function Get-XdrEndpointTimelineSortedEvent {
+    [CmdletBinding()]
+    [OutputType([object[]])]
+    param(
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [object[]]$Events = @()
+    )
+
+    if ($Events.Count -le 1) {
+        return $Events
+    }
+
+    $sortableEvents = $Events | Where-Object { $null -ne (Get-XdrEndpointTimelineEventTimestamp -TimelineEvent $_) }
+    if (@($sortableEvents).Count -eq 0) {
+        return $Events
+    }
+
+    return @(
+        $Events | Sort-Object -Property @{
+            Expression = {
+                $timestamp = Get-XdrEndpointTimelineEventTimestamp -TimelineEvent $_
+                if ($null -eq $timestamp) { return [datetime]::MinValue }
+                return $timestamp
+            }
+            Descending = $true
+        }
+    )
+}
+
+function Get-XdrEndpointDeviceTimeline {
     <#
     .SYNOPSIS
         Retrieves the timeline of events for a specific device from Microsoft Defender XDR.
@@ -33,6 +269,7 @@
 
     .PARAMETER LastNDays
         Specifies the number of days to look back. Overrides FromDate and ToDate if specified.
+        Maximum is 180 days.
 
     .PARAMETER DoNotUseCache
         Bypass the API cache when retrieving timeline data.
@@ -77,21 +314,30 @@
 
     .PARAMETER ChunkHours
         The size of each time chunk in hours for parallel processing. Defaults to 4 hours.
-        For time windows of 40 hours or less, chunk size is automatically calculated as totalHours/10.
+        For time windows of 24 hours or less, 1-hour chunks are used automatically. For time windows
+        up to 48 hours, chunk size is calculated toward roughly 24 chunks to improve parallel saturation
+        without requiring manual tuning.
         Larger chunks reduce overhead but may increase individual request times.
 
     .PARAMETER OutputPath
-        Optional. The path to store temporary JSON files. Defaults to a temp folder.
+        Optional. Writes results directly to the specified output file. The legacy ExportPath
+        parameter name is still accepted as an alias.
+
+    .PARAMETER WorkingDirectory
+        Optional. Directory used for temporary chunk files. Defaults to a temp folder.
 
     .PARAMETER KeepTempFiles
         If specified, keeps the temporary JSON files after merging.
 
-    .PARAMETER AllowPartial
-        Returns completed chunks when one or more chunks fail or the request times out.
-        By default, the cmdlet fails rather than returning incomplete timeline data.
+    .PARAMETER ExportFormat
+        Export file format. Json preserves the traditional array output; Ndjson writes
+        one event per line and is preferred for large exports.
 
-    .PARAMETER ExportPath
-        Optional. Export results directly to a JSON file at the specified path.
+    .PARAMETER RequestTimeoutSeconds
+        Timeout in seconds for individual HTTP requests. Defaults to 60.
+
+    .PARAMETER AllowPartial
+        Returns completed chunks instead of terminating when one or more chunks fail.
 
     .EXAMPLE
         Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2"
@@ -114,7 +360,7 @@
         Retrieves timeline events filtered to process-related events only.
 
     .EXAMPLE
-        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -LastNDays 7 -ExportPath "C:\Reports\timeline.json"
+        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -LastNDays 7 -OutputPath "C:\Reports\timeline.json"
         Retrieves 7 days of timeline events and exports directly to a JSON file.
 
     .EXAMPLE
@@ -143,6 +389,7 @@
         [datetime]$ToDate = (Get-Date),
 
         [Parameter()]
+        [ValidateRange(1, 180)]
         [int]$LastNDays,
 
         [Parameter()]
@@ -206,16 +453,38 @@
         [int]$ChunkHours = 4,
 
         [Parameter()]
+        [ValidateScript({
+            if ([string]::IsNullOrWhiteSpace($_)) { return $true }
+            $parentDir = Split-Path -Path $_ -Parent
+            if ([string]::IsNullOrWhiteSpace($parentDir)) { return $true }
+            return $true
+        })]
+        [Alias('ExportPath')]
         [string]$OutputPath,
+
+        [Parameter()]
+        [ValidateScript({
+            if ([string]::IsNullOrWhiteSpace($_)) { return $true }
+            if (-not (Test-Path -Path $_ -PathType Container)) {
+                throw "WorkingDirectory '$_' does not exist or is not a directory."
+            }
+            return $true
+        })]
+        [string]$WorkingDirectory,
 
         [Parameter()]
         [switch]$KeepTempFiles,
 
         [Parameter()]
-        [switch]$AllowPartial,
+        [ValidateSet('Json', 'Ndjson')]
+        [string]$ExportFormat = 'Json',
 
         [Parameter()]
-        [string]$ExportPath
+        [ValidateRange(10, 300)]
+        [int]$RequestTimeoutSeconds = 60,
+
+        [Parameter()]
+        [switch]$AllowPartial
     )
 
     begin {
@@ -275,9 +544,9 @@
         # Remove invalid path characters (covers Windows and Unix)
         $safeFolderName = $computerDnsName -replace '[\\/:*?"<>|]', '_'
 
-        # Set up output directory using cross-platform temp path
-        $baseTempPath = if ($OutputPath) {
-            $OutputPath
+        # Set up temporary working directory using cross-platform temp path
+        $baseTempPath = if (-not [string]::IsNullOrWhiteSpace($WorkingDirectory)) {
+            $WorkingDirectory
         } else {
             Join-Path ([System.IO.Path]::GetTempPath()) 'XdrTimeline'
         }
@@ -309,6 +578,7 @@
             SourceProviders        = if ($PSBoundParameters.ContainsKey('SourceProviders')) { $SourceProviders } else { $null }
             MaxRetries             = $MaxRetries
             RetryDelaySeconds      = $RetryDelaySeconds
+            RequestTimeoutSeconds  = $RequestTimeoutSeconds
         }
 
         # Generate date chunks using configurable chunk size
@@ -316,9 +586,14 @@
         $totalDays = ($ToDate - $FromDate).TotalDays
         $totalHours = $totalDays * 24
 
-        # For small time windows (≤40 hours), dynamically calculate chunk size unless explicitly specified
-        if (-not $PSBoundParameters.ContainsKey('ChunkHours') -and $totalHours -le 40) {
-            $ChunkHours = [math]::Max(1, [math]::Ceiling($totalHours / 10))
+        # For shorter time windows (Γëñ48 hours), keep common 1-day investigations at 1-hour chunks
+        # and scale toward roughly 24 chunks for longer windows without requiring manual tuning.
+        if (-not $PSBoundParameters.ContainsKey('ChunkHours') -and $totalHours -le 48) {
+            $ChunkHours = if ($totalHours -le 24) {
+                1
+            } else {
+                [math]::Max(1, [math]::Ceiling($totalHours / 24))
+            }
             Write-Verbose "Auto-calculated ChunkHours=$ChunkHours for $([math]::Round($totalHours, 1)) hour time window"
         }
 
@@ -378,7 +653,6 @@
             Write-Progress @progressParams
 
             $operationStartTime = [System.Diagnostics.Stopwatch]::StartNew()
-            $timedOut = $false
 
             # Process chunks in parallel using ForEach-Object -Parallel (PowerShell 7+)
             # NOTE: The chunk processing logic is duplicated between PS7 (-Parallel below) and PS5 (scriptblock
@@ -477,7 +751,7 @@
                                 while (-not $success -and $attempt -lt $maxRetries) {
                                     try {
                                         $attempt++
-                                        $response = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $webSession -Headers $headerInfo -ErrorAction Stop
+                                        $response = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $webSession -Headers $headerInfo -TimeoutSec $baseParams.RequestTimeoutSeconds -ErrorAction Stop
                                         $success = $true
                                         $pagesRetrieved++
                                     } catch {
@@ -490,6 +764,9 @@
                                             # Rate limited - use exponential backoff
                                             $delay = $baseDelay * [Math]::Pow(2, $attempt - 1) + (Get-Random -Minimum 1 -Maximum 10)
                                             $delay = [Math]::Min($delay, 300) # Cap at 5 minutes
+                                            if ($attempt -ge $maxRetries) {
+                                                throw "Chunk $chunkIndex : Failed after $maxRetries attempts. Last error: $_"
+                                            }
                                             Start-Sleep -Seconds $delay
                                         } elseif ($attempt -lt $maxRetries) {
                                             $delay = Get-Random -Minimum 5 -Maximum 15
@@ -512,8 +789,19 @@
                                         }
                                     }
                                     # Capture next page URL before clearing response
-                                    if (-not [string]::IsNullOrWhiteSpace($response.Prev)) {
-                                        $nextUri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
+                                    $continuationPath = if (-not [string]::IsNullOrWhiteSpace([string]$response.Prev)) {
+                                        [string]$response.Prev
+                                    } else {
+                                        $null
+                                    }
+                                    if ($continuationPath) {
+                                        if ($continuationPath -match '^https?://') {
+                                            $nextUri = $continuationPath
+                                        } elseif ($continuationPath.StartsWith('/')) {
+                                            $nextUri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$continuationPath"
+                                        } else {
+                                            $nextUri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience/$continuationPath"
+                                        }
                                     }
                                     # Clear response to free memory immediately
                                     $response = $null
@@ -574,13 +862,11 @@
                 # Poll for progress by counting completed chunk files
                 $lastCompletedCount = 0
                 $completedChunks = @{}
-
                 # Wait for job to start or complete (covers NotStarted, Running states)
                 while ($parallelJob.State -in @('NotStarted', 'Running')) {
                     # Check timeout
                     if ($operationStartTime.Elapsed.TotalSeconds -gt $TimeoutSeconds) {
                         Write-Warning "Operation timed out after $TimeoutSeconds seconds. Stopping job..."
-                        $timedOut = $true
                         Stop-Job -Job $parallelJob
                         break
                     }
@@ -632,8 +918,29 @@
                 }
 
                 # Collect results from job and clean up
-                $results = Receive-Job -Job $parallelJob -Wait
+                if ($parallelJob.State -eq 'Completed') {
+                    $results = Receive-Job -Job $parallelJob -Wait
+                } else {
+                    $results = Receive-Job -Job $parallelJob -ErrorAction SilentlyContinue
+                }
                 Remove-Job -Job $parallelJob -Force
+
+                if (@($results).Count -eq 0 -and $chunkFiles.Count -gt 0) {
+                    $results = foreach ($file in ($chunkFiles | Sort-Object Name)) {
+                        $chunkData = Read-XdrEndpointTimelineChunkFile -File $file -AllowPartial:$AllowPartial
+                        [PSCustomObject]@{
+                            ChunkIndex     = if ($file.BaseName -match '^chunk_(\d+)_') { [int]$Matches[1] } else { 0 }
+                            FilePath       = $file.FullName
+                            EventCount     = if ($chunkData) { @($chunkData.Events).Count } else { 0 }
+                            FromDate       = if ($chunkData -and $chunkData.FromDate) { [datetime]$chunkData.FromDate } else { $null }
+                            ToDate         = if ($chunkData -and $chunkData.ToDate) { [datetime]$chunkData.ToDate } else { $null }
+                            Success        = $true
+                            ElapsedSeconds = 0
+                            PagesRetrieved = 0
+                            FileSizeKB     = [math]::Round($file.Length / 1KB, 2)
+                        }
+                    }
+                }
 
                 # Force garbage collection after parallel job completes to reclaim thread memory
                 [System.GC]::Collect()
@@ -730,7 +1037,7 @@
                             while (-not $success -and $attempt -lt $maxRetries) {
                                 try {
                                     $attempt++
-                                    $response = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $webSession -Headers $headerInfo -ErrorAction Stop
+                                    $response = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $webSession -Headers $headerInfo -TimeoutSec $baseParams.RequestTimeoutSeconds -ErrorAction Stop
                                     $success = $true
                                     $pagesRetrieved++
                                 } catch {
@@ -743,6 +1050,9 @@
                                         # Rate limited - use exponential backoff
                                         $delay = $baseDelay * [Math]::Pow(2, $attempt - 1) + (Get-Random -Minimum 1 -Maximum 10)
                                         $delay = [Math]::Min($delay, 300) # Cap at 5 minutes
+                                        if ($attempt -ge $maxRetries) {
+                                            throw "Chunk $chunkIndex : Failed after $maxRetries attempts. Last error: $_"
+                                        }
                                         Start-Sleep -Seconds $delay
                                     } elseif ($attempt -lt $maxRetries) {
                                         $delay = Get-Random -Minimum 5 -Maximum 15
@@ -765,8 +1075,19 @@
                                     }
                                 }
                                 # Capture next page URL before clearing response
-                                if (-not [string]::IsNullOrWhiteSpace($response.Prev)) {
-                                    $nextUri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
+                                $continuationPath = if (-not [string]::IsNullOrWhiteSpace([string]$response.Prev)) {
+                                    [string]$response.Prev
+                                } else {
+                                    $null
+                                }
+                                if ($continuationPath) {
+                                    if ($continuationPath -match '^https?://') {
+                                        $nextUri = $continuationPath
+                                    } elseif ($continuationPath.StartsWith('/')) {
+                                        $nextUri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$continuationPath"
+                                    } else {
+                                        $nextUri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience/$continuationPath"
+                                    }
                                 }
                                 # Clear response to free memory immediately
                                 $response = $null
@@ -865,7 +1186,6 @@
                     # Check timeout
                     if ($operationStartTime.Elapsed.TotalSeconds -gt $TimeoutSeconds) {
                         Write-Warning "Operation timed out after $TimeoutSeconds seconds. Cancelling remaining jobs..."
-                        $timedOut = $true
                         foreach ($job in $activeJobs) {
                             $job.PowerShell.Stop()
                             $results += @{
@@ -944,23 +1264,17 @@
             }
 
             # Check for failures
-            $failures = $results | Where-Object { -not $_.Success }
-            if ($failures) {
+            $failures = @($results | Where-Object { -not $_.Success })
+            if ($failures.Count -gt 0 -and -not $AllowPartial) {
                 $failureDetails = $failures | Sort-Object ChunkIndex | ForEach-Object {
                     "chunk $($_.ChunkIndex): $($_.Error)"
                 }
-                if (-not $AllowPartial) {
-                    throw "Failed to retrieve device timeline chunks: $($failureDetails -join '; '). Re-run with -AllowPartial to return completed chunks."
+                throw "Failed to retrieve endpoint device timeline chunks: $($failureDetails -join '; '). Re-run with -AllowPartial to return completed chunks."
+            } elseif ($failures.Count -gt 0) {
+                $failureDetails = $failures | Sort-Object ChunkIndex | ForEach-Object {
+                    "chunk $($_.ChunkIndex): $($_.Error)"
                 }
-
-                Write-Warning "Returning partial device timeline data; failed chunks: $($failureDetails -join '; ')"
-            }
-
-            if ($timedOut -and -not $AllowPartial) {
-                throw "Device timeline retrieval timed out after $TimeoutSeconds seconds before all chunks completed. Re-run with a larger -TimeoutSeconds value or use -AllowPartial to return completed chunks."
-            }
-            elseif ($timedOut) {
-                Write-Warning "Returning partial device timeline data because retrieval timed out after $TimeoutSeconds seconds."
+                Write-Warning "Returning partial endpoint device timeline data; failed chunks: $($failureDetails -join '; ')"
             }
 
             # Output timing information for each chunk
@@ -998,97 +1312,103 @@
                     ForEach-Object { Get-Item -LiteralPath $_.FilePath } |
                     Sort-Object Name
             )
+            if ($jsonFiles.Count -eq 0) {
+                $jsonFiles = @(Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue | Sort-Object Name)
+            }
 
-            # If ExportPath is specified, use pure file-based merge (most memory efficient)
-            if ($PSBoundParameters.ContainsKey('ExportPath')) {
-                Write-Verbose "Exporting to file using streaming merge (memory-efficient)..."
-                $exportDir = Split-Path -Parent $ExportPath
+            if ($jsonFiles.Count -lt $dateChunks.Count) {
+                $missingChunkCount = $dateChunks.Count - $jsonFiles.Count
+                if (-not $AllowPartial) {
+                    throw "Only $($jsonFiles.Count) of $($dateChunks.Count) chunk files completed. Re-run with -AllowPartial to return completed chunks."
+                }
+
+                Write-Warning "Returning partial endpoint device timeline data; $missingChunkCount chunk file(s) were missing from the final merge."
+            }
+
+            # If OutputPath is specified, use streaming export without fragile raw string slicing
+            if ($OutputPath) {
+                Write-Verbose "Exporting to file using structural streaming merge..."
+                $exportDir = Split-Path -Parent $OutputPath
                 if ($exportDir -and -not (Test-Path $exportDir)) {
                     New-Item -Path $exportDir -ItemType Directory -Force | Out-Null
                 }
 
-                $resultByFilePath = @{}
-                foreach ($result in $results) {
-                    if ($result.FilePath) {
-                        $resultByFilePath[$result.FilePath] = $result
-                    }
+                $resultByPath = @{}
+                foreach ($resultItem in ($results | Where-Object { $_.FilePath })) {
+                    $resultByPath[[string]$resultItem.FilePath] = [int]$resultItem.EventCount
                 }
 
-                # Stream merge directly to export file without loading into memory
-                $exportWriter = [System.IO.StreamWriter]::new($ExportPath, $false, [System.Text.Encoding]::UTF8)
-                $exportedEventCount = 0
+                $exportWriter = [System.IO.StreamWriter]::new($OutputPath, $false, [System.Text.Encoding]::UTF8)
+                $exportedEvents = 0
                 try {
-                    $exportWriter.Write('[')
+                    $useRawJsonExport = $ExportFormat -eq 'Json' -and [string]::IsNullOrWhiteSpace($EventType)
+                    if ($ExportFormat -eq 'Json') {
+                        $exportWriter.Write('[')
+                    }
                     $isFirstEvent = $true
                     $fileIndex = 0
                     $totalFiles = $jsonFiles.Count
 
-                    foreach ($file in $jsonFiles) {
+                    foreach ($file in ($jsonFiles | Sort-Object Name -Descending)) {
                         $fileIndex++
                         $percentComplete = [math]::Round(($fileIndex / [math]::Max(1, $totalFiles)) * 100)
                         Write-Progress -Activity "Processing Results" -Status "Merging file $fileIndex of $totalFiles to export" -PercentComplete $percentComplete -Id 2
 
-                        try {
-                            # Read file content as text and extract just the Events array
-                            $rawContent = [System.IO.File]::ReadAllText($file.FullName)
-                            $eventsTokenIndex = $rawContent.IndexOf('"Events":[')
-                            $eventsEnd = $rawContent.LastIndexOf('],"EventCount"')
-                            if ($eventsEnd -lt 0) { $eventsEnd = $rawContent.LastIndexOf(']}') }
-
-                            if ($eventsTokenIndex -lt 0 -or $eventsEnd -le ($eventsTokenIndex + 10)) {
-                                throw "The chunk file does not contain a valid Events payload."
+                        if ($useRawJsonExport) {
+                            $eventsJson = Get-XdrEndpointTimelineChunkEventsJson -File $file -AllowPartial:$AllowPartial
+                            if ($null -eq $eventsJson) {
+                                continue
                             }
 
-                            $eventsJson = $rawContent.Substring($eventsTokenIndex + 10, $eventsEnd - ($eventsTokenIndex + 10))
                             if ($eventsJson.Length -gt 0) {
                                 if (-not $isFirstEvent) { $exportWriter.Write(',') }
                                 $exportWriter.Write($eventsJson)
                                 $isFirstEvent = $false
-                                if ($resultByFilePath.ContainsKey($file.FullName)) {
-                                    $exportedEventCount += [int]$resultByFilePath[$file.FullName].EventCount
-                                }
-                            }
-                        }
-                        catch {
-                            if (-not $AllowPartial) {
-                                throw "Device timeline chunk file '$($file.Name)' could not be read: $($_.Exception.Message). Re-run with -AllowPartial to skip unreadable completed chunks."
                             }
 
-                            Write-Warning "Skipping unreadable device timeline chunk file '$($file.Name)': $($_.Exception.Message)"
+                            if ($resultByPath.ContainsKey($file.FullName)) {
+                                $exportedEvents += $resultByPath[$file.FullName]
+                            }
                             continue
                         }
-                        finally {
-                            $rawContent = $null
+
+                        $chunkData = Read-XdrEndpointTimelineChunkFile -File $file -AllowPartial:$AllowPartial
+                        if ($null -eq $chunkData) {
+                            continue
                         }
 
-                        # GC periodically
-                        if ($fileIndex % 50 -eq 0) {
-                            [System.GC]::Collect()
+                        $chunkEvents = Get-XdrEndpointTimelineChunkEvent -ChunkData $chunkData -EventType $EventType
+                        $orderedChunkEvents = Get-XdrEndpointTimelineSortedEvent -Events @($chunkEvents)
+                        foreach ($eventItem in $orderedChunkEvents) {
+                            if ($ExportFormat -eq 'Ndjson') {
+                                $exportWriter.WriteLine(($eventItem | ConvertTo-Json -Depth 20 -Compress))
+                            } else {
+                                if (-not $isFirstEvent) { $exportWriter.Write(',') }
+                                $exportWriter.Write(($eventItem | ConvertTo-Json -Depth 20 -Compress))
+                                $isFirstEvent = $false
+                            }
+                            $exportedEvents++
                         }
                     }
-                    $exportWriter.Write(']')
+                    if ($ExportFormat -eq 'Json') {
+                        $exportWriter.Write(']')
+                    }
                 } finally {
                     $exportWriter.Close()
                     $exportWriter.Dispose()
                 }
                 Write-Progress -Activity "Processing Results" -Completed -Id 2
-                Write-Information "Exported $exportedEventCount events to: $ExportPath" -InformationAction Continue
-
-                # Clean up temp files unless KeepTempFiles is specified
-                if (-not $KeepTempFiles) {
-                    Write-Verbose "Cleaning up temporary files..."
-                    Remove-Item -Path $runTempPath -Recurse -Force -ErrorAction SilentlyContinue
-                } else {
-                    Write-Verbose "Temporary files kept at: $runTempPath"
-                }
+                Write-Information "Exported $exportedEvents events to: $OutputPath" -InformationAction Continue
 
                 [System.GC]::Collect()
 
                 # Return summary info instead of all events when exporting
                 return [PSCustomObject]@{
-                    ExportPath       = $ExportPath
-                    TotalEvents      = $exportedEventCount
-                    TotalChunks      = $results.Count
+                    ExportPath       = $OutputPath
+                    ExportFormat     = $ExportFormat
+                    TotalEvents      = $exportedEvents
+                    TotalChunks      = $dateChunks.Count
+                    FailedChunks     = $failures.Count
                     TotalSizeMB      = [math]::Round($totalSizeKB / 1024, 2)
                     WallClockSeconds = [math]::Round($wallClockSeconds, 2)
                     EffectiveRate    = $overallEventsPerSec
@@ -1105,23 +1425,14 @@
                 $percentComplete = [math]::Round(($fileIndex / [math]::Max(1, $totalFiles)) * 100)
                 Write-Progress -Activity "Processing Results" -Status "Merging file $fileIndex of $totalFiles" -PercentComplete $percentComplete -Id 2
 
-                # Read and process file, then clear to free memory
-                try {
-                    $rawContent = Get-Content -Path $file.FullName -Raw -ErrorAction Stop
-                    $chunkData = $rawContent | ConvertFrom-Json -ErrorAction Stop
-                    $rawContent = $null  # Free the raw string memory
-                }
-                catch {
-                    if (-not $AllowPartial) {
-                        throw "Device timeline chunk file '$($file.Name)' could not be read: $($_.Exception.Message). Re-run with -AllowPartial to skip unreadable completed chunks."
-                    }
-
-                    Write-Warning "Skipping unreadable device timeline chunk file '$($file.Name)': $($_.Exception.Message)"
+                $chunkData = Read-XdrEndpointTimelineChunkFile -File $file -AllowPartial:$AllowPartial
+                if ($null -eq $chunkData) {
                     continue
                 }
 
-                if ($chunkData.Events) {
-                    $allEvents.AddRange($chunkData.Events)
+                $chunkEvents = Get-XdrEndpointTimelineChunkEvent -ChunkData $chunkData -EventType $EventType
+                if ($chunkEvents.Count -gt 0) {
+                    $allEvents.AddRange(@($chunkEvents))
                 }
                 $chunkData = $null  # Free parsed object memory
 
@@ -1135,41 +1446,12 @@
 
             Write-Verbose "Total events retrieved: $($allEvents.Count)"
 
-            # Apply EventType filter if specified
-            if ($PSBoundParameters.ContainsKey('EventType') -and $allEvents.Count -gt 0) {
-                Write-Verbose "Filtering events by type: $EventType"
-                $filteredEvents = [System.Collections.Generic.List[object]]::new()
-                foreach ($eventItem in $allEvents) {
-                    # Check common event type properties
-                    $eventTypeName = $eventItem.ActionType
-                    if (-not $eventTypeName) { $eventTypeName = $eventItem.Type }
-                    if (-not $eventTypeName) { $eventTypeName = $eventItem.EventType }
-
-                    if ($eventTypeName -and $eventTypeName -like $EventType) {
-                        $filteredEvents.Add($eventItem)
-                    }
-                }
-                Write-Information "Filtered from $($allEvents.Count) to $($filteredEvents.Count) events matching '$EventType'" -InformationAction Continue
-                $allEvents = $filteredEvents
-            }
-
-            # Clean up temp files unless KeepTempFiles is specified
-            if (-not $KeepTempFiles) {
-                Write-Verbose "Cleaning up temporary files..."
-                Remove-Item -Path $runTempPath -Recurse -Force -ErrorAction SilentlyContinue
-            } else {
-                Write-Verbose "Temporary files kept at: $runTempPath"
-            }
-
             # Sort events in-place by timestamp (if available) to avoid creating a copy
-            if ($allEvents.Count -gt 0 -and $allEvents[0].PSObject.Properties['Timestamp']) {
+            if ($allEvents.Count -gt 0) {
                 Write-Verbose "Sorting $($allEvents.Count) events by timestamp..."
-                # Use Sort() method for in-place sorting (more memory efficient than Sort-Object)
-                $allEvents.Sort([System.Comparison[object]] {
-                        param($a, $b)
-                        # Sort descending (newest first)
-                        [datetime]::Compare($b.Timestamp, $a.Timestamp)
-                    })
+                $orderedEvents = Get-XdrEndpointTimelineSortedEvent -Events $allEvents.ToArray()
+                $allEvents.Clear()
+                $allEvents.AddRange($orderedEvents)
             }
 
             # Return results and clean up
@@ -1182,7 +1464,13 @@
         } catch {
             Write-Progress -Activity "Retrieving Device Timeline" -Completed -Id 1
             Write-Progress -Activity "Processing Results" -Completed -Id 2
-            throw
+            throw "Failed to retrieve endpoint device timeline: $_"
+        } finally {
+            if (-not $KeepTempFiles -and (Test-Path $runTempPath)) {
+                Remove-Item -Path $runTempPath -Recurse -Force -ErrorAction SilentlyContinue
+            } elseif ($KeepTempFiles) {
+                Write-Information "Temporary device timeline files preserved in: $runTempPath" -InformationAction Continue
+            }
         }
     }
 

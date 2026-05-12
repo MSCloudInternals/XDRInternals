@@ -1,4 +1,4 @@
-﻿∩╗┐function Read-XdrEndpointTimelineChunkFile {
+﻿function Read-XdrEndpointTimelineChunkFile {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]

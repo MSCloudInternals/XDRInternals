@@ -7,6 +7,9 @@
         $command.Parameters.ContainsKey('ExportFormat') | Should -BeTrue
         $command.Parameters.ContainsKey('AllowPartial') | Should -BeTrue
         $command.Parameters.ContainsKey('RequestTimeoutSeconds') | Should -BeTrue
+        $command.Parameters.ContainsKey('DiagnosticsPath') | Should -BeTrue
+        $command.Parameters.ContainsKey('PaginationDelayMinMilliseconds') | Should -BeTrue
+        $command.Parameters.ContainsKey('PaginationDelayMaxMilliseconds') | Should -BeTrue
         $command.Parameters.ContainsKey('ExportPath') | Should -BeFalse
         $command.Parameters['OutputPath'].Aliases | Should -Contain 'ExportPath'
     }
@@ -108,6 +111,26 @@
             $sorted = Get-XdrEndpointTimelineSortedEvent -Events @()
 
             @($sorted).Count | Should -Be 0
+        }
+    }
+
+    It 'writes structured diagnostics to disk' {
+        $diagnosticsPath = Join-Path $TestDrive 'timeline.diagnostics.json'
+
+        InModuleScope XDRInternals -Parameters @{ DiagnosticsPath = $diagnosticsPath } {
+            param($DiagnosticsPath)
+
+            Write-XdrEndpointTimelineDiagnosticFile -Path $DiagnosticsPath -Diagnostics ([ordered]@{
+                    Status = 'Succeeded'
+                    Totals = [ordered]@{
+                        TotalEvents = 42
+                    }
+                })
+
+            $saved = Get-Content -Path $DiagnosticsPath -Raw | ConvertFrom-Json
+
+            $saved.Status | Should -Be 'Succeeded'
+            $saved.Totals.TotalEvents | Should -Be 42
         }
     }
 }

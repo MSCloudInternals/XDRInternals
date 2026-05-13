@@ -1,0 +1,175 @@
+{
+  "benchmarks": {
+    "enabled": false
+  },
+  "authentication": {
+    "mode": "SoftwarePasskey",
+    "keyFilePath": "C:\\path\\to\\tenant.passkey",
+    "tenantId": "",
+    "keyVaultTenantId": "",
+    "keyVaultClientId": "",
+    "keyVaultApiVersion": "7.4",
+    "userAgent": ""
+  },
+  "execution": {
+    "resultsRoot": "TestResults\\Benchmarks",
+    "repeats": 3,
+    "sequentialScenariosOnly": true,
+    "stopOnError": true,
+    "warmupRun": false,
+    "defaultOutputFormat": "Json",
+    "defaultPageSize": 1000,
+    "defaultChunkHours": 0,
+    "defaultThrottleLimit": 10,
+    "defaultDeviceConcurrency": 1,
+    "defaultRequestTimeoutSeconds": 60,
+    "defaultMaxRetries": 10,
+    "defaultRetryDelaySeconds": 30,
+    "keepTempFiles": false,
+    "workingDirectory": ""
+  },
+  "branches": {
+    "current": {
+      "label": "current",
+      "modulePath": ".\\XDRInternals\\XDRInternals.psd1",
+      "repoPath": "."
+    },
+    "main": {
+      "label": "main",
+      "modulePath": "C:\\path\\to\\main-checkout\\XDRInternals\\XDRInternals.psd1",
+      "repoPath": "C:\\path\\to\\main-checkout"
+    }
+  },
+  "devices": [
+    {
+      "name": "DenseWindows",
+      "deviceId": "0000000000000000000000000000000000000000",
+      "cohort": "dense",
+      "notes": "High-volume Windows device",
+      "tags": [
+        "windows",
+        "dense"
+      ]
+    },
+    {
+      "name": "MacPrimary",
+      "deviceId": "1111111111111111111111111111111111111111",
+      "cohort": "medium",
+      "notes": "Representative macOS device",
+      "tags": [
+        "macOS",
+        "medium"
+      ]
+    },
+    {
+      "name": "LongHistory",
+      "deviceId": "2222222222222222222222222222222222222222",
+      "cohort": "long-history",
+      "notes": "Device with multi-month timeline coverage",
+      "tags": [
+        "long-history"
+      ]
+    }
+  ],
+  "windows": {
+    "24h": {
+      "hours": 24
+    },
+    "7d": {
+      "days": 7
+    },
+    "30d": {
+      "days": 30
+    },
+    "60d": {
+      "days": 60
+    }
+  },
+  "scenarios": {
+    "singleDevice": [
+      {
+        "name": "baseline",
+        "deviceNames": [
+          "DenseWindows",
+          "MacPrimary",
+          "LongHistory"
+        ],
+        "windowNames": [
+          "24h",
+          "7d"
+        ],
+        "branchNames": [
+          "main",
+          "current"
+        ],
+        "repeats": 3,
+        "throttleLimit": 10
+      },
+      {
+        "name": "long-range",
+        "deviceNames": [
+          "DenseWindows",
+          "LongHistory"
+        ],
+        "windowNames": [
+          "30d",
+          "60d"
+        ],
+        "branchNames": [
+          "main",
+          "current"
+        ],
+        "repeats": 3,
+        "throttleLimit": 10,
+        "chunkHours": 4
+      }
+    ],
+    "concurrentDevices": [
+      {
+        "name": "triage-pair",
+        "deviceNames": [
+          "DenseWindows",
+          "MacPrimary"
+        ],
+        "windowNames": [
+          "24h",
+          "7d"
+        ],
+        "branchNames": [
+          "main",
+          "current"
+        ],
+        "repeats": 2,
+        "throttleLimit": 6,
+        "deviceConcurrency": 2
+      }
+    ],
+    "saturationSweep": [
+      {
+        "name": "dense-30d",
+        "deviceNames": [
+          "DenseWindows"
+        ],
+        "windowNames": [
+          "30d"
+        ],
+        "branchNames": [
+          "current"
+        ],
+        "throttleLimits": [
+          6,
+          8,
+          10,
+          12
+        ],
+        "chunkHoursValues": [
+          4
+        ],
+        "deviceConcurrencyValues": [
+          1,
+          2
+        ]
+      }
+    ]
+  }
+}

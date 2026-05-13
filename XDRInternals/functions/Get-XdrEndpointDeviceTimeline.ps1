@@ -234,6 +234,28 @@ function Get-XdrEndpointTimelineSortedEvent {
     )
 }
 
+function Write-XdrEndpointTimelineDiagnosticFile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]$Diagnostics
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    $parentPath = Split-Path -Path $Path -Parent
+    if (-not [string]::IsNullOrWhiteSpace($parentPath) -and -not (Test-Path -Path $parentPath)) {
+        New-Item -Path $parentPath -ItemType Directory -Force | Out-Null
+    }
+
+    $Diagnostics | ConvertTo-Json -Depth 8 | Set-Content -Path $Path -Encoding UTF8
+}
+
 function Get-XdrEndpointDeviceTimeline {
     <#
     .SYNOPSIS
@@ -312,6 +334,12 @@ function Get-XdrEndpointDeviceTimeline {
     .PARAMETER RetryDelaySeconds
         Base delay in seconds between retry attempts (uses exponential backoff). Defaults to 30.
 
+    .PARAMETER PaginationDelayMinMilliseconds
+        Minimum delay in milliseconds between continuation-page requests. Defaults to 500.
+
+    .PARAMETER PaginationDelayMaxMilliseconds
+        Maximum delay in milliseconds between continuation-page requests. Defaults to 1500.
+
     .PARAMETER ChunkHours
         The size of each time chunk in hours for parallel processing. Defaults to 4 hours.
         For time windows of 24 hours or less, 1-hour chunks are used automatically. For time windows
@@ -338,6 +366,9 @@ function Get-XdrEndpointDeviceTimeline {
 
     .PARAMETER AllowPartial
         Returns completed chunks instead of terminating when one or more chunks fail.
+
+    .PARAMETER DiagnosticsPath
+        Optional. Writes structured diagnostics about chunking, request timing, retries, and merge phases to a JSON file.
 
     .EXAMPLE
         Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2"
@@ -449,6 +480,14 @@ function Get-XdrEndpointDeviceTimeline {
         [int]$RetryDelaySeconds = 30,
 
         [Parameter()]
+        [ValidateRange(0, 10000)]
+        [int]$PaginationDelayMinMilliseconds = 500,
+
+        [Parameter()]
+        [ValidateRange(0, 10000)]
+        [int]$PaginationDelayMaxMilliseconds = 1500,
+
+        [Parameter()]
         [ValidateRange(1, 24)]
         [int]$ChunkHours = 4,
 
@@ -484,7 +523,16 @@ function Get-XdrEndpointDeviceTimeline {
         [int]$RequestTimeoutSeconds = 60,
 
         [Parameter()]
-        [switch]$AllowPartial
+        [switch]$AllowPartial,
+
+        [Parameter()]
+        [ValidateScript({
+            if ([string]::IsNullOrWhiteSpace($_)) { return $true }
+            $parentDir = Split-Path -Path $_ -Parent
+            if ([string]::IsNullOrWhiteSpace($parentDir)) { return $true }
+            return $true
+        })]
+        [string]$DiagnosticsPath
     )
 
     begin {
@@ -510,23 +558,58 @@ function Get-XdrEndpointDeviceTimeline {
             throw "DoNotUseCache and ForceUseCache cannot both be specified. Use DoNotUseCache to bypass the cache, or ForceUseCache to force using cached data."
         }
 
+        if ($PaginationDelayMaxMilliseconds -lt $PaginationDelayMinMilliseconds) {
+            throw "PaginationDelayMaxMilliseconds must be greater than or equal to PaginationDelayMinMilliseconds."
+        }
+
+        $deviceLookupSeconds = 0.0
+        $chunkPlanningSeconds = 0.0
+        $downloadWallClockSeconds = 0.0
+        $mergePhaseSeconds = 0.0
+        $sortPhaseSeconds = 0.0
+        $exportPhaseSeconds = 0.0
+        $cleanupSeconds = 0.0
+        $chunkStrategy = if ($PSBoundParameters.ContainsKey('ChunkHours')) { 'Explicit' } else { 'DefaultStatic' }
+        $results = @()
+        $jsonFiles = @()
+        $failures = @()
+        $totalElapsed = 0.0
+        $totalEvents = 0
+        $totalSizeKB = 0.0
+        $overallEventsPerSec = 0.0
+        $exportedEvents = 0
+        $returnMode = if ($OutputPath) { 'Export' } else { 'InMemory' }
+        $usedRawJsonExport = $false
+        $resultSummary = $null
+        $returnedEventsCount = 0
+        $capturedError = $null
+        $runCompleted = $false
+        $wallClockSeconds = 0.0
+
         # Determine the device identifier with proper error handling
         $deviceLookup = $null
-        if ($PSCmdlet.ParameterSetName -eq 'ByDeviceId') {
-            $deviceIdentifier = $DeviceId
-            # Note: Get-XdrEndpointDevice only supports MachineSearchPrefix (name prefix search),
-            # not lookup by MachineId, so we skip device lookup when using -DeviceId
-        } else {
-            Write-Verbose "Looking up device by DNS name: $MachineDnsName"
-            $deviceLookup = Get-XdrEndpointDevice -MachineSearchPrefix $MachineDnsName
-            if (-not $deviceLookup) {
-                throw "Could not find device with DNS name '$MachineDnsName'. Please verify the device exists and you have access."
+        $deviceLookupStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        try {
+            if ($PSCmdlet.ParameterSetName -eq 'ByDeviceId') {
+                $deviceIdentifier = $DeviceId
+                # Note: Get-XdrEndpointDevice only supports MachineSearchPrefix (name prefix search),
+                # not lookup by MachineId, so we skip device lookup when using -DeviceId
+            } else {
+                Write-Verbose "Looking up device by DNS name: $MachineDnsName"
+                $deviceLookup = Get-XdrEndpointDevice -MachineSearchPrefix $MachineDnsName
+                if (-not $deviceLookup) {
+                    throw "Could not find device with DNS name '$MachineDnsName'. Please verify the device exists and you have access."
+                }
+                $deviceIdentifier = $deviceLookup | Select-Object -First 1 -ExpandProperty MachineId
+                if (-not $deviceIdentifier) {
+                    throw "Device lookup for '$MachineDnsName' returned results but MachineId was empty."
+                }
+                Write-Verbose "Resolved '$MachineDnsName' to device ID: $deviceIdentifier"
             }
-            $deviceIdentifier = $deviceLookup | Select-Object -First 1 -ExpandProperty MachineId
-            if (-not $deviceIdentifier) {
-                throw "Device lookup for '$MachineDnsName' returned results but MachineId was empty."
-            }
-            Write-Verbose "Resolved '$MachineDnsName' to device ID: $deviceIdentifier"
+        }
+        finally {
+            $deviceLookupStopwatch.Stop()
+            $deviceLookupSeconds = [math]::Round($deviceLookupStopwatch.Elapsed.TotalSeconds, 4)
         }
 
         # Get the ComputerDnsName for folder naming
@@ -579,19 +662,25 @@ function Get-XdrEndpointDeviceTimeline {
             MaxRetries             = $MaxRetries
             RetryDelaySeconds      = $RetryDelaySeconds
             RequestTimeoutSeconds  = $RequestTimeoutSeconds
+            PaginationDelayMinMilliseconds = $PaginationDelayMinMilliseconds
+            PaginationDelayMaxMilliseconds = $PaginationDelayMaxMilliseconds
+            CollectDiagnostics     = [bool]$PSBoundParameters.ContainsKey('DiagnosticsPath')
         }
 
         # Generate date chunks using configurable chunk size
+        $chunkPlanningStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $dateChunks = [System.Collections.Generic.List[hashtable]]::new()
         $totalDays = ($ToDate - $FromDate).TotalDays
         $totalHours = $totalDays * 24
 
-        # For shorter time windows (Γëñ48 hours), keep common 1-day investigations at 1-hour chunks
+        # For shorter time windows (≤48 hours), keep common 1-day investigations at 1-hour chunks
         # and scale toward roughly 24 chunks for longer windows without requiring manual tuning.
         if (-not $PSBoundParameters.ContainsKey('ChunkHours') -and $totalHours -le 48) {
             $ChunkHours = if ($totalHours -le 24) {
+                $chunkStrategy = 'Auto24HourOneHourChunks'
                 1
             } else {
+                $chunkStrategy = 'Auto48HourBalanced'
                 [math]::Max(1, [math]::Ceiling($totalHours / 24))
             }
             Write-Verbose "Auto-calculated ChunkHours=$ChunkHours for $([math]::Round($totalHours, 1)) hour time window"
@@ -621,7 +710,8 @@ function Get-XdrEndpointDeviceTimeline {
             $chunkIndex++
             $currentDate = $chunkEnd
         }
-        Write-Information "Split $([math]::Round($totalHours, 1)) hours into $($dateChunks.Count) chunks ($ChunkHours hour$(if($ChunkHours -gt 1){'s'}) each)" -InformationAction Continue
+        $chunkPlanningStopwatch.Stop()
+        $chunkPlanningSeconds = [math]::Round($chunkPlanningStopwatch.Elapsed.TotalSeconds, 4)
 
         # Store session cookies as a serializable format for parallel execution
         $cookieContainer = $script:session.Cookies
@@ -639,6 +729,8 @@ function Get-XdrEndpointDeviceTimeline {
         foreach ($key in $script:headers.Keys) {
             $headersData[$key] = $script:headers[$key]
         }
+
+        Write-Information "Split $([math]::Round($totalHours, 1)) hours into $($dateChunks.Count) chunks ($ChunkHours hour$(if($ChunkHours -gt 1){'s'}) each)" -InformationAction Continue
 
         try {
             Write-Verbose "Starting parallel retrieval of $($dateChunks.Count) chunk(s) with throttle limit of $ThrottleLimit"
@@ -738,6 +830,17 @@ function Get-XdrEndpointDeviceTimeline {
                             $chunkStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                             $pagesRetrieved = 0
                             $eventCount = 0
+                            $retryCount = 0
+                            $throttleRetryCount = 0
+                            $backoffSeconds = 0.0
+                            $interPageDelaySeconds = 0.0
+                            $requestSeconds = 0.0
+                            $requestSecondsMax = 0.0
+                            $pageProcessingSeconds = 0.0
+                            $pageProcessingSecondsMax = 0.0
+                            $itemsPerPageMin = $null
+                            $itemsPerPageMax = 0
+                            $itemsPerPageTotal = 0
 
                             # Use StreamWriter to write events directly to file - avoids memory accumulation
                             $streamWriter = [System.IO.StreamWriter]::new($filePath, $false, [System.Text.Encoding]::UTF8)
@@ -751,10 +854,25 @@ function Get-XdrEndpointDeviceTimeline {
                                 while (-not $success -and $attempt -lt $maxRetries) {
                                     try {
                                         $attempt++
+                                        $requestStopwatch = if ($baseParams.CollectDiagnostics) { [System.Diagnostics.Stopwatch]::StartNew() } else { $null }
                                         $response = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $webSession -Headers $headerInfo -TimeoutSec $baseParams.RequestTimeoutSeconds -ErrorAction Stop
+                                        if ($requestStopwatch) {
+                                            $requestStopwatch.Stop()
+                                            $requestSeconds += $requestStopwatch.Elapsed.TotalSeconds
+                                            if ($requestStopwatch.Elapsed.TotalSeconds -gt $requestSecondsMax) {
+                                                $requestSecondsMax = $requestStopwatch.Elapsed.TotalSeconds
+                                            }
+                                        }
                                         $success = $true
                                         $pagesRetrieved++
                                     } catch {
+                                        if ($requestStopwatch -and $requestStopwatch.IsRunning) {
+                                            $requestStopwatch.Stop()
+                                            $requestSeconds += $requestStopwatch.Elapsed.TotalSeconds
+                                            if ($requestStopwatch.Elapsed.TotalSeconds -gt $requestSecondsMax) {
+                                                $requestSecondsMax = $requestStopwatch.Elapsed.TotalSeconds
+                                            }
+                                        }
                                         $statusCode = $null
                                         if ($_.Exception.Response) {
                                             $statusCode = [int]$_.Exception.Response.StatusCode
@@ -767,9 +885,18 @@ function Get-XdrEndpointDeviceTimeline {
                                             if ($attempt -ge $maxRetries) {
                                                 throw "Chunk $chunkIndex : Failed after $maxRetries attempts. Last error: $_"
                                             }
+                                            if ($baseParams.CollectDiagnostics) {
+                                                $retryCount++
+                                                $throttleRetryCount++
+                                                $backoffSeconds += $delay
+                                            }
                                             Start-Sleep -Seconds $delay
                                         } elseif ($attempt -lt $maxRetries) {
                                             $delay = Get-Random -Minimum 5 -Maximum 15
+                                            if ($baseParams.CollectDiagnostics) {
+                                                $retryCount++
+                                                $backoffSeconds += $delay
+                                            }
                                             Start-Sleep -Seconds $delay
                                         } else {
                                             throw "Chunk $chunkIndex : Failed after $maxRetries attempts. Last error: $_"
@@ -780,6 +907,17 @@ function Get-XdrEndpointDeviceTimeline {
                                 # Stream events directly to file instead of accumulating in memory
                                 $nextUri = $null
                                 if ($response) {
+                                    $pageProcessingStopwatch = if ($baseParams.CollectDiagnostics) { [System.Diagnostics.Stopwatch]::StartNew() } else { $null }
+                                    $itemsThisPage = @($response.Items).Count
+                                    if ($baseParams.CollectDiagnostics) {
+                                        if ($null -eq $itemsPerPageMin -or $itemsThisPage -lt $itemsPerPageMin) {
+                                            $itemsPerPageMin = $itemsThisPage
+                                        }
+                                        if ($itemsThisPage -gt $itemsPerPageMax) {
+                                            $itemsPerPageMax = $itemsThisPage
+                                        }
+                                        $itemsPerPageTotal += $itemsThisPage
+                                    }
                                     if ($response.Items) {
                                         foreach ($item in $response.Items) {
                                             if (-not $isFirstEvent) { $streamWriter.Write(',') }
@@ -805,14 +943,30 @@ function Get-XdrEndpointDeviceTimeline {
                                     }
                                     # Clear response to free memory immediately
                                     $response = $null
+                                    if ($pageProcessingStopwatch) {
+                                        $pageProcessingStopwatch.Stop()
+                                        $pageProcessingSeconds += $pageProcessingStopwatch.Elapsed.TotalSeconds
+                                        if ($pageProcessingStopwatch.Elapsed.TotalSeconds -gt $pageProcessingSecondsMax) {
+                                            $pageProcessingSecondsMax = $pageProcessingStopwatch.Elapsed.TotalSeconds
+                                        }
+                                    }
                                 }
 
                                 if (-not $nextUri) {
                                     break
                                 } else {
                                     $Uri = $nextUri
-                                    # Small delay between pagination requests
-                                    Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
+                                    $paginationDelayMilliseconds = if ($baseParams.PaginationDelayMaxMilliseconds -le $baseParams.PaginationDelayMinMilliseconds) {
+                                        [int]$baseParams.PaginationDelayMinMilliseconds
+                                    } else {
+                                        Get-Random -Minimum $baseParams.PaginationDelayMinMilliseconds -Maximum ($baseParams.PaginationDelayMaxMilliseconds + 1)
+                                    }
+                                    if ($baseParams.CollectDiagnostics -and $paginationDelayMilliseconds -gt 0) {
+                                        $interPageDelaySeconds += ($paginationDelayMilliseconds / 1000)
+                                    }
+                                    if ($paginationDelayMilliseconds -gt 0) {
+                                        Start-Sleep -Milliseconds $paginationDelayMilliseconds
+                                    }
                                 }
                             } while ($true)
 
@@ -837,6 +991,17 @@ function Get-XdrEndpointDeviceTimeline {
                                 ElapsedSeconds = [math]::Round($elapsedSeconds, 2)
                                 PagesRetrieved = $pagesRetrieved
                                 FileSizeKB     = $fileSizeKB
+                                RetryCount     = $retryCount
+                                ThrottleRetryCount = $throttleRetryCount
+                                BackoffSeconds = [math]::Round($backoffSeconds, 2)
+                                InterPageDelaySeconds = [math]::Round($interPageDelaySeconds, 2)
+                                RequestSeconds = [math]::Round($requestSeconds, 2)
+                                RequestSecondsMax = [math]::Round($requestSecondsMax, 2)
+                                PageProcessingSeconds = [math]::Round($pageProcessingSeconds, 2)
+                                PageProcessingSecondsMax = [math]::Round($pageProcessingSecondsMax, 2)
+                                ItemsPerPageAverage = if ($pagesRetrieved -gt 0) { [math]::Round($itemsPerPageTotal / $pagesRetrieved, 2) } else { 0 }
+                                ItemsPerPageMin = if ($null -ne $itemsPerPageMin) { [int]$itemsPerPageMin } else { 0 }
+                                ItemsPerPageMax = [int]$itemsPerPageMax
                             }
                         } catch {
                             $chunkError = $_.ToString()
@@ -854,6 +1019,14 @@ function Get-XdrEndpointDeviceTimeline {
                                 FromDate       = $chunkFromDate
                                 ToDate         = $chunkToDate
                                 ElapsedSeconds = if ($chunkStopwatch) { [math]::Round($chunkStopwatch.Elapsed.TotalSeconds, 2) } else { 0 }
+                                RetryCount     = if ($null -ne $retryCount) { $retryCount } else { 0 }
+                                ThrottleRetryCount = if ($null -ne $throttleRetryCount) { $throttleRetryCount } else { 0 }
+                                BackoffSeconds = if ($null -ne $backoffSeconds) { [math]::Round($backoffSeconds, 2) } else { 0 }
+                                InterPageDelaySeconds = if ($null -ne $interPageDelaySeconds) { [math]::Round($interPageDelaySeconds, 2) } else { 0 }
+                                RequestSeconds = if ($null -ne $requestSeconds) { [math]::Round($requestSeconds, 2) } else { 0 }
+                                RequestSecondsMax = if ($null -ne $requestSecondsMax) { [math]::Round($requestSecondsMax, 2) } else { 0 }
+                                PageProcessingSeconds = if ($null -ne $pageProcessingSeconds) { [math]::Round($pageProcessingSeconds, 2) } else { 0 }
+                                PageProcessingSecondsMax = if ($null -ne $pageProcessingSecondsMax) { [math]::Round($pageProcessingSecondsMax, 2) } else { 0 }
                             }
                         }
                     }
@@ -1024,6 +1197,17 @@ function Get-XdrEndpointDeviceTimeline {
                         $chunkStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                         $pagesRetrieved = 0
                         $eventCount = 0
+                        $retryCount = 0
+                        $throttleRetryCount = 0
+                        $backoffSeconds = 0.0
+                        $interPageDelaySeconds = 0.0
+                        $requestSeconds = 0.0
+                        $requestSecondsMax = 0.0
+                        $pageProcessingSeconds = 0.0
+                        $pageProcessingSecondsMax = 0.0
+                        $itemsPerPageMin = $null
+                        $itemsPerPageMax = 0
+                        $itemsPerPageTotal = 0
 
                         # Use StreamWriter to write events directly to file - avoids memory accumulation
                         $streamWriter = [System.IO.StreamWriter]::new($filePath, $false, [System.Text.Encoding]::UTF8)
@@ -1037,10 +1221,25 @@ function Get-XdrEndpointDeviceTimeline {
                             while (-not $success -and $attempt -lt $maxRetries) {
                                 try {
                                     $attempt++
+                                    $requestStopwatch = if ($baseParams.CollectDiagnostics) { [System.Diagnostics.Stopwatch]::StartNew() } else { $null }
                                     $response = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $webSession -Headers $headerInfo -TimeoutSec $baseParams.RequestTimeoutSeconds -ErrorAction Stop
+                                    if ($requestStopwatch) {
+                                        $requestStopwatch.Stop()
+                                        $requestSeconds += $requestStopwatch.Elapsed.TotalSeconds
+                                        if ($requestStopwatch.Elapsed.TotalSeconds -gt $requestSecondsMax) {
+                                            $requestSecondsMax = $requestStopwatch.Elapsed.TotalSeconds
+                                        }
+                                    }
                                     $success = $true
                                     $pagesRetrieved++
                                 } catch {
+                                    if ($requestStopwatch -and $requestStopwatch.IsRunning) {
+                                        $requestStopwatch.Stop()
+                                        $requestSeconds += $requestStopwatch.Elapsed.TotalSeconds
+                                        if ($requestStopwatch.Elapsed.TotalSeconds -gt $requestSecondsMax) {
+                                            $requestSecondsMax = $requestStopwatch.Elapsed.TotalSeconds
+                                        }
+                                    }
                                     $statusCode = $null
                                     if ($_.Exception.Response) {
                                         $statusCode = [int]$_.Exception.Response.StatusCode
@@ -1053,9 +1252,18 @@ function Get-XdrEndpointDeviceTimeline {
                                         if ($attempt -ge $maxRetries) {
                                             throw "Chunk $chunkIndex : Failed after $maxRetries attempts. Last error: $_"
                                         }
+                                        if ($baseParams.CollectDiagnostics) {
+                                            $retryCount++
+                                            $throttleRetryCount++
+                                            $backoffSeconds += $delay
+                                        }
                                         Start-Sleep -Seconds $delay
                                     } elseif ($attempt -lt $maxRetries) {
                                         $delay = Get-Random -Minimum 5 -Maximum 15
+                                        if ($baseParams.CollectDiagnostics) {
+                                            $retryCount++
+                                            $backoffSeconds += $delay
+                                        }
                                         Start-Sleep -Seconds $delay
                                     } else {
                                         throw "Chunk $chunkIndex : Failed after $maxRetries attempts. Last error: $_"
@@ -1066,6 +1274,17 @@ function Get-XdrEndpointDeviceTimeline {
                             # Stream events directly to file instead of accumulating in memory
                             $nextUri = $null
                             if ($response) {
+                                $pageProcessingStopwatch = if ($baseParams.CollectDiagnostics) { [System.Diagnostics.Stopwatch]::StartNew() } else { $null }
+                                $itemsThisPage = @($response.Items).Count
+                                if ($baseParams.CollectDiagnostics) {
+                                    if ($null -eq $itemsPerPageMin -or $itemsThisPage -lt $itemsPerPageMin) {
+                                        $itemsPerPageMin = $itemsThisPage
+                                    }
+                                    if ($itemsThisPage -gt $itemsPerPageMax) {
+                                        $itemsPerPageMax = $itemsThisPage
+                                    }
+                                    $itemsPerPageTotal += $itemsThisPage
+                                }
                                 if ($response.Items) {
                                     foreach ($item in $response.Items) {
                                         if (-not $isFirstEvent) { $streamWriter.Write(',') }
@@ -1091,14 +1310,30 @@ function Get-XdrEndpointDeviceTimeline {
                                 }
                                 # Clear response to free memory immediately
                                 $response = $null
+                                if ($pageProcessingStopwatch) {
+                                    $pageProcessingStopwatch.Stop()
+                                    $pageProcessingSeconds += $pageProcessingStopwatch.Elapsed.TotalSeconds
+                                    if ($pageProcessingStopwatch.Elapsed.TotalSeconds -gt $pageProcessingSecondsMax) {
+                                        $pageProcessingSecondsMax = $pageProcessingStopwatch.Elapsed.TotalSeconds
+                                    }
+                                }
                             }
 
                             if (-not $nextUri) {
                                 break
                             } else {
                                 $Uri = $nextUri
-                                # Small delay between pagination requests
-                                Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
+                                $paginationDelayMilliseconds = if ($baseParams.PaginationDelayMaxMilliseconds -le $baseParams.PaginationDelayMinMilliseconds) {
+                                    [int]$baseParams.PaginationDelayMinMilliseconds
+                                } else {
+                                    Get-Random -Minimum $baseParams.PaginationDelayMinMilliseconds -Maximum ($baseParams.PaginationDelayMaxMilliseconds + 1)
+                                }
+                                if ($baseParams.CollectDiagnostics -and $paginationDelayMilliseconds -gt 0) {
+                                    $interPageDelaySeconds += ($paginationDelayMilliseconds / 1000)
+                                }
+                                if ($paginationDelayMilliseconds -gt 0) {
+                                    Start-Sleep -Milliseconds $paginationDelayMilliseconds
+                                }
                             }
                         } while ($true)
 
@@ -1123,6 +1358,17 @@ function Get-XdrEndpointDeviceTimeline {
                             ElapsedSeconds = [math]::Round($elapsedSeconds, 2)
                             PagesRetrieved = $pagesRetrieved
                             FileSizeKB     = $fileSizeKB
+                            RetryCount     = $retryCount
+                            ThrottleRetryCount = $throttleRetryCount
+                            BackoffSeconds = [math]::Round($backoffSeconds, 2)
+                            InterPageDelaySeconds = [math]::Round($interPageDelaySeconds, 2)
+                            RequestSeconds = [math]::Round($requestSeconds, 2)
+                            RequestSecondsMax = [math]::Round($requestSecondsMax, 2)
+                            PageProcessingSeconds = [math]::Round($pageProcessingSeconds, 2)
+                            PageProcessingSecondsMax = [math]::Round($pageProcessingSecondsMax, 2)
+                            ItemsPerPageAverage = if ($pagesRetrieved -gt 0) { [math]::Round($itemsPerPageTotal / $pagesRetrieved, 2) } else { 0 }
+                            ItemsPerPageMin = if ($null -ne $itemsPerPageMin) { [int]$itemsPerPageMin } else { 0 }
+                            ItemsPerPageMax = [int]$itemsPerPageMax
                         }
                     } catch {
                         $chunkError = $_.ToString()
@@ -1140,6 +1386,14 @@ function Get-XdrEndpointDeviceTimeline {
                             FromDate       = $chunkFromDate
                             ToDate         = $chunkToDate
                             ElapsedSeconds = if ($chunkStopwatch) { [math]::Round($chunkStopwatch.Elapsed.TotalSeconds, 2) } else { 0 }
+                            RetryCount     = if ($null -ne $retryCount) { $retryCount } else { 0 }
+                            ThrottleRetryCount = if ($null -ne $throttleRetryCount) { $throttleRetryCount } else { 0 }
+                            BackoffSeconds = if ($null -ne $backoffSeconds) { [math]::Round($backoffSeconds, 2) } else { 0 }
+                            InterPageDelaySeconds = if ($null -ne $interPageDelaySeconds) { [math]::Round($interPageDelaySeconds, 2) } else { 0 }
+                            RequestSeconds = if ($null -ne $requestSeconds) { [math]::Round($requestSeconds, 2) } else { 0 }
+                            RequestSecondsMax = if ($null -ne $requestSecondsMax) { [math]::Round($requestSecondsMax, 2) } else { 0 }
+                            PageProcessingSeconds = if ($null -ne $pageProcessingSeconds) { [math]::Round($pageProcessingSeconds, 2) } else { 0 }
+                            PageProcessingSecondsMax = if ($null -ne $pageProcessingSecondsMax) { [math]::Round($pageProcessingSecondsMax, 2) } else { 0 }
                         }
                     }
                 }
@@ -1257,6 +1511,7 @@ function Get-XdrEndpointDeviceTimeline {
 
             # Complete progress
             Write-Progress -Activity "Retrieving Device Timeline" -Completed -Id 1
+            $downloadWallClockSeconds = [math]::Round($operationStartTime.Elapsed.TotalSeconds, 2)
 
             # Check for timeout in PS7
             if ($PSVersionTable.PSVersion.Major -ge 7 -and $operationStartTime.Elapsed.TotalSeconds -gt $TimeoutSeconds) {
@@ -1305,6 +1560,7 @@ function Get-XdrEndpointDeviceTimeline {
             # Merge all JSON files with progress - using memory-efficient streaming
             Write-Progress -Activity "Processing Results" -Status "Merging chunk files..." -PercentComplete 0 -Id 2
             Write-Verbose "Merging results from $($results.Count) chunk(s)..."
+            $mergeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
             $jsonFiles = @(
                 $results |
@@ -1342,6 +1598,7 @@ function Get-XdrEndpointDeviceTimeline {
                 $exportedEvents = 0
                 try {
                     $useRawJsonExport = $ExportFormat -eq 'Json' -and [string]::IsNullOrWhiteSpace($EventType)
+                    $usedRawJsonExport = $useRawJsonExport
                     if ($ExportFormat -eq 'Json') {
                         $exportWriter.Write('[')
                     }
@@ -1398,12 +1655,15 @@ function Get-XdrEndpointDeviceTimeline {
                     $exportWriter.Dispose()
                 }
                 Write-Progress -Activity "Processing Results" -Completed -Id 2
+                $mergeStopwatch.Stop()
+                $mergePhaseSeconds = [math]::Round($mergeStopwatch.Elapsed.TotalSeconds, 4)
+                $exportPhaseSeconds = $mergePhaseSeconds
                 Write-Information "Exported $exportedEvents events to: $OutputPath" -InformationAction Continue
 
                 [System.GC]::Collect()
 
                 # Return summary info instead of all events when exporting
-                return [PSCustomObject]@{
+                $resultSummary = [PSCustomObject]@{
                     ExportPath       = $OutputPath
                     ExportFormat     = $ExportFormat
                     TotalEvents      = $exportedEvents
@@ -1412,7 +1672,10 @@ function Get-XdrEndpointDeviceTimeline {
                     TotalSizeMB      = [math]::Round($totalSizeKB / 1024, 2)
                     WallClockSeconds = [math]::Round($wallClockSeconds, 2)
                     EffectiveRate    = $overallEventsPerSec
+                    DiagnosticsPath  = $DiagnosticsPath
                 }
+                $runCompleted = $true
+                return $resultSummary
             }
 
             # For in-memory return, load events but with aggressive memory management
@@ -1430,9 +1693,9 @@ function Get-XdrEndpointDeviceTimeline {
                     continue
                 }
 
-                $chunkEvents = Get-XdrEndpointTimelineChunkEvent -ChunkData $chunkData -EventType $EventType
+                $chunkEvents = @((Get-XdrEndpointTimelineChunkEvent -ChunkData $chunkData -EventType $EventType))
                 if ($chunkEvents.Count -gt 0) {
-                    $allEvents.AddRange(@($chunkEvents))
+                    $allEvents.AddRange($chunkEvents)
                 }
                 $chunkData = $null  # Free parsed object memory
 
@@ -1442,6 +1705,8 @@ function Get-XdrEndpointDeviceTimeline {
                     [System.GC]::WaitForPendingFinalizers()
                 }
             }
+            $mergeStopwatch.Stop()
+            $mergePhaseSeconds = [math]::Round($mergeStopwatch.Elapsed.TotalSeconds, 4)
             Write-Progress -Activity "Processing Results" -Completed -Id 2
 
             Write-Verbose "Total events retrieved: $($allEvents.Count)"
@@ -1449,27 +1714,130 @@ function Get-XdrEndpointDeviceTimeline {
             # Sort events in-place by timestamp (if available) to avoid creating a copy
             if ($allEvents.Count -gt 0) {
                 Write-Verbose "Sorting $($allEvents.Count) events by timestamp..."
-                $orderedEvents = Get-XdrEndpointTimelineSortedEvent -Events $allEvents.ToArray()
+                $sortStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                $orderedEvents = @((Get-XdrEndpointTimelineSortedEvent -Events $allEvents.ToArray()))
+                $sortStopwatch.Stop()
+                $sortPhaseSeconds = [math]::Round($sortStopwatch.Elapsed.TotalSeconds, 4)
                 $allEvents.Clear()
                 $allEvents.AddRange($orderedEvents)
             }
 
             # Return results and clean up
             $result = $allEvents.ToArray()
+            $returnedEventsCount = @($result).Count
             $allEvents.Clear()
             $allEvents = $null
             [System.GC]::Collect()
 
+            $runCompleted = $true
             return $result
         } catch {
+            $capturedError = $_.ToString()
             Write-Progress -Activity "Retrieving Device Timeline" -Completed -Id 1
             Write-Progress -Activity "Processing Results" -Completed -Id 2
             throw "Failed to retrieve endpoint device timeline: $_"
         } finally {
+            $cleanupStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             if (-not $KeepTempFiles -and (Test-Path $runTempPath)) {
                 Remove-Item -Path $runTempPath -Recurse -Force -ErrorAction SilentlyContinue
             } elseif ($KeepTempFiles) {
                 Write-Information "Temporary device timeline files preserved in: $runTempPath" -InformationAction Continue
+            }
+            $cleanupStopwatch.Stop()
+            $cleanupSeconds = [math]::Round($cleanupStopwatch.Elapsed.TotalSeconds, 4)
+
+            if ($PSBoundParameters.ContainsKey('DiagnosticsPath')) {
+                $diagnostics = [ordered]@{
+                    GeneratedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+                    Command        = 'Get-XdrEndpointDeviceTimeline'
+                    Status         = if ($capturedError) { 'Failed' } elseif ($runCompleted) { 'Succeeded' } else { 'Incomplete' }
+                    Error          = $capturedError
+                    Device         = [ordered]@{
+                        ParameterSetName = $PSCmdlet.ParameterSetName
+                        DeviceId         = $deviceIdentifier
+                        MachineDnsName   = if ($PSBoundParameters.ContainsKey('MachineDnsName')) { $MachineDnsName } else { $computerDnsName }
+                    }
+                    Request        = [ordered]@{
+                        FromDate              = $FromDate.ToUniversalTime().ToString('o')
+                        ToDate                = $ToDate.ToUniversalTime().ToString('o')
+                        TotalHours            = [math]::Round($totalHours, 2)
+                        ChunkHours            = $ChunkHours
+                        ChunkStrategy         = $chunkStrategy
+                        TotalChunksPlanned    = $dateChunks.Count
+                        PageSize              = $PageSize
+                        ThrottleLimit         = $ThrottleLimit
+                        TimeoutSeconds        = $TimeoutSeconds
+                        MaxRetries            = $MaxRetries
+                        RetryDelaySeconds     = $RetryDelaySeconds
+                        RequestTimeoutSeconds = $RequestTimeoutSeconds
+                        PaginationDelayMinMilliseconds = $PaginationDelayMinMilliseconds
+                        PaginationDelayMaxMilliseconds = $PaginationDelayMaxMilliseconds
+                        AllowPartial          = [bool]$AllowPartial
+                        ReturnMode            = $returnMode
+                        ExportFormat          = $ExportFormat
+                        UsedRawJsonExport     = $usedRawJsonExport
+                    }
+                    Phases         = [ordered]@{
+                        DeviceLookupSeconds     = $deviceLookupSeconds
+                        ChunkPlanningSeconds    = $chunkPlanningSeconds
+                        DownloadWallClockSeconds = $downloadWallClockSeconds
+                        MergePhaseSeconds       = $mergePhaseSeconds
+                        SortPhaseSeconds        = $sortPhaseSeconds
+                        ExportPhaseSeconds      = $exportPhaseSeconds
+                        CleanupSeconds          = $cleanupSeconds
+                    }
+                    Totals         = [ordered]@{
+                        ReturnedEvents            = if ($OutputPath) { $exportedEvents } else { $returnedEventsCount }
+                        DownloadedEvents          = $totalEvents
+                        SuccessfulChunkCount      = @($results | Where-Object { $_.Success }).Count
+                        FailedChunkCount          = @($results | Where-Object { -not $_.Success }).Count
+                        MergedChunkFileCount      = @($jsonFiles).Count
+                        TotalSizeMB               = [math]::Round($totalSizeKB / 1024, 2)
+                        DownloadWallClockSeconds  = [math]::Round($wallClockSeconds, 2)
+                        EffectiveRate             = $overallEventsPerSec
+                        TotalRetryCount           = [int](@($results | Measure-Object -Property RetryCount -Sum).Sum)
+                        TotalThrottleRetryCount   = [int](@($results | Measure-Object -Property ThrottleRetryCount -Sum).Sum)
+                        TotalBackoffSeconds       = [math]::Round([double](@($results | Measure-Object -Property BackoffSeconds -Sum).Sum), 2)
+                        TotalInterPageDelaySeconds = [math]::Round([double](@($results | Measure-Object -Property InterPageDelaySeconds -Sum).Sum), 2)
+                        TotalRequestSeconds       = [math]::Round([double](@($results | Measure-Object -Property RequestSeconds -Sum).Sum), 2)
+                        TotalPageProcessingSeconds = [math]::Round([double](@($results | Measure-Object -Property PageProcessingSeconds -Sum).Sum), 2)
+                    }
+                    Chunks         = @(
+                        $results |
+                            Sort-Object ChunkIndex |
+                            ForEach-Object {
+                                [ordered]@{
+                                    ChunkIndex               = $_.ChunkIndex
+                                    FromDate                 = if ($_.FromDate) { ([datetime]$_.FromDate).ToUniversalTime().ToString('o') } else { $null }
+                                    ToDate                   = if ($_.ToDate) { ([datetime]$_.ToDate).ToUniversalTime().ToString('o') } else { $null }
+                                    Success                  = [bool]$_.Success
+                                    EventCount               = [int]($_.EventCount)
+                                    PagesRetrieved           = [int]($_.PagesRetrieved)
+                                    FileSizeKB               = [double]($_.FileSizeKB)
+                                    ElapsedSeconds           = [double]($_.ElapsedSeconds)
+                                    RetryCount               = [int]($_.RetryCount)
+                                    ThrottleRetryCount       = [int]($_.ThrottleRetryCount)
+                                    BackoffSeconds           = [double]($_.BackoffSeconds)
+                                    InterPageDelaySeconds    = [double]($_.InterPageDelaySeconds)
+                                    RequestSeconds           = [double]($_.RequestSeconds)
+                                    RequestSecondsMax        = [double]($_.RequestSecondsMax)
+                                    PageProcessingSeconds    = [double]($_.PageProcessingSeconds)
+                                    PageProcessingSecondsMax = [double]($_.PageProcessingSecondsMax)
+                                    ItemsPerPageAverage      = [double]($_.ItemsPerPageAverage)
+                                    ItemsPerPageMin          = [int]($_.ItemsPerPageMin)
+                                    ItemsPerPageMax          = [int]($_.ItemsPerPageMax)
+                                    Error                    = $_.Error
+                                }
+                            }
+                    )
+                }
+
+                try {
+                    Write-XdrEndpointTimelineDiagnosticFile -Path $DiagnosticsPath -Diagnostics $diagnostics
+                    Write-Verbose "Wrote endpoint timeline diagnostics to: $DiagnosticsPath"
+                } catch {
+                    Write-Warning "Failed to write endpoint timeline diagnostics to '$DiagnosticsPath': $($_.Exception.Message)"
+                }
             }
         }
     }

@@ -79,3 +79,27 @@ pwsh .\tests\pester.live.ps1 -LiveConfigurationPath .\tests\live.settings.json -
 ```
 
 When mutation tests are not enabled, cmdlets that support `-WhatIf` are exercised in `WhatIf` mode by default.
+
+## Benchmark harness
+
+The repository also includes a device timeline benchmark harness for repeatable live performance runs:
+
+- `tests\benchmark.ps1`
+- `tests\benchmark.settings.sample.json`
+- `tests\helpers\Xdr.BenchmarkHelpers.ps1`
+- `tests\helpers\Xdr.BenchmarkWorker.ps1`
+
+### Setup
+
+1. Copy `tests\benchmark.settings.sample.json` to `tests\benchmark.settings.json`
+2. Set `"benchmarks.enabled": true`
+3. Point `"authentication.keyFilePath"` to your local passkey file
+4. Fill in the device IDs and the path to a `main` checkout for branch-to-branch comparisons
+
+### Run
+
+```powershell
+pwsh .\tests\benchmark.ps1 -BenchmarkConfigurationPath .\tests\benchmark.settings.json
+```
+
+Results are written to `TestResults\Benchmarks\`, including a batch-local `results.ndjson` and `summary.json` for median-based comparisons.

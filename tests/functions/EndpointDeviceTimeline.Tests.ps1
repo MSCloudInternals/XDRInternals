@@ -48,10 +48,14 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
         $command = Get-Command Get-XdrEndpointDeviceTimeline
 
         $command.Parameters.ContainsKey('AllowPartial') | Should -BeTrue
+        $command.Parameters.ContainsKey('DiagnosticsPath') | Should -BeTrue
+        $command.Parameters.ContainsKey('PaginationDelayMinMilliseconds') | Should -BeTrue
+        $command.Parameters.ContainsKey('PaginationDelayMaxMilliseconds') | Should -BeTrue
     }
 
     It 'throws when a chunk fails and partial results are not allowed' {
         $goodFile = Join-Path $TestDrive 'device-timeline-good.json'
+        $exportPath = Join-Path $TestDrive 'device-timeline-good-export.json'
         Set-Content -Path $goodFile -Value '{"Events":[{"ActionType":"ProcessCreated"}],"EventCount":1}' -Encoding UTF8
 
         $script:FakeTimelineResults = @(
@@ -79,8 +83,8 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
         )
 
         {
-            Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive
-        } | Should -Throw -ExpectedMessage '*Failed to retrieve device timeline chunks: chunk 1: boom. Re-run with -AllowPartial to return completed chunks.*'
+            Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $exportPath -WorkingDirectory $TestDrive
+        } | Should -Throw -ExpectedMessage '*Failed to retrieve endpoint device timeline chunks: chunk 1: boom. Re-run with -AllowPartial to return completed chunks.*'
     }
 
     It 'returns events from successful chunks when partial results are allowed' {
@@ -111,7 +115,7 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
             }
         )
 
-        $result = @(Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive -AllowPartial)
+        $result = @(Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -WorkingDirectory $TestDrive -AllowPartial)
 
         $result.Count | Should -Be 1
         $result[0].ActionType | Should -Be 'ProcessCreated'
@@ -148,7 +152,7 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
             }
         )
 
-        $result = @(Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive -AllowPartial -WarningAction SilentlyContinue)
+        $result = @(Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -WorkingDirectory $TestDrive -AllowPartial -WarningAction SilentlyContinue)
 
         $result.Count | Should -Be 1
         $result[0].ActionType | Should -Be 'ProcessCreated'
@@ -158,6 +162,7 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
         $goodFile = Join-Path $TestDrive 'device-timeline-export-readable.json'
         $badFile = Join-Path $TestDrive 'device-timeline-export-unreadable.json'
         $exportPath = Join-Path $TestDrive 'device-timeline-export.json'
+        $diagnosticsPath = Join-Path $TestDrive 'device-timeline-export.diagnostics.json'
         Set-Content -Path $goodFile -Value '{"Events":[{"ActionType":"ProcessCreated"}],"EventCount":1}' -Encoding UTF8
         Set-Content -Path $badFile -Value '{"Events":[{"ActionType":"Broken"}' -Encoding UTF8
 
@@ -186,12 +191,18 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
             }
         )
 
-        $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive -ExportPath $exportPath -AllowPartial -WarningAction SilentlyContinue
+        $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $exportPath -WorkingDirectory $TestDrive -AllowPartial -DiagnosticsPath $diagnosticsPath -PaginationDelayMinMilliseconds 0 -PaginationDelayMaxMilliseconds 250 -WarningAction SilentlyContinue
         $exportedEvents = Get-Content -Path $exportPath -Raw | ConvertFrom-Json
+        $diagnostics = Get-Content -Path $diagnosticsPath -Raw | ConvertFrom-Json
 
         $result.ExportPath | Should -Be $exportPath
+        $result.DiagnosticsPath | Should -Be $diagnosticsPath
         $result.TotalEvents | Should -Be 1
         @($exportedEvents).Count | Should -Be 1
         $exportedEvents[0].ActionType | Should -Be 'ProcessCreated'
+        $diagnostics.Totals.ReturnedEvents | Should -Be 1
+        $diagnostics.Request.ReturnMode | Should -Be 'Export'
+        $diagnostics.Request.PaginationDelayMinMilliseconds | Should -Be 0
+        $diagnostics.Request.PaginationDelayMaxMilliseconds | Should -Be 250
     }
 }

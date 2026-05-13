@@ -1,4 +1,21 @@
-﻿function Read-XdrCloudAppsActivityChunkFile {
+﻿function ConvertFrom-XdrCloudAppsActivityJson {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Json
+    )
+
+    if ((Get-Command ConvertFrom-Json -ErrorAction Stop).Parameters.ContainsKey('AsHashtable')) {
+        return $Json | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+    }
+
+    Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
+    $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+    $serializer.MaxJsonLength = [int]::MaxValue
+    return $serializer.DeserializeObject($Json)
+}
+
+function Read-XdrCloudAppsActivityChunkFile {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -9,7 +26,7 @@
     )
 
     try {
-        return Get-Content -Path $File.FullName -Raw -ErrorAction Stop | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+        return ConvertFrom-XdrCloudAppsActivityJson -Json (Get-Content -Path $File.FullName -Raw -ErrorAction Stop)
     }
     catch {
         if ($AllowPartial) {
@@ -540,7 +557,7 @@ function Get-XdrCloudAppsActivityTimeline {
                     }
 
                     if ($response -is [string] -and -not [string]::IsNullOrWhiteSpace($response)) {
-                        $response = $response | ConvertFrom-Json -AsHashtable
+                        $response = ConvertFrom-XdrCloudAppsActivityJson -Json $response
                     }
                     $responseData = if ($response -is [System.Collections.IDictionary]) { $response['data'] } else { $response.data }
                     foreach ($item in @($responseData)) {

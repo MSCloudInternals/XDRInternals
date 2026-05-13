@@ -605,7 +605,7 @@
             $sessionId = "$($Item.SessionId)"
             $commandLine = "$($Item.Command)"
             $currentDirectory = if ([string]::IsNullOrWhiteSpace("$($Item.CurrentDirectory)")) { 'C:\' } else { "$($Item.CurrentDirectory)" }
-            $commandDefinitions = @(Get-XdrLiveResponseCommandDefinitionList -CommandDefinitions $Item.CommandDefinitions)
+            $commandDefinitions = @($Item.CommandDefinitions)
             $timeoutSeconds = [int]$Item.TimeoutSeconds
             $pollIntervalSeconds = [int]$Item.PollIntervalSeconds
             $backgroundMode = [bool]$Item.BackgroundMode
@@ -840,6 +840,7 @@
     }
 
     process {
+        $normalizedCommandDefinitions = @(Get-XdrLiveResponseCommandDefinitionList -CommandDefinitions $CommandDefinitions)
         $pendingRequests.Add([PSCustomObject]@{
                 SessionId           = $SessionId
                 Command             = $Command
@@ -849,7 +850,7 @@
                 BackgroundMode      = [bool]$BackgroundMode
                 TimeoutSeconds      = $TimeoutSeconds
                 PollIntervalSeconds = $PollIntervalSeconds
-                CommandDefinitions  = $CommandDefinitions
+                CommandDefinitions  = $normalizedCommandDefinitions
             })
     }
 

@@ -480,9 +480,14 @@
             $response = Invoke-RestMethod -Uri $Uri -Method Post -Body $jsonBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
 
             $result = if ($null -ne $response.data) { $response.data } else { $response }
-            if ($null -ne $result -and $result -is [array]) {
-                foreach ($item in $result) {
-                    $item.PSObject.TypeNames.Insert(0, $typeName)
+            if ($null -ne $result) {
+                if ($result -is [array]) {
+                    foreach ($item in $result) {
+                        $item.PSObject.TypeNames.Insert(0, $typeName)
+                    }
+                }
+                else {
+                    $result.PSObject.TypeNames.Insert(0, $typeName)
                 }
             }
 

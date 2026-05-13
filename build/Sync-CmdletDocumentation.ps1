@@ -105,25 +105,54 @@ function Test-IncompleteUri {
 }
 
 # Helper function to extract API parameter mappings from cmdlet content using PowerShell AST
-function Get-ApiParameterMapping {
-    param([string]$Content)
+function Get-CmdletFunctionAst {
+    param(
+        [string]$Content,
+        [string]$ExpectedFunctionName
+    )
 
-    $parameters = @{}
     $tokens = $null
     $parseErrors = $null
     $scriptAst = [System.Management.Automation.Language.Parser]::ParseInput($Content, [ref]$tokens, [ref]$parseErrors)
 
     if ($parseErrors.Count -gt 0) {
-        return $parameters
+        return $null
     }
 
-    $functionAst = @(
+    $functionAsts = @(
         $scriptAst.FindAll({
                 param($node)
                 $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
-            }, $true) |
-            Select-Object -First 1
-    )[0]
+            }, $true)
+    )
+
+    if ($functionAsts.Count -eq 0) {
+        return $null
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedFunctionName)) {
+        $expectedFunctionAst = @(
+            $functionAsts |
+                Where-Object { $_.Name -ceq $ExpectedFunctionName } |
+                Select-Object -First 1
+        )[0]
+
+        if ($expectedFunctionAst) {
+            return $expectedFunctionAst
+        }
+    }
+
+    return @($functionAsts | Select-Object -First 1)[0]
+}
+
+function Get-ApiParameterMapping {
+    param(
+        [string]$Content,
+        [string]$ExpectedFunctionName
+    )
+
+    $parameters = @{}
+    $functionAst = Get-CmdletFunctionAst -Content $Content -ExpectedFunctionName $ExpectedFunctionName
 
     if ($null -eq $functionAst) {
         return $parameters
@@ -428,19 +457,19 @@ foreach ($file in $cmdletFiles) {
     Write-Verbose "Processing: $($file.Name)"
     
     $content = Get-Content -Path $file.FullName -Raw
-    $parameters = Get-ApiParameterMapping -Content $content
-    
-    # Extract function name
-    if ($content -match 'function\s+([\w-]+)\s*{') {
-        $cmdletName = $Matches[1]
-    } else {
+    $functionAst = Get-CmdletFunctionAst -Content $content -ExpectedFunctionName $file.BaseName
+
+    if ($null -eq $functionAst) {
         Write-Warning "Could not extract function name from $($file.Name)"
         continue
     }
+
+    $cmdletName = $functionAst.Name
+    $parameters = Get-ApiParameterMapping -Content $content -ExpectedFunctionName $cmdletName
     
     # Extract synopsis
     $synopsis = ""
-    if ($content -match '\.SYNOPSIS\s*\n\s*(.+?)(?=\n\s*\n|\n\s*\.|\z)') {
+    if ($content -match '\.SYNOPSIS\s*\n\s*(.+?)(?=\n\s*(?:\n|\.|#>)|\z)') {
         $synopsis = $Matches[1].Trim()
     }
     

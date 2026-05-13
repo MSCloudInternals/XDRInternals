@@ -405,7 +405,6 @@ Get-XdrAzureDataExplorerIngestionStatus -TableName 'DeviceTimeline' -OperationId
 - Payload files are gzip-compressed before upload unless `-DisableCompression` is specified.
 - Long-running exports automatically refresh the queued-ingestion storage configuration before SAS expiry.
 - Prefer `-TrackIngestion` only when you need operation IDs for troubleshooting.
-
 #### Live Response
 
 ```powershell

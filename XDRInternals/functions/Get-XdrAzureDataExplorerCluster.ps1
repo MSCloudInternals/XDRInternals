@@ -294,7 +294,7 @@
                         -Path '/v1/rest/SaasRp/clusters' `
                         -Method GET `
                         -Token $freeClusterToken `
-                    -TimeoutSec $RequestTimeout `
+                        -TimeoutSec $RequestTimeout `
                         -RetryCount 10)
 
                 $freeClusterDataToken = $null

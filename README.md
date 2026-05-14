@@ -54,7 +54,7 @@ Get-XdrTenantContext -Force
 | Connect-XdrEndpointDeviceLiveResponse                           | Opens a Live Response session to an endpoint device in Microsoft Defender XDR. |
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encodes an Advanced Hunting query for use in Microsoft Defender XDR. |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
-| Export-XdrAzureDataExplorer                                     | Queues pipeline data for Azure Data Explorer ingestion. |
+| Export-XdrAzureDataExplorer                                     | Exports pipeline data to Azure Data Explorer using queued ingestion. |
 | Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |
 | Get-XdrActionsCenterHistory                                     | Retrieves historical actions from the Microsoft Defender XDR Action Center. |
 | Get-XdrActionsCenterPending                                     | Retrieves pending actions from the Microsoft Defender XDR Action Center. |
@@ -63,8 +63,8 @@ Get-XdrTenantContext -Force
 | Get-XdrAdvancedHuntingUnifiedDetectionRules                     | Retrieves the Unified Detection Rules from Advanced Hunting. |
 | Get-XdrAdvancedHuntingUserHistory                               | Retrieves Advanced Hunting user history from Microsoft Defender XDR. |
 | Get-XdrAlert                                                    | Retrieves alerts from Microsoft Defender XDR. |
-| Get-XdrAzureDataExplorerCluster                                 | Discovers accessible Azure Data Explorer clusters and databases from Azure Resource Manager and free/personal clusters. |
-| Get-XdrAzureDataExplorerIngestionStatus                         | Gets or waits on queued Azure Data Explorer ingestion operations. |
+| Get-XdrAzureDataExplorerCluster                                 | Discovers accessible Azure Data Explorer clusters and databases. |
+| Get-XdrAzureDataExplorerIngestionStatus                         | Gets the status of queued Azure Data Explorer ingestion operations. |
 | Get-XdrCloudAppsActivityTimeline                                | Retrieves Microsoft Defender for Cloud Apps activity timeline data. |
 | Get-XdrCloudAppsApp                                             | Retrieves app-focused Microsoft Defender for Cloud Apps data. |
 | Get-XdrCloudAppsConfiguration                                   | Retrieves grouped Microsoft Defender for Cloud Apps configuration data. |
@@ -137,13 +137,13 @@ Get-XdrTenantContext -Force
 | Get-XdrXspmChokePoint                                           | Retrieves choke point data from Microsoft Defender XDR XSPM. |
 | Get-XdrXspmTopEntryPoint                                        | Retrieves top entry points from Microsoft Defender XDR XSPM attack paths. |
 | Get-XdrXspmTopTarget                                            | Retrieves top targets from Microsoft Defender XDR XSPM attack paths. |
+| Invoke-XdrAzureDataExplorerQuery                                | Executes a KQL query or management command against an Azure Data Explorer cluster. |
 | Invoke-XdrEndpointDeviceAction                                  | Invokes response actions on an endpoint device in Microsoft Defender XDR. |
 | Invoke-XdrEndpointDeviceAutomatedInvestigation                  | Starts an automated investigation on an endpoint device in Microsoft Defender XDR. |
 | Invoke-XdrEndpointDeviceLiveResponseCommand                     | Sends a command to an active Live Response session in Microsoft Defender XDR. |
 | Invoke-XdrEndpointDevicePolicySync                              | Forces a policy sync on an endpoint device in Microsoft Defender XDR. |
 | Invoke-XdrHuntingQueryValidation                                | Validates an Advanced Hunting query for custom detection rules in Microsoft Defender XDR. |
 | Invoke-XdrMtoAdvancedHunting                                    | Executes an Advanced Hunting query across multiple tenants in MTO (Multi-Tenant Organization). |
-| Invoke-XdrAzureDataExplorerQuery                                | Runs KQL queries or management commands against Azure Data Explorer. |
 | Invoke-XdrRestMethod                                            | Invokes a REST API call to Microsoft Defender XDR with authenticated session. |
 | Invoke-XdrXspmHuntingQuery                                      | Executes a hunting query against the Microsoft Defender XDR XSPM attack surface API. |
 | Merge-XdrIncident                                               | Merges multiple incidents into a single incident in Microsoft Defender XDR. |
@@ -159,10 +159,10 @@ Get-XdrTenantContext -Force
 | Remove-XdrEndpointDeviceLiveResponseLibraryFile                 | Deletes a file from the Live Response library. |
 | Remove-XdrIdentityConfigurationRemediationActionAccount         | Removes a remediation action account from Microsoft Defender for Identity. |
 | Set-XdrAdvancedHuntingFunction                                  | Updates an existing Advanced Hunting function in Microsoft Defender XDR. |
+| Set-XdrAzureDataExplorerConnection                              | Configures Azure Data Explorer connection settings for export cmdlets. |
 | Set-XdrCloudAppsDiscoveredApp                                   | Updates a discovered app note in Microsoft Defender for Cloud Apps. |
 | Set-XdrConfigurationCriticalAssetManagementClassification       | Updates critical asset management classification rule metadata in Microsoft Defender XDR. |
 | Set-XdrConfigurationPreviewFeatures                             | Sets the configuration for Defender XDR Preview features. |
-| Set-XdrAzureDataExplorerConnection                              | Configures Azure Data Explorer export settings. |
 | Set-XdrConnectionSettings                                       | Creates XDR connection settings using authentication cookies. |
 | Set-XdrEndpointAdvancedFeatures                                 | Configures advanced features settings for Microsoft Defender for Endpoint. |
 | Set-XdrEndpointConfigurationCustomCollectionRule                | Updates an existing custom collection rule for Microsoft Defender for Endpoint. |

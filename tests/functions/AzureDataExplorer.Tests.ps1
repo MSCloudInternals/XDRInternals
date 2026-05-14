@@ -1032,6 +1032,46 @@
                 $Resource -eq 'https://api.kusto.windows.net'
             }
         }
+
+        It 'omits SkipHttpErrorCheck when Invoke-WebRequest does not support it' {
+            Mock Get-Command {
+                [pscustomobject]@{
+                    Parameters = @{}
+                }
+            } -ModuleName XDRInternals -ParameterFilter {
+                $Name -eq 'Invoke-WebRequest'
+            }
+
+            Mock Invoke-WebRequest {
+                [pscustomobject]@{
+                    Headers      = @{ Location = 'msauth.com.msauth.unsignedapp://auth?code=auth-code' }
+                    BaseResponse = [pscustomobject]@{
+                        ResponseUri = [uri]'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize'
+                        Headers     = @{ Location = 'msauth.com.msauth.unsignedapp://auth?code=auth-code' }
+                    }
+                }
+            } -ModuleName XDRInternals
+
+            Mock Invoke-RestMethod {
+                [pscustomobject]@{
+                    access_token = 'ests-session-token'
+                }
+            } -ModuleName XDRInternals -ParameterFilter {
+                $Uri -like 'https://login.microsoftonline.com/*/oauth2/v2.0/token'
+            }
+
+            InModuleScope XDRInternals {
+                $token = Get-XdrAzureAccessToken -Resource 'https://graph.microsoft.com' `
+                    -Scope 'https://graph.microsoft.com/.default' `
+                    -ResourceDisplayName 'Microsoft Graph'
+
+                $token | Should -Be 'ests-session-token'
+            }
+
+            Should -Invoke Invoke-WebRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                -not $PSBoundParameters.ContainsKey('SkipHttpErrorCheck')
+            }
+        }
     }
 
     Describe 'Send-XdrAzureDataExplorerQueuedIngestion' {

@@ -178,6 +178,27 @@
         $result.name | Should -Be 'Shadow IT policy'
         $result.PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsPolicyShadowIT'
     }
+
+    It 'skips null entries when typing policy arrays returned by the API' {
+        Mock Get-XdrCache { $null } -ModuleName XDRInternals
+        Mock Set-XdrCache {} -ModuleName XDRInternals
+        Mock Invoke-RestMethod {
+            [pscustomobject]@{
+                data = @(
+                    $null,
+                    [pscustomobject]@{ name = 'Shadow IT policy' }
+                )
+            }
+        } -ModuleName XDRInternals
+
+        $result = @(Get-XdrCloudAppsPolicy -Type ShadowIT -Force)
+
+        $result | Should -HaveCount 2
+        $result[0] | Should -BeNullOrEmpty
+        $result[1].name | Should -Be 'Shadow IT policy'
+        $result[1].PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsPolicyShadowIT'
+    }
+
     It 'splits mixed recent and archived count-only timeline requests' {
         $from = [datetime]::UtcNow.AddDays(-35)
         $to = [datetime]::UtcNow.AddDays(-1)

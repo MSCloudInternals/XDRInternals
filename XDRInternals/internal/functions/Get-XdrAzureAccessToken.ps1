@@ -44,10 +44,13 @@ function Invoke-XdrRedirectCaptureWebRequest {
         Uri                = $Uri
         Method             = $Method
         UseBasicParsing    = $true
-        SkipHttpErrorCheck = $true
         MaximumRedirection = 0
         Verbose            = $false
         ErrorAction        = 'SilentlyContinue'
+    }
+
+    if ((Get-Command Invoke-WebRequest -ErrorAction Stop).Parameters.ContainsKey('SkipHttpErrorCheck')) {
+        $requestParams['SkipHttpErrorCheck'] = $true
     }
 
     if ($PSBoundParameters.ContainsKey('Session')) {

@@ -334,11 +334,11 @@ Export XDR data directly to Azure Data Explorer for long-term investigation and 
 
 | Method | When available |
 | --- | --- |
+| Explicit token | `-AccessToken` on `Set-XdrAzureDataExplorerConnection` |
 | ESTS CLI bridge | `Connect-XdrByCredential`, `Connect-XdrByBrowser`, `Connect-XdrBySoftwarePasskey`, `Connect-XdrByPhoneSignIn`, or `Connect-XdrByTemporaryAccessPass` (captures ESTS cookies) |
 | Az.Accounts | `Connect-AzAccount` is active |
 | Azure CLI | `az login` session exists |
 | Managed identity | Running on Azure with IMDS |
-| Explicit token | `-AccessToken` on `Set-XdrAzureDataExplorerConnection` |
 
 > **Important:** `Connect-XdrBySSO` and `Set-XdrConnection` (with raw sccauth/xsrf tokens) do **not** capture ESTS cookies, so the module cannot self-bridge Azure tokens from that session alone. When using these methods, ensure you have an active `Connect-AzAccount` or `az login` session, use managed identity, or provide an explicit `-AccessToken`.
 

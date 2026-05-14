@@ -483,6 +483,10 @@
             if ($null -ne $result) {
                 if ($result -is [array]) {
                     foreach ($item in $result) {
+                        if ($null -eq $item) {
+                            continue
+                        }
+
                         $item.PSObject.TypeNames.Insert(0, $typeName)
                     }
                 }

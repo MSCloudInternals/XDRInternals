@@ -1,4 +1,6 @@
 ﻿BeforeAll {
+    Import-Module Microsoft.PowerShell.ThreadJob -ErrorAction Stop
+
     if (-not ('EndpointDeviceTimelineTestJob' -as [type])) {
         Add-Type -TypeDefinition @"
 using System.Management.Automation;

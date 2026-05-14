@@ -1,9 +1,7 @@
 name: Sync Cmdlet Documentation
 
 on:
-  push:
-    branches-ignore:
-      - "sync-cmdlet-docs-**"
+  pull_request:
     paths:
       - "XDRInternals/functions/**"
       - "build/Sync-CmdletDocumentation.ps1"
@@ -14,18 +12,18 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: sync-cmdlet-docs-${{ github.ref_name }}
+  group: sync-cmdlet-docs-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   sync-docs:
-    if: github.event_name != 'push' || !startsWith(github.ref_name, 'sync-cmdlet-docs-')
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'sync-cmdlet-docs-'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
 
       - name: Run cmdlet documentation sync
@@ -63,8 +61,8 @@ jobs:
             XDRInternals/XDRInternals.psd1
             XDRay/CmdletApiMapping.json
             XDRay Firefox/CmdletApiMapping.json
-          branch: sync-cmdlet-docs-${{ github.ref_name }}
-          base: ${{ github.ref_name }}
+          branch: sync-cmdlet-docs-${{ github.head_ref || github.ref_name }}
+          base: ${{ github.head_ref || github.ref_name }}
           delete-branch: true
 
       - name: Report pull request

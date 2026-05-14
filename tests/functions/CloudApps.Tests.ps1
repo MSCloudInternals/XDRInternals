@@ -217,7 +217,8 @@
 
             $script:session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
             $script:headers = @{}
-            $originalVersionTable = $script:PSVersionTable
+            $hadScriptVersionTable = Test-Path -Path variable:script:PSVersionTable
+            $originalVersionTable = if ($hadScriptVersionTable) { (Get-Item -Path variable:script:PSVersionTable).Value } else { $null }
 
             try {
                 $script:PSVersionTable = @{ PSVersion = [version]'5.1.0' }
@@ -233,7 +234,12 @@
                 $chunkContent | Should -Not -Match 'null'
             }
             finally {
-                $script:PSVersionTable = $originalVersionTable
+                if ($hadScriptVersionTable) {
+                    $script:PSVersionTable = $originalVersionTable
+                }
+                else {
+                    Remove-Item -Path variable:script:PSVersionTable -ErrorAction SilentlyContinue
+                }
             }
         }
     }

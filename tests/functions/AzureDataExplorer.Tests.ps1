@@ -1159,6 +1159,43 @@
             }
         }
 
+        It 'preserves deep payloads when exporting raw records to a named table' {
+            $records = @(
+                [pscustomobject]@{
+                    DeviceId  = 'device-1'
+                    EventType = 'ProcessCreated'
+                    level1    = [pscustomobject]@{
+                        level2 = [pscustomobject]@{
+                            level3 = [pscustomobject]@{
+                                level4 = [pscustomobject]@{
+                                    level5 = [pscustomobject]@{
+                                        level6 = [pscustomobject]@{
+                                            level7 = [pscustomobject]@{
+                                                level8 = [pscustomobject]@{
+                                                    level9 = [pscustomobject]@{
+                                                        level10 = [pscustomobject]@{
+                                                            level11 = 'preserved'
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+
+            $null = @($records | Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $TestDrive -KeepTempFiles -DisableCompression)
+
+            $stagedJsonPath = Get-ChildItem -Path $TestDrive -Recurse -Filter '*.json' | Select-Object -First 1 -ExpandProperty FullName
+            $stagedJson = @(Get-Content -Path $stagedJsonPath -Raw | ConvertFrom-Json)
+
+            $stagedJson[0].level1.level2.level3.level4.level5.level6.level7.level8.level9.level10.level11 | Should -Be 'preserved'
+        }
+
         It 'submits multiple queued requests when the service maxDataSize would be exceeded' {
             Mock Get-XdrAzureDataExplorerIngestionConfiguration {
                 [pscustomobject]@{
@@ -1810,6 +1847,47 @@
                 $TableName -eq 'XDRCloudAppsActivityTimeline' -and
                 $MappingName -eq 'XDRCloudAppsActivityTimeline_EventMapping'
             }
+        }
+
+        It 'preserves deep Cloud Apps event payloads in exported JSON records' {
+            $records = @(
+                [pscustomobject]@{
+                    date         = '2026-04-28T12:00:00Z'
+                    timestamp    = 1777377600000
+                    _id          = 'activity-1'
+                    userName     = 'user@contoso.com'
+                    appName      = 'Microsoft 365'
+                    activityType = 'Login'
+                    level1       = [pscustomobject]@{
+                        level2 = [pscustomobject]@{
+                            level3 = [pscustomobject]@{
+                                level4 = [pscustomobject]@{
+                                    level5 = [pscustomobject]@{
+                                        level6 = [pscustomobject]@{
+                                            level7 = [pscustomobject]@{
+                                                level8 = [pscustomobject]@{
+                                                    level9 = [pscustomobject]@{
+                                                        level10 = [pscustomobject]@{
+                                                            level11 = 'preserved'
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+
+            $null = @($records | Export-XdrAzureDataExplorer -Source 'CloudAppsActivityTimeline' -TempPath $TestDrive -KeepTempFiles -DisableCompression)
+
+            $stagedJsonPath = Get-ChildItem -Path $TestDrive -Recurse -Filter '*.json' | Select-Object -First 1 -ExpandProperty FullName
+            $stagedJson = @(Get-Content -Path $stagedJsonPath -Raw | ConvertFrom-Json)
+
+            $stagedJson[0].level1.level2.level3.level4.level5.level6.level7.level8.level9.level10.level11 | Should -Be 'preserved'
         }
 
         It 'routes Cloud Apps timeline alias to the typed Cloud Apps table' {

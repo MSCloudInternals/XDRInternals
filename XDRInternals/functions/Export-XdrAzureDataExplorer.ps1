@@ -273,7 +273,7 @@
                 $ts.initialized = $true
             }
 
-            $jsonLine = $Data | ConvertTo-Json -Depth 10 -Compress
+            $jsonLine = $Data | ConvertTo-Json -Depth 20 -Compress
             $lineText = "$jsonLine`n"
             $lineByteCount = $utf8.GetByteCount($lineText)
 
@@ -382,7 +382,7 @@
             }
         }
         else {
-            $jsonLine = $Data | ConvertTo-Json -Depth 10 -Compress
+            $jsonLine = $Data | ConvertTo-Json -Depth 20 -Compress
             $lineText = "$jsonLine`n"
             $lineByteCount = $utf8.GetByteCount($lineText)
 

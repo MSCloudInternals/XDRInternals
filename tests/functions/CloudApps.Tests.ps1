@@ -192,6 +192,52 @@
         }
     }
 
+    It 'skips null activity payload items when writing chunk files' {
+        $eventTime = [datetime]::UtcNow.AddMinutes(-5)
+        $eventTimestamp = [long](($eventTime - [datetime]'1970-01-01').TotalMilliseconds)
+
+        Mock Invoke-RestMethod {
+            [pscustomobject]@{
+                data    = @(
+                    $null,
+                    [pscustomobject]@{
+                        _id       = 'activity-1'
+                        timestamp = $eventTimestamp
+                        date      = $eventTime.ToString('o')
+                        appName   = 'Microsoft 365'
+                    },
+                    $null
+                )
+                hasNext = $false
+            }
+        } -ModuleName XDRInternals
+
+        InModuleScope -ModuleName XDRInternals -Parameters @{ TempPath = $TestDrive; EventTime = $eventTime } {
+            param($TempPath, $EventTime)
+
+            $script:session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            $script:headers = @{}
+            $originalVersionTable = $script:PSVersionTable
+
+            try {
+                $script:PSVersionTable = @{ PSVersion = [version]'5.1.0' }
+
+                $result = @(Get-XdrCloudAppsActivityTimeline -FromDate $EventTime.AddHours(-1) -ToDate $EventTime.AddHours(1) -OutputPath $TempPath -KeepTempFiles)
+
+                $result | Should -HaveCount 1
+                $result[0]._id | Should -Be 'activity-1'
+
+                $chunkPath = Get-ChildItem -Path $TempPath -Recurse -Filter 'chunk_*.json' | Select-Object -First 1 -ExpandProperty FullName
+                $chunkContent = Get-Content -Path $chunkPath -Raw
+
+                $chunkContent | Should -Not -Match 'null'
+            }
+            finally {
+                $script:PSVersionTable = $originalVersionTable
+            }
+        }
+    }
+
     It 'skips unreadable activity chunk files when partial data is allowed' {
         $chunkPath = Join-Path $TestDrive 'chunk_bad.json'
         Set-Content -Path $chunkPath -Value '{"Events":[{"_id":"activity-1"}' -Encoding UTF8

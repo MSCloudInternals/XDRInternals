@@ -576,11 +576,17 @@ function Get-XdrCloudAppsActivityTimeline {
                         $response = ConvertFrom-XdrCloudAppsActivityChunkJson -Json $response
                     }
                     $responseData = if ($response -is [System.Collections.IDictionary]) { $response['data'] } else { $response.data }
-                    foreach ($item in @($responseData)) {
-                        if (-not $first) { $writer.Write(',') }
-                        $writer.Write(($item | ConvertTo-Json -Depth 20 -Compress))
-                        $first = $false
-                        $eventCount++
+                    if ($null -ne $responseData) {
+                        foreach ($item in @($responseData)) {
+                            if ($null -eq $item) {
+                                continue
+                            }
+
+                            if (-not $first) { $writer.Write(',') }
+                            $writer.Write(($item | ConvertTo-Json -Depth 20 -Compress))
+                            $first = $false
+                            $eventCount++
+                        }
                     }
                     $pagesRetrieved++
                     Set-Content -Path $progressPath -Value $pagesRetrieved -Encoding UTF8

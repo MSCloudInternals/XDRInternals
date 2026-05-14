@@ -14,6 +14,789 @@
                 $connection.Database | Should -Be 'Investigations'
             }
         }
+
+        It 'discovers clusters and prompts for cluster selection when multiple matches are available' {
+            $script:adxSelections = @('2')
+            $script:adxSelectionIndex = 0
+
+            Mock Write-Information {} -ModuleName XDRInternals
+            Mock Read-Host {
+                $response = $script:adxSelections[$script:adxSelectionIndex]
+                $script:adxSelectionIndex++
+                return $response
+            } -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerCluster {
+                @(
+                    [pscustomobject]@{
+                        ClusterName       = 'nm-test-cluster'
+                        ClusterUri        = 'https://nm-test-cluster.westus2.kusto.windows.net'
+                        IngestionUri      = 'https://ingest-nm-test-cluster.westus2.kusto.windows.net'
+                        SubscriptionId    = 'sub-1'
+                        SubscriptionName  = 'Lab Subscription'
+                        Location          = 'westus2'
+                        SkuTier           = 'Basic'
+                        ProvisioningState = 'Succeeded'
+                        State             = 'Running'
+                        Databases         = @(
+                            [pscustomobject]@{
+                                DatabaseName = 'Investigations'
+                                Kind         = 'ReadWrite'
+                            }
+                        )
+                    },
+                    [pscustomobject]@{
+                        ClusterName       = 'MyFreeCluster'
+                        ClusterUri        = 'https://kvc-2fjns59p9bjfxt1f1f.southcentralus.kusto.windows.net'
+                        IngestionUri      = 'https://ingest-kvc-2fjns59p9bjfxt1f1f.southcentralus.kusto.windows.net'
+                        TenantId          = 'tenant-free'
+                        SubscriptionId    = $null
+                        SubscriptionName  = $null
+                        Location          = 'southcentralus'
+                        SkuTier           = 'Free'
+                        ProvisioningState = 'Running'
+                        State             = 'Running'
+                        Databases         = @(
+                            [pscustomobject]@{
+                                DatabaseName = 'MyDatabase'
+                                Kind         = 'ReadWrite'
+                            }
+                        )
+                    }
+                )
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                Set-XdrAzureDataExplorerConnection
+
+                $connection = Get-XdrAzureDataExplorerConnection
+                $connection.ClusterUri.AbsoluteUri | Should -Be 'https://kvc-2fjns59p9bjfxt1f1f.southcentralus.kusto.windows.net/'
+                $connection.IngestionUri.AbsoluteUri | Should -Be 'https://ingest-kvc-2fjns59p9bjfxt1f1f.southcentralus.kusto.windows.net/'
+                $connection.Database | Should -Be 'MyDatabase'
+                $connection.TenantId | Should -Be 'tenant-free'
+            }
+
+            Should -Invoke Get-XdrAzureDataExplorerCluster -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $IncludeDatabases -eq $true
+            }
+
+            Should -Invoke Read-Host -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Prompt -eq 'Select cluster [1-2]'
+            }
+        }
+
+        It 'prompts for database selection when the chosen cluster has multiple databases' {
+            Mock Write-Information {} -ModuleName XDRInternals
+            Mock Read-Host { '2' } -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerCluster {
+                @(
+                    [pscustomobject]@{
+                        ClusterName       = 'nm-test-cluster'
+                        ClusterUri        = 'https://nm-test-cluster.westus2.kusto.windows.net'
+                        IngestionUri      = 'https://ingest-nm-test-cluster.westus2.kusto.windows.net'
+                        SubscriptionId    = 'sub-1'
+                        SubscriptionName  = 'Lab Subscription'
+                        Location          = 'westus2'
+                        SkuTier           = 'Basic'
+                        ProvisioningState = 'Succeeded'
+                        State             = 'Running'
+                        Databases         = @(
+                            [pscustomobject]@{
+                                DatabaseName = 'Investigations'
+                                Kind         = 'ReadWrite'
+                            },
+                            [pscustomobject]@{
+                                DatabaseName = 'Sandbox'
+                                Kind         = 'ReadWrite'
+                            }
+                        )
+                    }
+                )
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                Set-XdrAzureDataExplorerConnection
+
+                $connection = Get-XdrAzureDataExplorerConnection
+                $connection.ClusterUri.AbsoluteUri | Should -Be 'https://nm-test-cluster.westus2.kusto.windows.net/'
+                $connection.Database | Should -Be 'Sandbox'
+            }
+
+            Should -Invoke Read-Host -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Prompt -eq 'Select database [1-2]'
+            }
+        }
+
+        It 'throws in non-interactive mode when multiple clusters match discovery' {
+            Mock Write-Information {} -ModuleName XDRInternals
+            Mock Read-Host { throw 'Read-Host should not be called in non-interactive mode.' } -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerCluster {
+                @(
+                    [pscustomobject]@{
+                        ClusterName       = 'nm-test-cluster'
+                        ClusterUri        = 'https://nm-test-cluster.westus2.kusto.windows.net'
+                        IngestionUri      = 'https://ingest-nm-test-cluster.westus2.kusto.windows.net'
+                        SubscriptionId    = 'sub-1'
+                        SubscriptionName  = 'Lab Subscription'
+                        Location          = 'westus2'
+                        SkuTier           = 'Basic'
+                        ProvisioningState = 'Succeeded'
+                        State             = 'Running'
+                        Databases         = @(
+                            [pscustomobject]@{
+                                DatabaseName = 'Investigations'
+                                Kind         = 'ReadWrite'
+                            }
+                        )
+                    },
+                    [pscustomobject]@{
+                        ClusterName       = 'MyFreeCluster'
+                        ClusterUri        = 'https://kvc-2fjns59p9bjfxt1f1f.southcentralus.kusto.windows.net'
+                        IngestionUri      = 'https://ingest-kvc-2fjns59p9bjfxt1f1f.southcentralus.kusto.windows.net'
+                        SubscriptionId    = $null
+                        SubscriptionName  = $null
+                        Location          = 'southcentralus'
+                        SkuTier           = 'Free'
+                        ProvisioningState = 'Running'
+                        State             = 'Running'
+                        Databases         = @(
+                            [pscustomobject]@{
+                                DatabaseName = 'MyDatabase'
+                                Kind         = 'ReadWrite'
+                            }
+                        )
+                    }
+                )
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                {
+                    Set-XdrAzureDataExplorerConnection -NonInteractive
+                } | Should -Throw '*Multiple Azure Data Explorer clusters matched the requested discovery criteria in non-interactive mode*'
+            }
+
+            Should -Invoke Read-Host -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'throws in non-interactive mode when multiple databases are discovered for one cluster' {
+            Mock Write-Information {} -ModuleName XDRInternals
+            Mock Read-Host { throw 'Read-Host should not be called in non-interactive mode.' } -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerCluster {
+                @(
+                    [pscustomobject]@{
+                        ClusterName       = 'nm-test-cluster'
+                        ClusterUri        = 'https://nm-test-cluster.westus2.kusto.windows.net'
+                        IngestionUri      = 'https://ingest-nm-test-cluster.westus2.kusto.windows.net'
+                        SubscriptionId    = 'sub-1'
+                        SubscriptionName  = 'Lab Subscription'
+                        Location          = 'westus2'
+                        SkuTier           = 'Basic'
+                        ProvisioningState = 'Succeeded'
+                        State             = 'Running'
+                        Databases         = @(
+                            [pscustomobject]@{
+                                DatabaseName = 'Investigations'
+                                Kind         = 'ReadWrite'
+                            },
+                            [pscustomobject]@{
+                                DatabaseName = 'Sandbox'
+                                Kind         = 'ReadWrite'
+                            }
+                        )
+                    }
+                )
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                {
+                    Set-XdrAzureDataExplorerConnection -NonInteractive
+                } | Should -Throw '*Multiple databases were discovered for cluster ''nm-test-cluster'' in non-interactive mode*'
+            }
+
+            Should -Invoke Read-Host -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'does not prompt in non-interactive mode when discovery resolves to one cluster and one database' {
+            Mock Write-Information {} -ModuleName XDRInternals
+            Mock Read-Host { throw 'Read-Host should not be called in non-interactive mode.' } -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerCluster {
+                @(
+                    [pscustomobject]@{
+                        ClusterName       = 'nm-test-cluster'
+                        ClusterUri        = 'https://nm-test-cluster.westus2.kusto.windows.net'
+                        IngestionUri      = 'https://ingest-nm-test-cluster.westus2.kusto.windows.net'
+                        TenantId          = 'tenant-selected'
+                        SubscriptionId    = 'sub-1'
+                        SubscriptionName  = 'Lab Subscription'
+                        Location          = 'westus2'
+                        SkuTier           = 'Basic'
+                        ProvisioningState = 'Succeeded'
+                        State             = 'Running'
+                        Databases         = @(
+                            [pscustomobject]@{
+                                DatabaseName = 'Investigations'
+                                Kind         = 'ReadWrite'
+                            }
+                        )
+                    }
+                )
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                Set-XdrAzureDataExplorerConnection -NonInteractive
+
+                $connection = Get-XdrAzureDataExplorerConnection
+                $connection.ClusterUri.AbsoluteUri | Should -Be 'https://nm-test-cluster.westus2.kusto.windows.net/'
+                $connection.Database | Should -Be 'Investigations'
+                $connection.TenantId | Should -Be 'tenant-selected'
+            }
+
+            Should -Invoke Read-Host -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'does not allow discovery mode to reuse the explicit data-plane access token parameter' {
+            {
+                Set-XdrAzureDataExplorerConnection -ClusterName 'nm-test-cluster' -AccessToken 'token'
+            } | Should -Throw '*Parameter set cannot be resolved*'
+        }
+
+        It 'throws when the selected cluster has no discovered databases' {
+            Mock Write-Information {} -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerCluster {
+                @(
+                    [pscustomobject]@{
+                        ClusterName       = 'nm-test-cluster'
+                        ClusterUri        = 'https://nm-test-cluster.westus2.kusto.windows.net'
+                        IngestionUri      = 'https://ingest-nm-test-cluster.westus2.kusto.windows.net'
+                        SubscriptionId    = 'sub-1'
+                        SubscriptionName  = 'Lab Subscription'
+                        Location          = 'westus2'
+                        SkuTier           = 'Basic'
+                        ProvisioningState = 'Creating'
+                        State             = 'Running'
+                        Databases         = @()
+                    }
+                )
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                {
+                    Set-XdrAzureDataExplorerConnection
+                } | Should -Throw '*No databases were discovered for cluster ''nm-test-cluster''*ProvisioningState=Creating*'
+            }
+        }
+
+        It 'does not perform discovery when WhatIf is used in discover mode' {
+            Mock Resolve-XdrAzureDataExplorerDiscoveredConnection {
+                throw 'Discovery should not run under WhatIf'
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                Set-XdrAzureDataExplorerConnection -WhatIf
+            }
+
+            Should -Invoke Resolve-XdrAzureDataExplorerDiscoveredConnection -ModuleName XDRInternals -Times 0 -Exactly
+        }
+    }
+
+    Describe 'Get-XdrAzureDataExplorerCluster' {
+        It 'enumerates subscriptions, clusters, and databases through Azure Resource Manager' {
+            Mock Get-XdrAzureAccessToken { 'arm-token' } -ModuleName XDRInternals
+            Mock Invoke-XdrAzureDataExplorerRestRequest { @() } -ModuleName XDRInternals
+            Mock Get-XdrAzureResourceManagerCollection {
+                switch ($Path) {
+                    '/subscriptions?api-version=2022-12-01' {
+                        @(
+                            [pscustomobject]@{
+                                subscriptionId = 'sub-1'
+                                displayName    = 'Lab Subscription'
+                                tenantId       = 'tenant-1'
+                            }
+                        )
+                    }
+                    '/subscriptions/sub-1/providers/Microsoft.Kusto/clusters?api-version=2024-04-13' {
+                        @(
+                            [pscustomobject]@{
+                                id         = '/subscriptions/sub-1/resourceGroups/rg-lab/providers/Microsoft.Kusto/clusters/labcluster'
+                                name       = 'labcluster'
+                                location   = 'southcentralus'
+                                sku        = [pscustomobject]@{
+                                    name = 'Dev(No SLA)_Standard_D11_v2'
+                                    tier = 'Standard'
+                                }
+                                properties = [pscustomobject]@{
+                                    uri               = 'https://labcluster.southcentralus.kusto.windows.net'
+                                    dataIngestionUri  = 'https://ingest-labcluster.southcentralus.kusto.windows.net'
+                                    state             = 'Running'
+                                    provisioningState = 'Succeeded'
+                                }
+                            }
+                        )
+                    }
+                    '/subscriptions/sub-1/resourceGroups/rg-lab/providers/Microsoft.Kusto/clusters/labcluster/databases?api-version=2024-04-13' {
+                        @(
+                            [pscustomobject]@{
+                                id         = '/subscriptions/sub-1/resourceGroups/rg-lab/providers/Microsoft.Kusto/clusters/labcluster/databases/Investigations'
+                                name       = 'labcluster/Investigations'
+                                kind       = 'ReadWrite'
+                                location   = 'southcentralus'
+                                properties = [pscustomobject]@{
+                                    provisioningState = 'Succeeded'
+                                    softDeletePeriod  = 'P365D'
+                                    hotCachePeriod    = 'P31D'
+                                }
+                            }
+                        )
+                    }
+                    default {
+                        throw "Unexpected ARM collection path: $Path"
+                    }
+                }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $result = @(Get-XdrAzureDataExplorerCluster -IncludeDatabases -RequestTimeout 123)
+
+                $result.Count | Should -Be 1
+                $result[0].ClusterName | Should -Be 'labcluster'
+                $result[0].SubscriptionName | Should -Be 'Lab Subscription'
+                $result[0].IngestionUri | Should -Be 'https://ingest-labcluster.southcentralus.kusto.windows.net'
+                @($result[0].Databases).Count | Should -Be 1
+                $result[0].Databases[0].DatabaseName | Should -Be 'Investigations'
+            }
+
+            Should -Invoke Get-XdrAzureAccessToken -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Resource -eq 'https://management.azure.com/' -and
+                $TenantId -eq 'tenant-1'
+            }
+        }
+
+        It 'acquires tenant-specific ARM tokens for discovered subscriptions in other tenants' {
+            Mock Get-XdrCache {
+                [pscustomobject]@{
+                    Value = 'tenant-home'
+                }
+            } -ModuleName XDRInternals -ParameterFilter {
+                $CacheKey -eq 'XdrTenantId'
+            }
+            Mock Get-XdrAzureAccessToken { 'arm-token' } -ModuleName XDRInternals
+            Mock Invoke-XdrAzureDataExplorerRestRequest { @() } -ModuleName XDRInternals
+            Mock Get-XdrAzureResourceManagerCollection {
+                switch ($Path) {
+                    '/subscriptions?api-version=2022-12-01' {
+                        @(
+                            [pscustomobject]@{
+                                subscriptionId = 'sub-guest'
+                                displayName    = 'Guest Subscription'
+                                tenantId       = 'tenant-guest'
+                            }
+                        )
+                    }
+                    '/subscriptions/sub-guest/providers/Microsoft.Kusto/clusters?api-version=2024-04-13' {
+                        @(
+                            [pscustomobject]@{
+                                id         = '/subscriptions/sub-guest/resourceGroups/rg-guest/providers/Microsoft.Kusto/clusters/guestcluster'
+                                name       = 'guestcluster'
+                                location   = 'eastus2'
+                                sku        = [pscustomobject]@{
+                                    name = 'Standard'
+                                    tier = 'Standard'
+                                }
+                                properties = [pscustomobject]@{
+                                    uri               = 'https://guestcluster.eastus2.kusto.windows.net'
+                                    dataIngestionUri  = 'https://ingest-guestcluster.eastus2.kusto.windows.net'
+                                    state             = 'Running'
+                                    provisioningState = 'Succeeded'
+                                }
+                            }
+                        )
+                    }
+                    default {
+                        throw "Unexpected ARM collection path: $Path"
+                    }
+                }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $result = @(Get-XdrAzureDataExplorerCluster)
+
+                $result.Count | Should -Be 1
+                $result[0].SubscriptionId | Should -Be 'sub-guest'
+                $result[0].TenantId | Should -Be 'tenant-guest'
+            }
+
+            Should -Invoke Get-XdrAzureAccessToken -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Resource -eq 'https://management.azure.com/' -and
+                $TenantId -eq 'tenant-home'
+            }
+
+            Should -Invoke Get-XdrAzureAccessToken -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Resource -eq 'https://management.azure.com/' -and
+                $TenantId -eq 'tenant-guest'
+            }
+        }
+
+        It 'can query an explicit subscription list without calling the subscription discovery endpoint' {
+            Mock Get-XdrAzureAccessToken { 'arm-token' } -ModuleName XDRInternals
+            Mock Get-XdrCache {
+                [pscustomobject]@{
+                    Value = 'tenant-from-cache'
+                }
+            } -ModuleName XDRInternals -ParameterFilter {
+                $CacheKey -eq 'XdrTenantId'
+            }
+            Mock Invoke-XdrAzureDataExplorerRestRequest { @() } -ModuleName XDRInternals
+            Mock Invoke-XdrAzureResourceManagerRequest {
+                [pscustomobject]@{
+                    subscriptionId = 'sub-2'
+                    displayName    = 'App Subscription'
+                    tenantId       = 'tenant-2'
+                    state          = 'Enabled'
+                }
+            } -ModuleName XDRInternals
+            Mock Get-XdrAzureResourceManagerCollection {
+                switch ($Path) {
+                    '/subscriptions/sub-2/providers/Microsoft.Kusto/clusters?api-version=2024-04-13' {
+                        @(
+                            [pscustomobject]@{
+                                id         = '/subscriptions/sub-2/resourceGroups/rg-app/providers/Microsoft.Kusto/clusters/appcluster'
+                                name       = 'appcluster'
+                                location   = 'eastus'
+                                sku        = [pscustomobject]@{
+                                    name = 'Standard'
+                                    tier = 'Standard'
+                                }
+                                properties = [pscustomobject]@{
+                                    uri               = 'https://appcluster.eastus.kusto.windows.net'
+                                    dataIngestionUri  = 'https://ingest-appcluster.eastus.kusto.windows.net'
+                                    state             = 'Running'
+                                    provisioningState = 'Succeeded'
+                                }
+                            }
+                        )
+                    }
+                    default {
+                        throw "Unexpected ARM collection path: $Path"
+                    }
+                }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $result = @(Get-XdrAzureDataExplorerCluster -SubscriptionId 'sub-2')
+
+                $result.Count | Should -Be 1
+                $result[0].SubscriptionId | Should -Be 'sub-2'
+                $result[0].ClusterName | Should -Be 'appcluster'
+                $result[0].TenantId | Should -Be 'tenant-2'
+            }
+
+            Should -Invoke Get-XdrAzureResourceManagerCollection -ModuleName XDRInternals -Times 0 -Exactly -ParameterFilter {
+                $Path -eq '/subscriptions?api-version=2022-12-01'
+            }
+
+            Should -Invoke Get-XdrAzureAccessToken -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Resource -eq 'https://management.azure.com/' -and
+                $TenantId -eq 'tenant-from-cache'
+            }
+
+            Should -Invoke Get-XdrAzureAccessToken -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Resource -eq 'https://management.azure.com/' -and
+                $TenantId -eq 'tenant-2'
+            }
+        }
+
+        It 'filters databases by name and skips clusters without matches' {
+            Mock Get-XdrAzureAccessToken { 'arm-token' } -ModuleName XDRInternals
+            Mock Invoke-XdrAzureDataExplorerRestRequest { @() } -ModuleName XDRInternals
+            Mock Get-XdrAzureResourceManagerCollection {
+                switch ($Path) {
+                    '/subscriptions?api-version=2022-12-01' {
+                        @(
+                            [pscustomobject]@{
+                                subscriptionId = 'sub-1'
+                                displayName    = 'Lab Subscription'
+                                tenantId       = 'tenant-1'
+                            }
+                        )
+                    }
+                    '/subscriptions/sub-1/providers/Microsoft.Kusto/clusters?api-version=2024-04-13' {
+                        @(
+                            [pscustomobject]@{
+                                id         = '/subscriptions/sub-1/resourceGroups/rg-lab/providers/Microsoft.Kusto/clusters/labcluster'
+                                name       = 'labcluster'
+                                location   = 'southcentralus'
+                                sku        = [pscustomobject]@{
+                                    name = 'Standard'
+                                    tier = 'Standard'
+                                }
+                                properties = [pscustomobject]@{
+                                    uri               = 'https://labcluster.southcentralus.kusto.windows.net'
+                                    dataIngestionUri  = 'https://ingest-labcluster.southcentralus.kusto.windows.net'
+                                    state             = 'Running'
+                                    provisioningState = 'Succeeded'
+                                }
+                            }
+                        )
+                    }
+                    '/subscriptions/sub-1/resourceGroups/rg-lab/providers/Microsoft.Kusto/clusters/labcluster/databases?api-version=2024-04-13' {
+                        @(
+                            [pscustomobject]@{
+                                id         = '/subscriptions/sub-1/resourceGroups/rg-lab/providers/Microsoft.Kusto/clusters/labcluster/databases/Scratch'
+                                name       = 'Scratch'
+                                kind       = 'ReadWrite'
+                                location   = 'southcentralus'
+                                properties = [pscustomobject]@{
+                                    provisioningState = 'Succeeded'
+                                    softDeletePeriod  = 'P365D'
+                                    hotCachePeriod    = 'P31D'
+                                }
+                            }
+                        )
+                    }
+                    default {
+                        throw "Unexpected ARM collection path: $Path"
+                    }
+                }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $result = @(Get-XdrAzureDataExplorerCluster -DatabaseName 'Investigations')
+                $result | Should -BeNullOrEmpty
+            }
+        }
+
+        It 'includes free clusters even when Azure Resource Manager discovery is unavailable' {
+            Mock Get-XdrAzureAccessToken {
+                switch ($Resource) {
+                    'https://management.azure.com/' {
+                        throw 'ARM auth unavailable'
+                    }
+                    'https://help.kusto.windows.net' {
+                        'free-cluster-token'
+                    }
+                    'https://kusto.kusto.windows.net' {
+                        'free-cluster-data-token'
+                    }
+                    default {
+                        throw "Unexpected token resource: $Resource"
+                    }
+                }
+            } -ModuleName XDRInternals
+            Mock Get-XdrCache {
+                [pscustomobject]@{
+                    Value = 'tenant-from-cache'
+                }
+            } -ModuleName XDRInternals -ParameterFilter {
+                $CacheKey -eq 'XdrTenantId'
+            }
+
+            Mock Invoke-XdrAzureDataExplorerRestRequest {
+                if ($BaseUri.AbsoluteUri -eq 'https://saasrp.kusto.windows.net/' -and $Path -eq '/v1/rest/SaasRp/clusters') {
+                    return @(
+                        [pscustomobject]@{
+                            id                 = 'kvc-f1csubt6echz7s8ark'
+                            engineUrl          = 'https://kvc-f1csubt6echz7s8ark.southcentralus.kusto.windows.net'
+                            dmUrl              = 'https://ingest-kvc-f1csubt6echz7s8ark.southcentralus.kusto.windows.net'
+                            state              = 'Running'
+                            region             = 'southcentralus'
+                            defaultDisplayName = 'MyFreeCluster'
+                            databaseCount      = 1
+                            graduation         = $null
+                        }
+                    )
+                }
+
+                if ($BaseUri.AbsoluteUri -eq 'https://kvc-f1csubt6echz7s8ark.southcentralus.kusto.windows.net/' -and $Path -eq '/v1/rest/mgmt') {
+                    return [pscustomobject]@{
+                        Tables = @(
+                            [pscustomobject]@{
+                                TableName = 'Table_0'
+                                Columns   = @(
+                                    [pscustomobject]@{ ColumnName = 'DatabaseName' },
+                                    [pscustomobject]@{ ColumnName = 'DatabaseAccessMode' }
+                                )
+                                Rows      = @(
+                                    , @('MyDatabase', 'ReadWrite')
+                                )
+                            }
+                        )
+                    }
+                }
+
+                throw "Unexpected Azure Data Explorer REST request: $($BaseUri.AbsoluteUri)$Path"
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $result = @(Get-XdrAzureDataExplorerCluster -IncludeDatabases -RequestTimeout 123)
+
+                $result.Count | Should -Be 1
+                $result[0].ClusterName | Should -Be 'MyFreeCluster'
+                $result[0].ClusterUri | Should -Be 'https://kvc-f1csubt6echz7s8ark.southcentralus.kusto.windows.net'
+                $result[0].IngestionUri | Should -Be 'https://ingest-kvc-f1csubt6echz7s8ark.southcentralus.kusto.windows.net'
+                $result[0].Location | Should -Be 'southcentralus'
+                $result[0].TenantId | Should -Be 'tenant-from-cache'
+                @($result[0].Databases).Count | Should -Be 1
+                $result[0].Databases[0].DatabaseName | Should -Be 'MyDatabase'
+                $result[0].Databases[0].Kind | Should -Be 'ReadWrite'
+            }
+
+            Should -Invoke Get-XdrAzureAccessToken -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Resource -eq 'https://help.kusto.windows.net' -and
+                $TenantId -eq 'tenant-from-cache'
+            }
+
+            Should -Invoke Get-XdrAzureAccessToken -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Resource -eq 'https://kusto.kusto.windows.net' -and
+                $TenantId -eq 'tenant-from-cache'
+            }
+
+            Should -Invoke Invoke-XdrAzureDataExplorerRestRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $BaseUri.AbsoluteUri -eq 'https://saasrp.kusto.windows.net/' -and
+                $Path -eq '/v1/rest/SaasRp/clusters' -and
+                $TimeoutSec -eq 123
+            }
+
+            Should -Invoke Invoke-XdrAzureDataExplorerRestRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $BaseUri.AbsoluteUri -eq 'https://kvc-f1csubt6echz7s8ark.southcentralus.kusto.windows.net/' -and
+                $Path -eq '/v1/rest/mgmt' -and
+                $TimeoutSec -eq 123
+            }
+        }
+
+        It 'returns other clusters when database enumeration fails for a creating Azure cluster' {
+            Mock Get-XdrAzureAccessToken {
+                switch ($Resource) {
+                    'https://management.azure.com/' {
+                        'arm-token'
+                    }
+                    'https://help.kusto.windows.net' {
+                        'free-cluster-token'
+                    }
+                    'https://kusto.kusto.windows.net' {
+                        'free-cluster-data-token'
+                    }
+                    default {
+                        throw "Unexpected token resource: $Resource"
+                    }
+                }
+            } -ModuleName XDRInternals
+
+            Mock Get-XdrAzureResourceManagerCollection {
+                switch ($Path) {
+                    '/subscriptions?api-version=2022-12-01' {
+                        @(
+                            [pscustomobject]@{
+                                subscriptionId = 'sub-1'
+                                displayName    = 'Lab Subscription'
+                                tenantId       = 'tenant-1'
+                            }
+                        )
+                    }
+                    '/subscriptions/sub-1/providers/Microsoft.Kusto/clusters?api-version=2024-04-13' {
+                        @(
+                            [pscustomobject]@{
+                                id         = '/subscriptions/sub-1/resourceGroups/rg-lab/providers/Microsoft.Kusto/clusters/nm-test-cluster'
+                                name       = 'nm-test-cluster'
+                                location   = 'westus2'
+                                sku        = [pscustomobject]@{
+                                    name = 'Basic'
+                                    tier = 'Basic'
+                                }
+                                properties = [pscustomobject]@{
+                                    uri               = 'https://nm-test-cluster.westus2.kusto.windows.net'
+                                    dataIngestionUri  = 'https://ingest-nm-test-cluster.westus2.kusto.windows.net'
+                                    state             = 'Running'
+                                    provisioningState = 'Creating'
+                                }
+                            }
+                        )
+                    }
+                    '/subscriptions/sub-1/resourceGroups/rg-lab/providers/Microsoft.Kusto/clusters/nm-test-cluster/databases?api-version=2024-04-13' {
+                        throw 'Cannot fetch databases while resource is in state ''Creating''.'
+                    }
+                    default {
+                        throw "Unexpected ARM collection path: $Path"
+                    }
+                }
+            } -ModuleName XDRInternals
+
+            Mock Invoke-XdrAzureDataExplorerRestRequest {
+                if ($BaseUri.AbsoluteUri -eq 'https://saasrp.kusto.windows.net/' -and $Path -eq '/v1/rest/SaasRp/clusters') {
+                    return @(
+                        [pscustomobject]@{
+                            id                 = 'kvc-f1csubt6echz7s8ark'
+                            engineUrl          = 'https://kvc-f1csubt6echz7s8ark.southcentralus.kusto.windows.net'
+                            dmUrl              = 'https://ingest-kvc-f1csubt6echz7s8ark.southcentralus.kusto.windows.net'
+                            state              = 'Running'
+                            region             = 'southcentralus'
+                            defaultDisplayName = 'MyFreeCluster'
+                            databaseCount      = 1
+                            graduation         = $null
+                        }
+                    )
+                }
+
+                if ($BaseUri.AbsoluteUri -eq 'https://kvc-f1csubt6echz7s8ark.southcentralus.kusto.windows.net/' -and $Path -eq '/v1/rest/mgmt') {
+                    return [pscustomobject]@{
+                        Tables = @(
+                            [pscustomobject]@{
+                                TableName = 'Table_0'
+                                Columns   = @(
+                                    [pscustomobject]@{ ColumnName = 'DatabaseName' },
+                                    [pscustomobject]@{ ColumnName = 'DatabaseAccessMode' }
+                                )
+                                Rows      = @(
+                                    , @('MyDatabase', 'ReadWrite')
+                                )
+                            }
+                        )
+                    }
+                }
+
+                throw "Unexpected Azure Data Explorer REST request: $($BaseUri.AbsoluteUri)$Path"
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $result = @(Get-XdrAzureDataExplorerCluster -IncludeDatabases)
+
+                $result.Count | Should -Be 2
+                $result[0].ClusterName | Should -Be 'nm-test-cluster'
+                @($result[0].Databases).Count | Should -Be 0
+                $result[1].ClusterName | Should -Be 'MyFreeCluster'
+                @($result[1].Databases).Count | Should -Be 1
+                $result[1].Databases[0].DatabaseName | Should -Be 'MyDatabase'
+            }
+        }
+    }
+
+    Describe 'Get-XdrAzureResourceManagerCollection' {
+        It 'preserves api-version when ARM nextLink omits it' {
+            $script:armRequestUris = @()
+
+            Mock Invoke-XdrAzureResourceManagerRequest {
+                $script:armRequestUris += $Uri.AbsoluteUri
+
+                if ($script:armRequestUris.Count -eq 1) {
+                    return [pscustomobject]@{
+                        value    = @([pscustomobject]@{ name = 'first' })
+                        nextLink = 'https://management.azure.com/subscriptions/nextPageToken'
+                    }
+                }
+
+                return [pscustomobject]@{
+                    value = @([pscustomobject]@{ name = 'second' })
+                }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $result = @(Get-XdrAzureResourceManagerCollection -Path '/subscriptions?api-version=2022-12-01' -Token 'arm-token')
+
+                $result.Count | Should -Be 2
+                $result[0].name | Should -Be 'first'
+                $result[1].name | Should -Be 'second'
+            }
+
+            $script:armRequestUris[1] | Should -Be 'https://management.azure.com/subscriptions/nextPageToken?api-version=2022-12-01'
+        }
     }
 
     Describe 'Test-XdrAzureDataExplorerNotFound' {
@@ -157,38 +940,9 @@
             Should -Invoke Invoke-XdrAzAccessTokenRequest -ModuleName XDRInternals -Times 0 -Exactly
         }
 
-        It 'prefers local Azure auth for Azure Data Explorer before the XDR web session bridge' {
+        It 'prefers the XDR web session bridge for Azure Data Explorer before local Azure auth' {
             Mock Invoke-XdrLocalAzureAccessTokenRequest {
-                'local-adx-token'
-            } -ModuleName XDRInternals
-
-            Mock Invoke-WebRequest {
-                throw 'The XDR web session bridge should not be used when local Azure auth succeeds.'
-            } -ModuleName XDRInternals
-
-            Mock Invoke-RestMethod {
-                throw 'The token endpoint should not be used when local Azure auth succeeds.'
-            } -ModuleName XDRInternals
-
-            InModuleScope XDRInternals {
-                $token = Get-XdrAzureAccessToken -Resource 'https://api.kusto.windows.net' `
-                    -Scope 'https://contoso.westeurope.kusto.windows.net/.default' `
-                    -ResourceDisplayName 'Azure Data Explorer'
-
-                $token | Should -Be 'local-adx-token'
-            }
-
-            Should -Invoke Invoke-XdrLocalAzureAccessTokenRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
-                $Resource -eq 'https://api.kusto.windows.net'
-            }
-
-            Should -Invoke Invoke-WebRequest -ModuleName XDRInternals -Times 0 -Exactly
-            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 0 -Exactly
-        }
-
-        It 'falls back to the XDR web session bridge for Azure Data Explorer when local Azure auth is unavailable' {
-            Mock Invoke-XdrLocalAzureAccessTokenRequest {
-                $null
+                throw 'Local Azure auth should not be used when the ESTS bridge succeeds.'
             } -ModuleName XDRInternals
 
             Mock Invoke-WebRequest {
@@ -224,6 +978,8 @@
                 $token | Should -Be 'bridge-adx-token'
             }
 
+            Should -Invoke Invoke-XdrLocalAzureAccessTokenRequest -ModuleName XDRInternals -Times 0 -Exactly
+
             Should -Invoke Invoke-WebRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
                 $Uri -like 'https://login.microsoftonline.com/*/oauth2/authorize*' -and
                 $Uri -notlike 'https://login.microsoftonline.com/*/oauth2/v2.0/authorize*'
@@ -243,6 +999,37 @@
                 $Uri -like 'https://login.microsoftonline.com/*/oauth2/token' -and
                 $Body.grant_type -eq 'refresh_token' -and
                 $Body.resource -eq 'https://api.kusto.windows.net'
+            }
+        }
+
+        It 'falls back to local Azure auth for Azure Data Explorer when the XDR web session bridge is unavailable' {
+            Mock Invoke-XdrLocalAzureAccessTokenRequest {
+                'local-adx-token'
+            } -ModuleName XDRInternals
+
+            Mock Invoke-WebRequest {
+                throw 'The bridge authorize request failed.'
+            } -ModuleName XDRInternals
+
+            Mock Invoke-RestMethod {
+                throw 'The token endpoint should not be used when the bridge authorize request fails.'
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $token = Get-XdrAzureAccessToken -Resource 'https://api.kusto.windows.net' `
+                    -Scope 'https://contoso.westeurope.kusto.windows.net/.default' `
+                    -ResourceDisplayName 'Azure Data Explorer'
+
+                $token | Should -Be 'local-adx-token'
+            }
+
+            Should -Invoke Invoke-WebRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Uri -like 'https://login.microsoftonline.com/*/oauth2/authorize*' -and
+                $Uri -notlike 'https://login.microsoftonline.com/*/oauth2/v2.0/authorize*'
+            }
+
+            Should -Invoke Invoke-XdrLocalAzureAccessTokenRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Resource -eq 'https://api.kusto.windows.net'
             }
         }
     }
@@ -618,11 +1405,11 @@
 
                 foreach ($key in $profiles.Keys) {
                     $p = $profiles[$key]
-                    $p.TableName       | Should -Not -BeNullOrEmpty -Because "'$key' needs TableName"
-                    $p.Source          | Should -Not -BeNullOrEmpty -Because "'$key' needs Source"
-                    $p.ContainsKey('RoutingField')  | Should -BeTrue -Because "'$key' needs RoutingField key"
+                    $p.TableName | Should -Not -BeNullOrEmpty -Because "'$key' needs TableName"
+                    $p.Source | Should -Not -BeNullOrEmpty -Because "'$key' needs Source"
+                    $p.ContainsKey('RoutingField') | Should -BeTrue -Because "'$key' needs RoutingField key"
                     $p.ContainsKey('RoutingValues') | Should -BeTrue -Because "'$key' needs RoutingValues key"
-                    $p.ColumnMappings  | Should -Not -BeNullOrEmpty -Because "'$key' needs ColumnMappings"
+                    $p.ColumnMappings | Should -Not -BeNullOrEmpty -Because "'$key' needs ColumnMappings"
                 }
             }
         }
@@ -781,15 +1568,15 @@
                 $profile = $profiles['XDRDeviceTimelineProcessEvents']
 
                 $event = [pscustomobject]@{
-                    ActionTime     = '2024-06-15T10:30:00Z'
-                    ActionType     = 'ProcessCreated'
-                    ReportId       = 12345
-                    SourceProvider = 'MDE'
-                    Machine        = [pscustomobject]@{
+                    ActionTime        = '2024-06-15T10:30:00Z'
+                    ActionType        = 'ProcessCreated'
+                    ReportId          = 12345
+                    SourceProvider    = 'MDE'
+                    Machine           = [pscustomobject]@{
                         MachineId = 'machine-abc'
                         Name      = 'WORKSTATION01'
                     }
-                    Process        = [pscustomobject]@{
+                    Process           = [pscustomobject]@{
                         Id           = 1234
                         CreationTime = '2024-06-15T10:29:59Z'
                         CommandLine  = 'cmd.exe /c whoami'
@@ -823,24 +1610,24 @@
 
                 $record = ConvertTo-XdrAzureDataExplorerTypedRecord -InputEvent $event -TableProfile $profile
 
-                $record                        | Should -BeOfType [System.Collections.Specialized.OrderedDictionary]
-                $record['ActionTime']          | Should -Be '2024-06-15T10:30:00Z'
-                $record['ActionType']          | Should -Be 'ProcessCreated'
-                $record['MachineId']           | Should -Be 'machine-abc'
-                $record['MachineName']         | Should -Be 'WORKSTATION01'
-                $record['ProcessId']           | Should -Be 1234
-                $record['ProcessFileName']     | Should -Be 'cmd.exe'
-                $record['ProcessCommandLine']  | Should -Be 'cmd.exe /c whoami'
-                $record['ProcessSha1']         | Should -Be 'abc123sha1'
-                $record['ProcessAccountName']  | Should -Be 'testuser'
+                $record | Should -BeOfType [System.Collections.Specialized.OrderedDictionary]
+                $record['ActionTime'] | Should -Be '2024-06-15T10:30:00Z'
+                $record['ActionType'] | Should -Be 'ProcessCreated'
+                $record['MachineId'] | Should -Be 'machine-abc'
+                $record['MachineName'] | Should -Be 'WORKSTATION01'
+                $record['ProcessId'] | Should -Be 1234
+                $record['ProcessFileName'] | Should -Be 'cmd.exe'
+                $record['ProcessCommandLine'] | Should -Be 'cmd.exe /c whoami'
+                $record['ProcessSha1'] | Should -Be 'abc123sha1'
+                $record['ProcessAccountName'] | Should -Be 'testuser'
                 $record['ProcessAccountDomain'] | Should -Be 'CONTOSO'
-                $record['ProcessAccountSid']   | Should -Be 'S-1-5-21-123'
+                $record['ProcessAccountSid'] | Should -Be 'S-1-5-21-123'
                 $record['InitiatingProcessId'] | Should -Be 5678
-                $record['InitiatingProcessFileName']    | Should -Be 'explorer.exe'
+                $record['InitiatingProcessFileName'] | Should -Be 'explorer.exe'
                 $record['InitiatingProcessAccountName'] | Should -Be 'testuser'
-                $record['ReportId']            | Should -Be 12345
-                $record['SourceProvider']      | Should -Be 'MDE'
-                $record['Event']               | Should -Not -BeNullOrEmpty
+                $record['ReportId'] | Should -Be 12345
+                $record['SourceProvider'] | Should -Be 'MDE'
+                $record['Event'] | Should -Not -BeNullOrEmpty
             }
         }
 
@@ -856,12 +1643,12 @@
 
                 $record = ConvertTo-XdrAzureDataExplorerTypedRecord -InputEvent $event -TableProfile $profile
 
-                $record['ActionTime']     | Should -Be '2024-06-15T10:30:00Z'
-                $record['ActionType']     | Should -Be 'ProcessCreated'
-                $record['MachineId']      | Should -BeNullOrEmpty
-                $record['ProcessId']      | Should -BeNullOrEmpty
+                $record['ActionTime'] | Should -Be '2024-06-15T10:30:00Z'
+                $record['ActionType'] | Should -Be 'ProcessCreated'
+                $record['MachineId'] | Should -BeNullOrEmpty
+                $record['ProcessId'] | Should -BeNullOrEmpty
                 $record['ProcessFileName'] | Should -BeNullOrEmpty
-                $record['Event']          | Should -Not -BeNullOrEmpty
+                $record['Event'] | Should -Not -BeNullOrEmpty
             }
         }
 
@@ -885,17 +1672,17 @@
 
                 $record = ConvertTo-XdrAzureDataExplorerTypedRecord -InputEvent $event -TableProfile $profile
 
-                $record['Date']         | Should -Be '2026-04-28T12:00:00Z'
-                $record['Timestamp']    | Should -Be 1777377600000
-                $record['ActivityId']   | Should -Be 'activity-1'
-                $record['RecordId']     | Should -Be 'record-1'
-                $record['UserName']     | Should -Be 'user@contoso.com'
-                $record['AppName']      | Should -Be 'Microsoft 365'
+                $record['Date'] | Should -Be '2026-04-28T12:00:00Z'
+                $record['Timestamp'] | Should -Be 1777377600000
+                $record['ActivityId'] | Should -Be 'activity-1'
+                $record['RecordId'] | Should -Be 'record-1'
+                $record['UserName'] | Should -Be 'user@contoso.com'
+                $record['AppName'] | Should -Be 'Microsoft 365'
                 $record['ActivityType'] | Should -Be 'Login'
-                $record['IpAddress']    | Should -Be '203.0.113.10'
-                $record['Location']     | Should -Be 'Anchorage'
-                $record['Country']      | Should -Be 'US'
-                $record['Event']        | Should -Not -BeNullOrEmpty
+                $record['IpAddress'] | Should -Be '203.0.113.10'
+                $record['Location'] | Should -Be 'Anchorage'
+                $record['Country'] | Should -Be 'US'
+                $record['Event'] | Should -Not -BeNullOrEmpty
             }
         }
     }
@@ -1093,12 +1880,13 @@
                         @{ FrameType = 'DataSetHeader'; IsProgressive = $false },
                         @{ FrameType = 'DataTable'; TableKind = 'QueryProperties'; Columns = @(); Rows = @() },
                         @{ FrameType = 'DataTable'; TableKind = 'PrimaryResult'; Columns = @(
-                            @{ ColumnName = 'Col1'; ColumnType = 'string' },
-                            @{ ColumnName = 'Col2'; ColumnType = 'long' }
-                        ); Rows = @(
-                            ,@('value1', 42)
-                            ,@('value2', 99)
-                        ) },
+                                @{ ColumnName = 'Col1'; ColumnType = 'string' },
+                                @{ ColumnName = 'Col2'; ColumnType = 'long' }
+                            ); Rows = @(
+                                , @('value1', 42)
+                                , @('value2', 99)
+                            )
+                        },
                         @{ FrameType = 'DataSetCompletion'; HasErrors = $false }
                     )
                 }
@@ -1124,7 +1912,7 @@
             InModuleScope XDRInternals {
                 Mock Get-XdrAzureAccessToken { return 'mock-token' }
                 Mock Invoke-XdrAzureDataExplorerRestRequest {
-                    return @{ Tables = @( @{ Columns = @(@{ColumnName='Name';DataType='String'}); Rows = @(,@('MyTable')) } ) }
+                    return @{ Tables = @( @{ Columns = @(@{ColumnName = 'Name'; DataType = 'String' }); Rows = @(, @('MyTable')) } ) }
                 }
 
                 $results = Invoke-XdrAzureDataExplorerQuery -Query '.show tables'
@@ -1144,8 +1932,9 @@
                 $mockResponse = @(
                     @{ FrameType = 'DataSetHeader'; IsProgressive = $false },
                     @{ FrameType = 'DataTable'; TableKind = 'PrimaryResult'; Columns = @(
-                        @{ ColumnName = 'Col1'; ColumnType = 'string' }
-                    ); Rows = @(,@('value1')) },
+                            @{ ColumnName = 'Col1'; ColumnType = 'string' }
+                        ); Rows = @(, @('value1'))
+                    },
                     @{ FrameType = 'DataSetCompletion'; HasErrors = $false }
                 )
                 Mock Invoke-XdrAzureDataExplorerRestRequest { return $mockResponse }

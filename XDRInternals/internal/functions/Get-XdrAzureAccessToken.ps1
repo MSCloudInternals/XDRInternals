@@ -178,13 +178,13 @@ function Invoke-XdrEstsAuthTokenRequest {
     $clientId = '04b07795-8ddb-461a-bbee-02f9e1bf7b46'
     $redirectUri = 'msauth.com.msauth.unsignedapp://auth'
     $authorizeUri = "https://login.microsoftonline.com/$authorityTenant/oauth2/v2.0/authorize" +
-        "?response_type=code" +
-        "&client_id=$clientId" +
-        "&redirect_uri=$([uri]::EscapeDataString($redirectUri))" +
-        "&response_mode=query" +
-        "&scope=$([uri]::EscapeDataString($Scope))" +
-        "&prompt=none" +
-        "&sso_reload=true"
+    "?response_type=code" +
+    "&client_id=$clientId" +
+    "&redirect_uri=$([uri]::EscapeDataString($redirectUri))" +
+    "&response_mode=query" +
+    "&scope=$([uri]::EscapeDataString($Scope))" +
+    "&prompt=none" +
+    "&sso_reload=true"
 
     try {
         $currentResponse = Invoke-XdrRedirectCaptureWebRequest -Uri $authorizeUri -Method Get -Session $Session
@@ -235,12 +235,12 @@ function Invoke-XdrEstsAuthTokenRequest {
         $tokenResponse = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$authorityTenant/oauth2/v2.0/token" `
             -Method Post `
             -Body @{
-                client_id    = $clientId
-                grant_type   = 'authorization_code'
-                code         = $callbackParameters['code']
-                redirect_uri = $redirectUri
-                scope        = $Scope
-            } `
+            client_id    = $clientId
+            grant_type   = 'authorization_code'
+            code         = $callbackParameters['code']
+            redirect_uri = $redirectUri
+            scope        = $Scope
+        } `
             -ContentType 'application/x-www-form-urlencoded' `
             -ErrorAction Stop
 
@@ -283,12 +283,12 @@ function Invoke-XdrEstsCliBridgeTokenRequest {
     $redirectUriValue = [uri]$redirectUri
     $bridgeResource = 'https://management.core.windows.net/'
     $authorizeUri = "https://login.microsoftonline.com/$authorityTenant/oauth2/authorize" +
-        "?response_type=code" +
-        "&client_id=$clientId" +
-        "&redirect_uri=$([uri]::EscapeDataString($redirectUri))" +
-        "&resource=$([uri]::EscapeDataString($bridgeResource))" +
-        "&prompt=none" +
-        "&sso_reload=true"
+    "?response_type=code" +
+    "&client_id=$clientId" +
+    "&redirect_uri=$([uri]::EscapeDataString($redirectUri))" +
+    "&resource=$([uri]::EscapeDataString($bridgeResource))" +
+    "&prompt=none" +
+    "&sso_reload=true"
 
     try {
         $currentResponse = Invoke-XdrRedirectCaptureWebRequest -Uri $authorizeUri -Method Get -Session $Session
@@ -342,12 +342,12 @@ function Invoke-XdrEstsCliBridgeTokenRequest {
         $bridgeTokenResponse = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$authorityTenant/oauth2/token" `
             -Method Post `
             -Body @{
-                client_id    = $clientId
-                grant_type   = 'authorization_code'
-                code         = $callbackParameters['code']
-                redirect_uri = $redirectUri
-                resource     = $bridgeResource
-            } `
+            client_id    = $clientId
+            grant_type   = 'authorization_code'
+            code         = $callbackParameters['code']
+            redirect_uri = $redirectUri
+            resource     = $bridgeResource
+        } `
             -ContentType 'application/x-www-form-urlencoded' `
             -ErrorAction Stop
 
@@ -361,11 +361,11 @@ function Invoke-XdrEstsCliBridgeTokenRequest {
             $resourceTokenResponse = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$authorityTenant/oauth2/token" `
                 -Method Post `
                 -Body @{
-                    client_id     = $clientId
-                    grant_type    = 'refresh_token'
-                    refresh_token = $bridgeTokenResponse.refresh_token
-                    resource      = $Resource
-                } `
+                client_id     = $clientId
+                grant_type    = 'refresh_token'
+                refresh_token = $bridgeTokenResponse.refresh_token
+                resource      = $Resource
+            } `
                 -ContentType 'application/x-www-form-urlencoded' `
                 -ErrorAction Stop
         }
@@ -513,11 +513,10 @@ function Get-XdrAzureAccessToken {
     .DESCRIPTION
         Attempts to get a bearer token using, in order:
         1. Explicitly supplied access token
-        2. Az.Accounts or Azure CLI for Azure Data Explorer resources
-        3. The existing Entra web session (`ESTSAUTH` / `ESTS*`) when available
-        4. An Azure CLI-style ESTS token bridge when the direct silent flow needs user confirmation
-        5. Az.Accounts (`Get-AzAccessToken`) or Azure CLI (`az account get-access-token`)
-        6. IMDS managed identity
+        2. The existing Entra web session (`ESTSAUTH` / `ESTS*`) when available
+        3. An Azure CLI-style ESTS token bridge for Azure-style resources when the direct silent flow needs user confirmation
+        4. Az.Accounts (`Get-AzAccessToken`) or Azure CLI (`az account get-access-token`)
+        5. IMDS managed identity
 
         An explicit access token can also be supplied to bypass acquisition.
 
@@ -543,8 +542,8 @@ function Get-XdrAzureAccessToken {
     .EXAMPLE
         Get-XdrAzureAccessToken -Resource "https://api.kusto.windows.net" -ResourceDisplayName "Azure Data Explorer"
 
-        Gets an Azure Data Explorer access token by using the current Az.Accounts, Azure CLI,
-        or managed identity context.
+        Gets an Azure Data Explorer access token by using the current module Entra session when
+        available, otherwise falling back to local Azure auth or managed identity.
     #>
     [OutputType([string])]
     [CmdletBinding()]
@@ -582,25 +581,16 @@ function Get-XdrAzureAccessToken {
         }
     }
 
-    $preferLocalAzureAuth = Test-XdrPreferCliBridgeForResource -Resource $Resource -Scope $silentScope
-    if ($preferLocalAzureAuth) {
-        $localAzureToken = Invoke-XdrLocalAzureAccessTokenRequest -Resource $Resource -TenantId $TenantId -ResourceDisplayName $ResourceDisplayName
-        if (-not [string]::IsNullOrWhiteSpace($localAzureToken)) {
-            return $localAzureToken
-        }
-
-        Write-Verbose "No local Azure auth token was available for $ResourceDisplayName; trying the existing Entra web session."
-    }
+    $preferCliBridge = Test-XdrPreferCliBridgeForResource -Resource $Resource -Scope $silentScope
 
     if ($script:session) {
-        $preferCliBridge = Test-XdrPreferCliBridgeForResource -Resource $Resource -Scope $silentScope
         if ($preferCliBridge) {
             $cliBridgeToken = Invoke-XdrEstsCliBridgeTokenRequest -Session $script:session -Resource $Resource -TenantId $TenantId -ResourceDisplayName $ResourceDisplayName
             if (-not [string]::IsNullOrWhiteSpace($cliBridgeToken)) {
                 return $cliBridgeToken
             }
 
-            Write-Verbose "Skipping direct silent Entra session token acquisition for $ResourceDisplayName because Azure CLI-style token bridging is preferred for this resource."
+            Write-Verbose "Azure CLI-style token bridging via the existing Entra web session was not available for $ResourceDisplayName."
         }
         elseif (-not [string]::IsNullOrWhiteSpace($silentScope)) {
             $sessionToken = Invoke-XdrEstsAuthTokenRequest -Session $script:session -Scope $silentScope -TenantId $TenantId -ResourceDisplayName $ResourceDisplayName
@@ -625,15 +615,14 @@ function Get-XdrAzureAccessToken {
 
     $modeDescription = if ($ManagedIdentityClientId) {
         "user-assigned managed identity (client_id: $ManagedIdentityClientId)"
-    } else {
+    }
+    else {
         "system-assigned managed identity"
     }
 
-    if (-not $preferLocalAzureAuth) {
-        $localAzureToken = Invoke-XdrLocalAzureAccessTokenRequest -Resource $Resource -TenantId $TenantId -ResourceDisplayName $ResourceDisplayName
-        if (-not [string]::IsNullOrWhiteSpace($localAzureToken)) {
-            return $localAzureToken
-        }
+    $localAzureToken = Invoke-XdrLocalAzureAccessTokenRequest -Resource $Resource -TenantId $TenantId -ResourceDisplayName $ResourceDisplayName
+    if (-not [string]::IsNullOrWhiteSpace($localAzureToken)) {
+        return $localAzureToken
     }
 
     Write-Verbose "Attempting IMDS managed identity for $ResourceDisplayName using $modeDescription..."

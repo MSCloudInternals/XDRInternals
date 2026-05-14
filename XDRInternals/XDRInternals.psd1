@@ -81,6 +81,7 @@
         "Get-XdrAdvancedHuntingUnifiedDetectionRules",
         "Get-XdrAdvancedHuntingUserHistory",
         "Get-XdrAlert",
+        "Get-XdrAzureDataExplorerCluster",
         "Get-XdrAzureDataExplorerIngestionStatus",
         "Get-XdrCloudAppsActivityTimeline",
         "Get-XdrCloudAppsApp",

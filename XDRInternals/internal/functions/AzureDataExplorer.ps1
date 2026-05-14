@@ -48,6 +48,189 @@ function Resolve-XdrAzureDataExplorerUris {
     }
 }
 
+function Select-XdrAzureDataExplorerDiscoveredValue {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Heading,
+
+        [Parameter(Mandatory)]
+        [string]$Prompt,
+
+        [Parameter(Mandatory)]
+        [object[]]$Items,
+
+        [Parameter(Mandatory)]
+        [scriptblock]$DisplayScript,
+
+        [switch]$NonInteractive,
+
+        [string]$AmbiguousSelectionMessage = 'Multiple Azure Data Explorer values matched the requested discovery criteria in non-interactive mode.'
+    )
+
+    $resolvedItems = @($Items)
+    if ($resolvedItems.Count -eq 0) {
+        return $null
+    }
+
+    if ($resolvedItems.Count -eq 1) {
+        return $resolvedItems[0]
+    }
+
+    if ($NonInteractive) {
+        throw $AmbiguousSelectionMessage
+    }
+
+    Write-Information $Heading -InformationAction Continue
+    for ($i = 0; $i -lt $resolvedItems.Count; $i++) {
+        $displayValue = & $DisplayScript $resolvedItems[$i]
+        Write-Information "  [$($i + 1)] $displayValue" -InformationAction Continue
+    }
+
+    while ($true) {
+        $selection = Read-Host $Prompt
+        $index = 0
+        if ([int]::TryParse([string]$selection, [ref]$index) -and $index -ge 1 -and $index -le $resolvedItems.Count) {
+            return $resolvedItems[$index - 1]
+        }
+
+        Write-Information 'Invalid selection. Try again.' -InformationAction Continue
+    }
+}
+
+function Resolve-XdrAzureDataExplorerDiscoveredConnection {
+    [CmdletBinding()]
+    param(
+        [string[]]$SubscriptionId,
+
+        [SupportsWildcards()]
+        [string]$ClusterName,
+
+        [SupportsWildcards()]
+        [string]$DatabaseName,
+
+        [string]$TenantId,
+
+        [string]$ManagedIdentityClientId,
+
+        [switch]$NonInteractive,
+
+        [ValidateRange(1, 600)]
+        [int]$RequestTimeout = 60
+    )
+
+    $discoveryParams = @{
+        IncludeDatabases        = $true
+        TenantId                = $TenantId
+        ManagedIdentityClientId = $ManagedIdentityClientId
+        RequestTimeout          = $RequestTimeout
+    }
+
+    if ($SubscriptionId) {
+        $discoveryParams['SubscriptionId'] = $SubscriptionId
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ClusterName)) {
+        $discoveryParams['ClusterName'] = $ClusterName
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($DatabaseName)) {
+        $discoveryParams['DatabaseName'] = $DatabaseName
+    }
+
+    $clusters = @(Get-XdrAzureDataExplorerCluster @discoveryParams)
+    if ($clusters.Count -eq 0) {
+        throw 'No Azure Data Explorer clusters matched the requested discovery criteria.'
+    }
+
+    $selectedCluster = Select-XdrAzureDataExplorerDiscoveredValue `
+        -Heading 'Available Azure Data Explorer clusters:' `
+        -Prompt "Select cluster [1-$($clusters.Count)]" `
+        -Items $clusters `
+        -NonInteractive:$NonInteractive `
+        -AmbiguousSelectionMessage 'Multiple Azure Data Explorer clusters matched the requested discovery criteria in non-interactive mode. Narrow the match with -ClusterName or -SubscriptionId, or specify -ClusterUri and -Database explicitly.' `
+        -DisplayScript {
+            param($Cluster)
+
+            $subscriptionLabel = if ([string]::IsNullOrWhiteSpace([string]$Cluster.SubscriptionId)) {
+                'Free/personal'
+            }
+            elseif ([string]::IsNullOrWhiteSpace([string]$Cluster.SubscriptionName)) {
+                [string]$Cluster.SubscriptionId
+            }
+            else {
+                "$($Cluster.SubscriptionName) [$($Cluster.SubscriptionId)]"
+            }
+
+            $databaseCount = @($Cluster.Databases).Count
+            $databaseLabel = if ($databaseCount -eq 1) {
+                '1 database'
+            }
+            elseif ($databaseCount -gt 1) {
+                "$databaseCount databases"
+            }
+            else {
+                'no databases discovered'
+            }
+
+            $stateLabel = if (-not [string]::IsNullOrWhiteSpace([string]$Cluster.ProvisioningState)) {
+                [string]$Cluster.ProvisioningState
+            }
+            elseif (-not [string]::IsNullOrWhiteSpace([string]$Cluster.State)) {
+                [string]$Cluster.State
+            }
+            else {
+                'Unknown'
+            }
+
+            "$($Cluster.ClusterName) | $subscriptionLabel | $($Cluster.Location) | $($Cluster.SkuTier) | $databaseLabel | state: $stateLabel"
+        }
+
+    $databases = @($selectedCluster.Databases)
+    if ($databases.Count -eq 0) {
+        $stateFragments = [System.Collections.Generic.List[string]]::new()
+        if (-not [string]::IsNullOrWhiteSpace([string]$selectedCluster.ProvisioningState)) {
+            $stateFragments.Add("ProvisioningState=$($selectedCluster.ProvisioningState)") | Out-Null
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$selectedCluster.State) -and $selectedCluster.State -ne $selectedCluster.ProvisioningState) {
+            $stateFragments.Add("State=$($selectedCluster.State)") | Out-Null
+        }
+
+        $stateSuffix = if ($stateFragments.Count -gt 0) {
+            " ($($stateFragments -join ', '))"
+        }
+        else {
+            ''
+        }
+
+        throw "No databases were discovered for cluster '$($selectedCluster.ClusterName)'$stateSuffix. Retry discovery when the cluster is ready, or configure the connection explicitly with -ClusterUri and -Database."
+    }
+
+    $selectedDatabase = Select-XdrAzureDataExplorerDiscoveredValue `
+        -Heading "Available databases for '$($selectedCluster.ClusterName)':" `
+        -Prompt "Select database [1-$($databases.Count)]" `
+        -Items $databases `
+        -NonInteractive:$NonInteractive `
+        -AmbiguousSelectionMessage "Multiple databases were discovered for cluster '$($selectedCluster.ClusterName)' in non-interactive mode. Narrow the match with -DatabaseName, or specify -ClusterUri and -Database explicitly." `
+        -DisplayScript {
+            param($Database)
+
+            if ([string]::IsNullOrWhiteSpace([string]$Database.Kind)) {
+                return [string]$Database.DatabaseName
+            }
+
+            return "$($Database.DatabaseName) ($($Database.Kind))"
+        }
+
+    return [pscustomobject]@{
+        ClusterName  = $selectedCluster.ClusterName
+        ClusterUri   = [uri]$selectedCluster.ClusterUri
+        IngestionUri = [uri]$selectedCluster.IngestionUri
+        TenantId     = $selectedCluster.TenantId
+        Database     = [string]$selectedDatabase.DatabaseName
+    }
+}
+
 function ConvertFrom-XdrAzureDataExplorerResponseTable {
     [OutputType([pscustomobject[]])]
     [CmdletBinding()]
@@ -185,6 +368,115 @@ function Invoke-XdrAzureDataExplorerRestRequest {
             Start-Sleep -Seconds $delaySeconds
         }
     }
+}
+
+function Invoke-XdrAzureResourceManagerRequest {
+    [CmdletBinding()]
+    param(
+        [uri]$Uri,
+
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [string]$Token,
+
+        [int]$TimeoutSec,
+
+        [ValidateRange(1, 10)]
+        [int]$RetryCount = 10
+    )
+
+    if (-not $Uri -and [string]::IsNullOrWhiteSpace($Path)) {
+        throw 'Specify either -Uri or -Path.'
+    }
+
+    $requestUri = if ($Uri) {
+        $Uri
+    }
+    else {
+        [uri]::new([uri]'https://management.azure.com/', $Path)
+    }
+
+    $headers = @{
+        'Accept'                 = 'application/json'
+        'Authorization'          = "Bearer $Token"
+        'Connection'             = 'Close'
+        'x-ms-app'               = 'XDRInternals'
+        'x-ms-client-version'    = 'XDRInternals/1.0.12'
+        'x-ms-client-request-id' = "XDRInternals.AzureResourceManager;$([guid]::NewGuid())"
+    }
+
+    $requestParams = @{
+        Uri         = $requestUri
+        Method      = 'Get'
+        Headers     = $headers
+        ErrorAction = 'Stop'
+        Verbose     = $false
+    }
+
+    if ($TimeoutSec -gt 0) {
+        $requestParams['TimeoutSec'] = $TimeoutSec
+    }
+
+    for ($attempt = 1; $attempt -le $RetryCount; $attempt++) {
+        try {
+            return Invoke-RestMethod @requestParams
+        }
+        catch {
+            if (-not (Test-XdrAzureDataExplorerTransientRestError -ErrorRecord $_) -or $attempt -ge $RetryCount) {
+                throw
+            }
+
+            $delaySeconds = [math]::Min([math]::Pow(2, $attempt - 1), 8)
+            Write-Verbose "Azure Resource Manager request to '$requestUri' failed with a transient transport error on attempt $attempt of $RetryCount. Retrying in $delaySeconds second(s)."
+            Start-Sleep -Seconds $delaySeconds
+        }
+    }
+}
+
+function Get-XdrAzureResourceManagerCollection {
+    [CmdletBinding()]
+    [OutputType([object[]])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [string]$Token,
+
+        [int]$TimeoutSec
+    )
+
+    $items = [System.Collections.Generic.List[object]]::new()
+    $nextUri = [uri]::new([uri]'https://management.azure.com/', $Path)
+    $initialUri = $nextUri
+    $initialQuery = [System.Web.HttpUtility]::ParseQueryString($initialUri.Query)
+    $defaultApiVersion = $initialQuery['api-version']
+
+    while ($nextUri) {
+        $response = Invoke-XdrAzureResourceManagerRequest -Uri $nextUri -Token $Token -TimeoutSec $TimeoutSec
+        foreach ($item in @($response.value)) {
+            $items.Add($item) | Out-Null
+        }
+
+        if ([string]::IsNullOrWhiteSpace([string]$response.nextLink)) {
+            $nextUri = $null
+        }
+        else {
+            $nextUri = [uri]$response.nextLink
+            if (-not [string]::IsNullOrWhiteSpace($defaultApiVersion)) {
+                $nextQuery = [System.Web.HttpUtility]::ParseQueryString($nextUri.Query)
+                if ([string]::IsNullOrWhiteSpace($nextQuery['api-version'])) {
+                    $builder = [System.UriBuilder]::new($nextUri)
+                    $nextQuery['api-version'] = $defaultApiVersion
+                    $builder.Query = $nextQuery.ToString()
+                    $nextUri = $builder.Uri
+                }
+            }
+        }
+    }
+
+    return [object[]]$items.ToArray()
 }
 
 function Invoke-XdrAzureDataExplorerManagementCommand {

@@ -63,6 +63,7 @@ Get-XdrTenantContext -Force
 | Get-XdrAdvancedHuntingUnifiedDetectionRules                     | Retrieves the Unified Detection Rules from Advanced Hunting. |
 | Get-XdrAdvancedHuntingUserHistory                               | Retrieves Advanced Hunting user history from Microsoft Defender XDR. |
 | Get-XdrAlert                                                    | Retrieves alerts from Microsoft Defender XDR. |
+| Get-XdrAzureDataExplorerCluster                                 | Discovers accessible Azure Data Explorer clusters and databases from Azure Resource Manager and free/personal clusters. |
 | Get-XdrAzureDataExplorerIngestionStatus                         | Gets or waits on queued Azure Data Explorer ingestion operations. |
 | Get-XdrCloudAppsActivityTimeline                                | Retrieves Microsoft Defender for Cloud Apps activity timeline data. |
 | Get-XdrCloudAppsApp                                             | Retrieves app-focused Microsoft Defender for Cloud Apps data. |
@@ -333,13 +334,31 @@ Export XDR data directly to Azure Data Explorer for long-term investigation and 
 
 | Method | When available |
 | --- | --- |
-| ESTS CLI bridge | `Connect-XdrByCredential` or `Connect-XdrByBrowser` (captures ESTS cookies) |
+| ESTS CLI bridge | `Connect-XdrByCredential`, `Connect-XdrByBrowser`, `Connect-XdrBySoftwarePasskey`, `Connect-XdrByPhoneSignIn`, or `Connect-XdrByTemporaryAccessPass` (captures ESTS cookies) |
 | Az.Accounts | `Connect-AzAccount` is active |
 | Azure CLI | `az login` session exists |
 | Managed identity | Running on Azure with IMDS |
 | Explicit token | `-AccessToken` on `Set-XdrAzureDataExplorerConnection` |
 
-> **Important:** `Connect-XdrBySSO` and `Set-XdrConnection` (with raw sccauth/xsrf tokens) do **not** capture ESTS cookies, so the silent CLI bridge is unavailable. When using these methods, ensure you have an active `Connect-AzAccount` or `az login` session, or provide an explicit `-AccessToken`.
+> **Important:** `Connect-XdrBySSO` and `Set-XdrConnection` (with raw sccauth/xsrf tokens) do **not** capture ESTS cookies, so the module cannot self-bridge Azure tokens from that session alone. When using these methods, ensure you have an active `Connect-AzAccount` or `az login` session, use managed identity, or provide an explicit `-AccessToken`.
+
+##### Discover clusters and databases
+
+If your authenticated Azure context can access the target ADX resources, you can discover cluster and database details directly:
+
+```powershell
+# Enumerate all visible ADX clusters
+Get-XdrAzureDataExplorerCluster
+
+# Include databases to find a ready-to-use connection target
+Get-XdrAzureDataExplorerCluster -IncludeDatabases
+
+# In automation, fail instead of prompting if the discovery result is ambiguous
+Set-XdrAzureDataExplorerConnection -ClusterName 'nm-test-cluster' -DatabaseName 'Investigations' -NonInteractive
+
+# Use -AccessToken only when you are configuring an explicit cluster/database connection
+Set-XdrAzureDataExplorerConnection -ClusterUri 'https://mycluster.westeurope.kusto.windows.net' -Database 'Investigations' -AccessToken $token
+```
 
 ##### Typed source routing
 

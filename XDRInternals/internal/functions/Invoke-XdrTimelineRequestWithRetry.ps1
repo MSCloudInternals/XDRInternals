@@ -2,6 +2,44 @@
     <#
     .SYNOPSIS
         Invokes timeline HTTP requests with retry and backoff behavior.
+
+    .DESCRIPTION
+        Wraps Invoke-RestMethod for timeline retrieval scenarios that need
+        consistent timeout handling, retry classification, authentication
+        renewal-aware retries, and exponential backoff for transient failures.
+
+    .PARAMETER Uri
+        Fully qualified request URI to call.
+
+    .PARAMETER Method
+        HTTP method used for the request.
+
+    .PARAMETER Headers
+        Request headers to include with the call.
+
+    .PARAMETER WebSession
+        Web session that carries the authenticated Defender portal cookies.
+
+    .PARAMETER Body
+        Optional request body for POST requests.
+
+    .PARAMETER ContentType
+        Content type header used when sending the request body.
+
+    .PARAMETER MaxRetries
+        Maximum number of attempts before the helper rethrows the last error.
+
+    .PARAMETER RetryDelaySeconds
+        Base retry delay used when the server does not return a Retry-After value.
+
+    .PARAMETER TimeoutSeconds
+        Per-request timeout passed to Invoke-RestMethod.
+
+    .EXAMPLE
+        Invoke-XdrTimelineRequestWithRetry -Uri $uri -Method Post -Body $body -Headers $headers -WebSession $script:session
+
+        Sends a timeline API request and retries transient or rate-limited
+        failures before surfacing the final error.
     #>
     [OutputType([object])]
     [CmdletBinding()]

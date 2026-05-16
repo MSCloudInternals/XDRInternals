@@ -1,4 +1,4 @@
-function Get-XdrStringHash {
+﻿function Get-XdrStringHash {
     [CmdletBinding()]
     [OutputType([string])]
     param(

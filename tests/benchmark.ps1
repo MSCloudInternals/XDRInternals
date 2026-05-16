@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$BenchmarkConfigurationPath,
 
     [switch]$EnableBenchmarks,

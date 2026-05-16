@@ -2,6 +2,35 @@
     <#
     .SYNOPSIS
         Creates timeline date chunks for parallel retrieval.
+
+    .DESCRIPTION
+        Builds an ordered set of non-overlapping UTC time ranges used by the
+        timeline download workers. The helper supports fixed-size chunks or an
+        automatically sized plan that targets a specific chunk count.
+
+    .PARAMETER FromDate
+        Inclusive start time for the first chunk.
+
+    .PARAMETER ToDate
+        Exclusive end time for the final chunk.
+
+    .PARAMETER ChunkHours
+        Chunk size in hours when using fixed-size planning.
+
+    .PARAMETER ChunkMinutes
+        Chunk size in minutes when using fixed-size planning.
+
+    .PARAMETER TargetChunkCount
+        Desired number of chunks. When specified, the helper calculates the
+        chunk size automatically from the total range.
+
+    .PARAMETER Strategy
+        Label recorded on each chunk to describe the planning strategy.
+
+    .EXAMPLE
+        New-XdrTimelineChunkPlan -FromDate (Get-Date).AddHours(-8) -ToDate (Get-Date) -ChunkHours 4 -Strategy Explicit
+
+        Creates two four-hour timeline chunks for downstream worker execution.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Creates an in-memory timeline chunk plan and does not mutate state')]
     [OutputType([PSCustomObject[]])]

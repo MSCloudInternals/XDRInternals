@@ -1,4 +1,4 @@
-function ConvertFrom-XdrCloudAppsActivityJson {
+﻿function ConvertFrom-XdrCloudAppsActivityJson {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]

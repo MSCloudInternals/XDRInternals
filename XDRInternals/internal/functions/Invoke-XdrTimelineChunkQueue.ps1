@@ -2,6 +2,39 @@
     <#
     .SYNOPSIS
         Runs timeline chunk workers with bounded PowerShell 7 concurrency.
+
+    .DESCRIPTION
+        Executes a worker scriptblock against each supplied chunk by using a
+        shared runspace pool. The helper limits concurrency, tracks completion,
+        records per-chunk failures, and stops queued or running work when the
+        overall timeout is reached.
+
+    .PARAMETER Chunks
+        Ordered collection of timeline chunk descriptors to process.
+
+    .PARAMETER WorkerScript
+        Scriptblock invoked once per chunk. The script must accept Chunk and
+        SharedParameters arguments and return one or more result objects.
+
+    .PARAMETER SharedParameters
+        Hashtable of read-only values passed to every worker invocation.
+
+    .PARAMETER ThrottleLimit
+        Maximum number of chunk workers to run at the same time.
+
+    .PARAMETER TimeoutSeconds
+        Maximum total runtime for the queue before active and queued chunks are
+        marked as failed.
+
+    .PARAMETER Activity
+        Progress activity label displayed while chunks are running.
+
+    .EXAMPLE
+        $chunks = New-XdrTimelineChunkPlan -FromDate (Get-Date).AddHours(-2) -ToDate (Get-Date) -ChunkHours 1
+        Invoke-XdrTimelineChunkQueue -Chunks $chunks -WorkerScript $worker -Activity 'Retrieving timeline'
+
+        Runs the provided worker script against each generated chunk and returns
+        the ordered chunk results.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'SharedParameters', Justification = 'Consumed inside the runspace job creation scriptblock')]
     [OutputType([object[]])]
@@ -84,6 +117,7 @@
                             FromDate       = $job.Chunk.FromDate
                             ToDate         = $job.Chunk.ToDate
                             Success        = $false
+                            FailureClass   = 'Timeout'
                             Error          = "Chunk cancelled because $Activity timed out after $TimeoutSeconds seconds."
                             ElapsedSeconds = [math]::Round(([datetime]::UtcNow - $job.StartedUtc).TotalSeconds, 2)
                         })
@@ -98,6 +132,7 @@
                             FromDate       = $queuedChunk.FromDate
                             ToDate         = $queuedChunk.ToDate
                             Success        = $false
+                            FailureClass   = 'Timeout'
                             Error          = "Chunk was not started because $Activity timed out after $TimeoutSeconds seconds."
                             ElapsedSeconds = 0
                         })

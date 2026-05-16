@@ -1,4 +1,4 @@
-Describe 'Xdr.BenchmarkHelpers planning' -Tag 'Functions', 'Benchmarks' {
+﻿Describe 'Xdr.BenchmarkHelpers planning' -Tag 'Functions', 'Benchmarks' {
     BeforeAll {
         $helperPath = Join-Path $PSScriptRoot '..\helpers\Xdr.BenchmarkHelpers.ps1'
         . $helperPath

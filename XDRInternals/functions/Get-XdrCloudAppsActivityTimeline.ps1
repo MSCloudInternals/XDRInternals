@@ -1,4 +1,4 @@
-function Get-XdrCloudAppsActivityTimeline {
+﻿function Get-XdrCloudAppsActivityTimeline {
     <#
     .SYNOPSIS
         Retrieves Microsoft Defender for Cloud Apps activity timeline data.

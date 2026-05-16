@@ -63,6 +63,70 @@
     }
 }
 
+Describe 'Invoke-XdrConnectionRenewal' {
+    BeforeEach {
+        Mock Clear-XdrCache { } -ModuleName XDRInternals
+        Mock Update-XdrConnectionSettings { } -ModuleName XDRInternals
+        Mock Invoke-XdrPasskeyAuthentication { 'renewed-ests-cookie' } -ModuleName XDRInternals
+        Mock Connect-XdrAuthArtifactSet {
+            $script:XdrConnectionRenewalDescriptor = $null
+            'renewed'
+        } -ModuleName XDRInternals
+
+        InModuleScope XDRInternals {
+            $script:XdrConnectionRenewalDescriptor = $null
+        }
+    }
+
+    It 'forces a real session refresh when renewing without a stored passkey descriptor' {
+        Invoke-XdrConnectionRenewal
+
+        Should -Invoke Clear-XdrCache -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $CacheKey -eq 'XsrfToken'
+        }
+        Should -Invoke Update-XdrConnectionSettings -ModuleName XDRInternals -Times 1 -Exactly
+        Should -Invoke Connect-XdrAuthArtifactSet -ModuleName XDRInternals -Times 0 -Exactly
+    }
+
+    It 'preserves the software passkey renewal descriptor after reconnecting' {
+        InModuleScope XDRInternals {
+            $script:XdrConnectionRenewalDescriptor = [pscustomobject]@{
+                Mode               = 'SoftwarePasskey'
+                KeyFilePath        = 'C:\temp\passkey.json'
+                TenantId           = '8612f621-73ca-4c12-973c-0da732bc44c2'
+                KeyVaultTenantId   = 'tenant-id'
+                KeyVaultClientId   = 'client-id'
+                KeyVaultApiVersion = '7.4'
+                UserAgent          = 'Custom-Agent/1.0'
+                SourceLabel        = 'SoftwarePasskey'
+            }
+        }
+
+        Invoke-XdrConnectionRenewal
+
+        Should -Invoke Invoke-XdrPasskeyAuthentication -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $KeyFilePath -eq 'C:\temp\passkey.json' -and
+            $KeyVaultTenantId -eq 'tenant-id' -and
+            $KeyVaultClientId -eq 'client-id' -and
+            $KeyVaultApiVersion -eq '7.4' -and
+            $UserAgent -eq 'Custom-Agent/1.0'
+        }
+        Should -Invoke Connect-XdrAuthArtifactSet -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $EstsAuthCookieValue -eq 'renewed-ests-cookie' -and
+            $TenantId -eq '8612f621-73ca-4c12-973c-0da732bc44c2' -and
+            $UserAgent -eq 'Custom-Agent/1.0' -and
+            $FailureLabel -eq 'Software passkey renewal'
+        }
+        Should -Invoke Update-XdrConnectionSettings -ModuleName XDRInternals -Times 0 -Exactly
+        InModuleScope XDRInternals {
+            $script:XdrConnectionRenewalDescriptor | Should -Not -BeNullOrEmpty
+            $script:XdrConnectionRenewalDescriptor.Mode | Should -Be 'SoftwarePasskey'
+            $script:XdrConnectionRenewalDescriptor.KeyFilePath | Should -Be 'C:\temp\passkey.json'
+            $script:XdrConnectionRenewalDescriptor.TenantId | Should -Be '8612f621-73ca-4c12-973c-0da732bc44c2'
+        }
+    }
+}
+
 Describe 'Connect-XdrByPhoneSignIn' {
     BeforeEach {
         Mock Read-Host { 'user@contoso.com' } -ModuleName XDRInternals

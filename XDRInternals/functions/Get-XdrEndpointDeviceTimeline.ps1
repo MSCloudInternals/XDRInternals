@@ -25,9 +25,85 @@
     .PARAMETER LastNDays
         Number of days to look back. Overrides FromDate and ToDate.
 
+    .PARAMETER PageSize
+        Number of events requested per page from the timeline API.
+
+    .PARAMETER MarkedEventsOnly
+        Limits results to events marked in the Defender timeline experience.
+
+    .PARAMETER SenseClientVersion
+        Overrides the Sense client version sent with requests when device lookup
+        data is unavailable or should not be used.
+
+    .PARAMETER SkipIdentityEvents
+        Excludes identity-related timeline events from the response.
+
+    .PARAMETER SkipMdiOnlyEvents
+        Excludes MDI-only timeline events from the response.
+
+    .PARAMETER DoNotUseCache
+        Bypasses cached endpoint device metadata lookups.
+
+    .PARAMETER ForceUseCache
+        Uses cached endpoint device metadata even when it would normally be refreshed.
+
+    .PARAMETER IncludeSentinelEvents
+        Includes Sentinel-correlated events when the backend supports them.
+
+    .PARAMETER EventType
+        Filters results to a specific event type value.
+
+    .PARAMETER EventsGroups
+        Filters results to one or more Defender timeline event groups.
+
+    .PARAMETER DataTypes
+        Filters results to one or more supported timeline data types.
+
+    .PARAMETER SourceProviders
+        Filters results to events emitted by the selected source providers.
+
+    .PARAMETER ThrottleLimit
+        Maximum number of timeline chunks retrieved concurrently.
+
+    .PARAMETER TimeoutSeconds
+        Maximum total runtime for chunk processing before unfinished chunks fail.
+
+    .PARAMETER MaxRetries
+        Maximum number of retry attempts for retryable API failures.
+
+    .PARAMETER RetryDelaySeconds
+        Base retry delay used when the service does not return Retry-After.
+
+    .PARAMETER PaginationDelayMinMilliseconds
+        Minimum delay inserted between paginated requests within a chunk.
+
+    .PARAMETER PaginationDelayMaxMilliseconds
+        Maximum delay inserted between paginated requests within a chunk.
+
+    .PARAMETER ChunkHours
+        Fixed chunk size in hours when splitting the requested time range.
+
+    .PARAMETER ChunkMinutes
+        Fixed chunk size in minutes when splitting the requested time range.
+
     .PARAMETER OutputPath
         Compatibility parameter. Directory-like values are used as the temporary working
         root. File-like values ending in .json, .jsonl, or .ndjson are treated as ExportPath.
+
+    .PARAMETER WorkingDirectory
+        Directory used for temporary chunk files. Overrides directory-like OutputPath values.
+
+    .PARAMETER KeepTempFiles
+        Preserves temporary chunk files and manifest state after the command finishes.
+
+    .PARAMETER ExportFormat
+        Output file format used when ExportPath is specified.
+
+    .PARAMETER RequestTimeoutSeconds
+        Per-request timeout for individual timeline API calls.
+
+    .PARAMETER AllowPartial
+        Returns successful chunk data and warns when one or more chunks fail.
 
     .PARAMETER ExportPath
         Writes retrieved events to the specified JSON or NDJSON file and returns a summary.
@@ -35,8 +111,22 @@
     .PARAMETER ManifestPath
         Optional override for the automatic resume manifest. Defaults to <ExportPath>.manifest.json for export runs.
 
-    .PARAMETER WorkingDirectory
-        Directory used for temporary chunk files. Overrides directory-like OutputPath values.
+    .PARAMETER DiagnosticsPath
+        Writes execution diagnostics and chunk statistics to the specified file.
+
+    .PARAMETER MaxPagesPerChunk
+        Maximum number of paginated API requests allowed for each chunk.
+
+    .EXAMPLE
+        Get-XdrEndpointDeviceTimeline -DeviceId 0123456789abcdef0123456789abcdef01234567 -LastNDays 1
+
+        Retrieves the last day of timeline events for the specified device.
+
+    .EXAMPLE
+        Get-XdrEndpointDeviceTimeline -MachineDnsName workstation01.contoso.com -FromDate (Get-Date).AddHours(-8) -ToDate (Get-Date) -ExportPath .\timeline.ndjson -ExportFormat Ndjson -AllowPartial
+
+        Resolves the device by DNS name, downloads eight hours of events, and
+        writes the results to an NDJSON export while allowing partial completion.
     #>
     [OutputType([System.Object[]])]
     [CmdletBinding(DefaultParameterSetName = 'ByDeviceId')]

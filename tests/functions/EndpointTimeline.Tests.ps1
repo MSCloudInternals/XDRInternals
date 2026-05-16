@@ -1,4 +1,4 @@
-Describe 'Timeline architecture helpers' {
+﻿Describe 'Timeline architecture helpers' {
     It 'keeps public timeline files limited to their primary public cmdlet' {
         $publicTimelineFiles = Get-ChildItem -Path (Join-Path $PSScriptRoot '..\..\XDRInternals\functions') -Filter 'Get-Xdr*Timeline.ps1'
 
@@ -634,7 +634,58 @@ Describe 'Timeline architecture helpers' {
 
             $results.Count | Should -Be 2
             @($results | Where-Object { -not $_.Success }).Count | Should -Be 2
+            @($results | Select-Object -ExpandProperty FailureClass -Unique) | Should -Be @('Timeout')
             $results[0].Error | Should -Match 'timed out'
+        }
+    }
+
+    It 'treats queue timeout failures in the manifest as resumable pending chunks' {
+        InModuleScope XDRInternals {
+            $chunks = @(
+                [pscustomobject]@{
+                    Index         = 0
+                    FromDate      = [datetime]'2026-05-10T00:00:00Z'
+                    ToDate        = [datetime]'2026-05-10T01:00:00Z'
+                    OwnerFromDate = [datetime]'2026-05-10T00:00:00Z'
+                    OwnerToDate   = [datetime]'2026-05-10T01:00:00Z'
+                    ChunkHours    = 1
+                    ChunkMinutes  = 60
+                    Strategy      = 'Test'
+                }
+                [pscustomobject]@{
+                    Index         = 1
+                    FromDate      = [datetime]'2026-05-10T01:00:00Z'
+                    ToDate        = [datetime]'2026-05-10T02:00:00Z'
+                    OwnerFromDate = [datetime]'2026-05-10T01:00:00Z'
+                    OwnerToDate   = [datetime]'2026-05-10T02:00:00Z'
+                    ChunkHours    = 1
+                    ChunkMinutes  = 60
+                    Strategy      = 'Test'
+                }
+            )
+            $manifest = New-XdrEndpointTimelineManifestState -Compatibility @{ Command = 'test' } -Chunks $chunks
+            $worker = {
+                param($Chunk, $SharedParameters)
+
+                Start-Sleep -Seconds $SharedParameters.DelaySeconds
+                [PSCustomObject]@{
+                    ChunkIndex = $Chunk.Index
+                    Success = $true
+                }
+            }
+
+            $results = @(Invoke-XdrTimelineChunkQueue -Chunks $chunks -WorkerScript $worker -SharedParameters @{ DelaySeconds = 3 } -ThrottleLimit 1 -TimeoutSeconds 1 -Activity 'Pester Timeline Timeout Manifest')
+            foreach ($result in $results) {
+                Update-XdrEndpointTimelineManifestJob -Manifest $manifest -Result $result
+            }
+
+            $pending = @(Get-XdrEndpointTimelinePendingChunk -Manifest $manifest | Sort-Object Index)
+            $failureClasses = @($manifest.Jobs | ForEach-Object { Get-XdrTimelineObjectValue -InputObject $_ -Name 'FailureClass' } | Sort-Object -Unique)
+
+            $pending.Count | Should -Be 2
+            $failureClasses | Should -Be @('Timeout')
+            $pending[0].Index | Should -Be 0
+            $pending[1].Index | Should -Be 1
         }
     }
 

@@ -57,12 +57,18 @@
 
     if ($PreviousXSRFValue -ne $script:session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value) {
         Write-Verbose "XSRF token has been updated."
-        [Hashtable]$script:headers = @{}
-        $script:headers["X-XSRF-TOKEN"] = [System.Net.WebUtility]::UrlDecode($session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value)
+        if (-not (Test-Path variable:script:headers) -or $null -eq $script:headers) {
+            [Hashtable]$script:headers = @{}
+        }
+        $script:headers["X-XSRF-TOKEN"] = [System.Net.WebUtility]::UrlDecode($script:session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value)
+        if ($TenantId) {
+            $script:headers["x-tid"] = $TenantId
+            $script:headers["tenant-id"] = $TenantId
+        }
 
         # Cache the updated XSRF token with 5 minute TTL
         Write-Verbose "Caching updated XSRF token with 5 minute TTL"
-        Set-XdrCache -CacheKey "XsrfToken" -Value $script:headers["X-XSRF-TOKEN"] -TTLMinutes 5
+        Set-XdrCache -CacheKey "XsrfToken" -Value $script:headers["X-XSRF-TOKEN"] -TTLMinutes 5 -TenantId $TenantId
     } else {
         Write-Verbose "XSRF token remains unchanged."
     }

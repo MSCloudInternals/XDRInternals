@@ -86,7 +86,7 @@
     )
 
     process {
-        Write-Host "Authenticating with software passkey: $KeyFilePath"
+        Write-Host "Authenticating with software passkey."
 
         $passkeyParams = @{
             KeyFilePath        = $KeyFilePath
@@ -99,5 +99,16 @@
         $estsAuth = Invoke-XdrPasskeyAuthentication @passkeyParams
 
         Connect-XdrAuthArtifactSet -EstsAuthCookieValue $estsAuth -TenantId $TenantId -UserAgent $UserAgent -FailureLabel 'Software passkey authentication'
+
+        $script:XdrConnectionRenewalDescriptor = [PSCustomObject]@{
+            Mode               = 'SoftwarePasskey'
+            KeyFilePath        = $KeyFilePath
+            TenantId           = $TenantId
+            KeyVaultTenantId   = $KeyVaultTenantId
+            KeyVaultClientId   = $KeyVaultClientId
+            KeyVaultApiVersion = $KeyVaultApiVersion
+            UserAgent          = $UserAgent
+            SourceLabel        = 'SoftwarePasskey'
+        }
     }
 }

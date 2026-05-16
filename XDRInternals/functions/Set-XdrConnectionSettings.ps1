@@ -147,6 +147,8 @@
         $script:headers["tenant-id"] = $TenantId
     }
 
+    $script:XdrConnectionRenewalDescriptor = $null
+
     # Cache the XSRF token with 5 minute TTL
     Write-Verbose "Caching XSRF token with 5 minute TTL"
     Set-XdrCache -CacheKey "XsrfToken" -Value $script:headers["X-XSRF-TOKEN"] -TTLMinutes 5 -TenantId $TenantId

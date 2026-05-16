@@ -104,7 +104,7 @@ function New-XdrPasskeySignature {
     Write-Verbose "Data to sign: $($dataToSign.Length) bytes, pre-hashed to $($dataHash.Length) bytes"
 
     if ($KeyVaultInfo -and $KeyVaultToken) {
-        Write-Verbose "Signing with Azure Key Vault ($($KeyVaultInfo.vaultName)/$($KeyVaultInfo.keyName), api-version=$KeyVaultApiVersion)"
+        Write-Verbose "Signing with Azure Key Vault passkey (api-version=$KeyVaultApiVersion)"
         $dataBase64Url = ConvertTo-XdrBase64Url -Bytes $dataHash
         $signUri = "https://$($KeyVaultInfo.vaultName).vault.azure.net/keys/$($KeyVaultInfo.keyName)/sign?api-version=$KeyVaultApiVersion"
         $kvHeaders = @{ "Authorization" = "Bearer $KeyVaultToken"; "Content-Type" = "application/json" }
@@ -329,13 +329,13 @@ function Invoke-XdrPasskeyAuthentication {
 
     #region Load credential file
     if (-not (Test-Path $KeyFilePath)) {
-        throw "Credential file not found: $KeyFilePath"
+        throw "Software passkey credential file was not found."
     }
-    Write-Verbose "Loading credential file: $KeyFilePath"
+    Write-Verbose "Loading software passkey credential file."
     try {
         $keyData = Get-Content $KeyFilePath -Raw | ConvertFrom-Json
     } catch {
-        throw "Invalid JSON in credential file '$KeyFilePath': $($_.Exception.Message)"
+        throw "Software passkey credential file contains invalid JSON: $($_.Exception.Message)"
     }
 
     $targetUser = if ($null -ne $keyData.username) { $keyData.username } else { $keyData.userName }
@@ -356,8 +356,7 @@ function Invoke-XdrPasskeyAuthentication {
     if (-not $credentialId) { throw "Credential file is missing 'credentialId' field" }
     $credentialId = ($credentialId.TrimEnd('=') -replace '\+', '-' -replace '/', '_') | ForEach-Object { ConvertFrom-XdrUuidToBase64Url $_ }
 
-    Write-Verbose "User: $targetUser | RP ID: $rpId | Origin: $origin"
-    Write-Verbose "Credential ID: $($credentialId.Substring(0, [Math]::Min(20, $credentialId.Length)))..."
+    Write-Verbose "Passkey credential metadata loaded."
     #endregion
 
     #region Determine signing mode and prepare credentials
@@ -372,7 +371,7 @@ function Invoke-XdrPasskeyAuthentication {
     $signCount = [int]$signCount
 
     if ($useKeyVault) {
-        Write-Verbose "Key Vault passkey detected (vault: $($keyData.keyVault.vaultName), key: $($keyData.keyVault.keyName))"
+        Write-Verbose "Key Vault passkey detected."
         $kvInfo = @{
             vaultName = $keyData.keyVault.vaultName
             keyName   = $keyData.keyVault.keyName
@@ -405,7 +404,7 @@ function Invoke-XdrPasskeyAuthentication {
     $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
     $session.UserAgent = $UserAgent
 
-    Write-Verbose "Initiating authentication flow for $targetUser..."
+    Write-Verbose "Initiating passkey authentication flow."
     $initialResponse = Invoke-WebRequest -UseBasicParsing -Uri $authUrl -Method Get -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck -Verbose:$false
 
     if (-not ($initialResponse.Content -match '{(.*)}')) {

@@ -122,11 +122,13 @@ try {
         ErrorAction           = 'Stop'
     }
 
-    if ($timelineCommand.Parameters.ContainsKey('WorkingDirectory') -and $timelineCommand.Parameters.ContainsKey('OutputPath')) {
-        $timelineParams.OutputPath = $request.execution.outputPath
+    if ($timelineCommand.Parameters.ContainsKey('ExportPath') -and $timelineCommand.Parameters.ContainsKey('WorkingDirectory')) {
+        $timelineParams.ExportPath = $request.execution.outputPath
     } elseif ($timelineCommand.Parameters.ContainsKey('ExportPath') -and $timelineCommand.Parameters.ContainsKey('OutputPath')) {
         $timelineParams.OutputPath = Split-Path -Parent $request.execution.outputPath
         $timelineParams.ExportPath = $request.execution.outputPath
+    } elseif ($timelineCommand.Parameters.ContainsKey('WorkingDirectory') -and $timelineCommand.Parameters.ContainsKey('OutputPath')) {
+        $timelineParams.OutputPath = $request.execution.outputPath
     } elseif ($timelineCommand.Parameters.ContainsKey('OutputPath')) {
         $timelineParams.OutputPath = $request.execution.outputPath
     } elseif ($timelineCommand.Parameters.ContainsKey('ExportPath')) {
@@ -200,6 +202,7 @@ finally {
             Stop-Transcript | Out-Null
         }
         catch {
+            Write-Verbose "Failed to stop benchmark transcript: $($_.Exception.Message)"
         }
     }
 

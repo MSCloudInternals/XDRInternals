@@ -11,9 +11,9 @@ Describe 'Xdr.BenchmarkHelpers planning' -Tag 'Functions', 'Benchmarks' {
         $settings.branches.ContainsKey('current') | Should -BeTrue
         $settings.windows.ContainsKey('24h') | Should -BeTrue
         $settings.windows.ContainsKey('60d') | Should -BeTrue
-        $settings.execution.defaultThrottleLimit | Should -Be 10
-        $settings.execution.defaultPaginationDelayMinMilliseconds | Should -Be 500
-        $settings.execution.defaultPaginationDelayMaxMilliseconds | Should -Be 1500
+        $settings.execution.defaultThrottleLimit | Should -Be 16
+        $settings.execution.defaultPaginationDelayMinMilliseconds | Should -Be 0
+        $settings.execution.defaultPaginationDelayMaxMilliseconds | Should -Be 0
     }
 
     It 'captures all configured windows from a single ToDate anchor' {

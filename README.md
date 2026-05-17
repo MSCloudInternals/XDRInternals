@@ -97,7 +97,7 @@ Get-XdrTenantContext -Force
 | Get-XdrEndpointDeviceRbacGroup                                  | Retrieves device groups for Defender for Endpoint. |
 | Get-XdrEndpointDeviceRbacGroupScope                             | Retrieves all RBAC groups from Microsoft Defender for Endpoint. |
 | Get-XdrEndpointDeviceTag                                        | Retrieves all device tags from Microsoft Defender for Endpoint. |
-| Get-XdrEndpointDeviceTimeline                                   | Retrieves the timeline of events for a specific device from Microsoft Defender XDR. |
+| Get-XdrEndpointDeviceTimeline                                   | Retrieves endpoint device timeline events from Microsoft Defender XDR. |
 | Get-XdrEndpointDeviceTotals                                     | Retrieves the device totals from Microsoft Defender XDR. |
 | Get-XdrEndpointDeviceVendor                                     | Retrieves all device vendors from Microsoft Defender for Endpoint. |
 | Get-XdrEndpointDeviceWindowsReleaseVersion                      | Retrieves all Windows release versions from Microsoft Defender for Endpoint. |

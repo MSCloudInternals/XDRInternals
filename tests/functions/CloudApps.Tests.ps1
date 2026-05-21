@@ -283,6 +283,50 @@
         }
     }
 
+    It 'parses string activity payload responses when writing chunk files' {
+        $eventTime = [datetime]::UtcNow.AddMinutes(-5)
+        $eventTimestamp = [long](($eventTime - [datetime]'1970-01-01').TotalMilliseconds)
+        Mock Invoke-RestMethod {
+            @{
+                data = @(
+                    @{
+                        _id       = 'activity-string-1'
+                        timestamp = $eventTimestamp
+                        date      = $eventTime.ToString('o')
+                        appName   = 'Microsoft 365'
+                    }
+                )
+                hasNext = $false
+            } | ConvertTo-Json -Depth 10 -Compress
+        } -ModuleName XDRInternals
+
+        InModuleScope -ModuleName XDRInternals -Parameters @{ TempPath = $TestDrive; EventTime = $eventTime } {
+            param($TempPath, $EventTime)
+
+            $script:session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            $script:headers = @{}
+            $hadScriptVersionTable = Test-Path -Path variable:script:PSVersionTable
+            $originalVersionTable = if ($hadScriptVersionTable) { (Get-Item -Path variable:script:PSVersionTable).Value } else { $null }
+
+            try {
+                $script:PSVersionTable = @{ PSVersion = [version]'5.1.0' }
+
+                $result = @(Get-XdrCloudAppsActivityTimeline -FromDate $EventTime.AddHours(-1) -ToDate $EventTime.AddHours(1) -OutputPath $TempPath -KeepTempFiles)
+
+                $result | Should -HaveCount 1
+                $result[0]._id | Should -Be 'activity-string-1'
+            }
+            finally {
+                if ($hadScriptVersionTable) {
+                    $script:PSVersionTable = $originalVersionTable
+                }
+                else {
+                    Remove-Item -Path variable:script:PSVersionTable -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+
     It 'skips unreadable activity chunk files when partial data is allowed' {
         $chunkPath = Join-Path $TestDrive 'chunk_bad.json'
         Set-Content -Path $chunkPath -Value '{"Events":[{"_id":"activity-1"}' -Encoding UTF8

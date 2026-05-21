@@ -1,21 +1,4 @@
-﻿function ConvertFrom-XdrCloudAppsActivityJson {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Json
-    )
-
-    if ((Get-Command ConvertFrom-Json -ErrorAction Stop).Parameters.ContainsKey('AsHashtable')) {
-        return $Json | ConvertFrom-Json -AsHashtable -ErrorAction Stop
-    }
-
-    Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
-    $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
-    $serializer.MaxJsonLength = [int]::MaxValue
-    return $serializer.DeserializeObject($Json)
-}
-
-function Read-XdrCloudAppsActivityChunkFile {
+﻿function Read-XdrCloudAppsActivityChunkFile {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -26,7 +9,15 @@ function Read-XdrCloudAppsActivityChunkFile {
     )
 
     try {
-        return ConvertFrom-XdrCloudAppsActivityJson -Json (Get-Content -Path $File.FullName -Raw -ErrorAction Stop)
+        $json = Get-Content -Path $File.FullName -Raw -ErrorAction Stop
+        if ((Get-Command ConvertFrom-Json -ErrorAction Stop).Parameters.ContainsKey('AsHashtable')) {
+            return $json | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+        }
+
+        Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
+        $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+        $serializer.MaxJsonLength = [int]::MaxValue
+        return $serializer.DeserializeObject($json)
     }
     catch {
         if ($AllowPartial) {
@@ -492,22 +483,6 @@ function Get-XdrCloudAppsActivityTimeline {
         $chunkScript = {
             param($Chunk, $Params, $CookieInfo, $HeaderInfo)
 
-            function ConvertFrom-XdrCloudAppsActivityChunkJson {
-                param(
-                    [Parameter(Mandatory)]
-                    [string]$Json
-                )
-
-                if ((Get-Command ConvertFrom-Json -ErrorAction Stop).Parameters.ContainsKey('AsHashtable')) {
-                    return $Json | ConvertFrom-Json -AsHashtable -ErrorAction Stop
-                }
-
-                Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
-                $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
-                $serializer.MaxJsonLength = [int]::MaxValue
-                return $serializer.DeserializeObject($Json)
-            }
-
             $webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
             foreach ($c in $CookieInfo) {
                 $webSession.Cookies.Add([System.Net.Cookie]::new($c.Name, $c.Value, $c.Path, $c.Domain))
@@ -573,7 +548,15 @@ function Get-XdrCloudAppsActivityTimeline {
                     }
 
                     if ($response -is [string] -and -not [string]::IsNullOrWhiteSpace($response)) {
-                        $response = ConvertFrom-XdrCloudAppsActivityChunkJson -Json $response
+                        if ((Get-Command ConvertFrom-Json -ErrorAction Stop).Parameters.ContainsKey('AsHashtable')) {
+                            $response = $response | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+                        }
+                        else {
+                            Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
+                            $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+                            $serializer.MaxJsonLength = [int]::MaxValue
+                            $response = $serializer.DeserializeObject($response)
+                        }
                     }
                     $responseData = if ($response -is [System.Collections.IDictionary]) { $response['data'] } else { $response.data }
                     if ($null -ne $responseData) {

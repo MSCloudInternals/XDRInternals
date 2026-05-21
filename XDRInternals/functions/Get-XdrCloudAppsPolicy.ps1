@@ -324,7 +324,7 @@
                     $cache = Get-XdrCache -CacheKey $CacheKey -ErrorAction SilentlyContinue
                     if ($cache -and $cache.NotValidAfter -gt (Get-Date)) {
                         Write-Verbose "Returning cached $Type policy for PolicyId: $PolicyId"
-                        return $cache.Value
+                        return $cache.Value | Add-XdrCloudAppsTypeName -TypeName $typeName
                     }
                 }
 
@@ -333,18 +333,8 @@
                 try {
                     $response = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                     $result = if ($null -ne $response.data) { $response.data } else { $response }
-                    if ($null -ne $result) {
-                        if ($result -is [array]) {
-                            foreach ($item in $result) {
-                                $item.PSObject.TypeNames.Insert(0, $typeName)
-                            }
-                        } else {
-                            $result.PSObject.TypeNames.Insert(0, $typeName)
-                        }
-                    }
-
                     Set-XdrCache -CacheKey $CacheKey -Value $result -TTLMinutes 5
-                    return $result
+                    return $result | Add-XdrCloudAppsTypeName -TypeName $typeName
                 } catch {
                     Write-Error "Failed to retrieve $Type policy '$PolicyId': $_"
                 }
@@ -361,15 +351,8 @@
                         $response = Invoke-RestMethod -Uri $endpoint.Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers -ErrorAction Stop
                         $result = if ($null -ne $response.data) { $response.data } else { $response }
                         if ($null -ne $result) {
-                            if ($result -is [array]) {
-                                foreach ($item in $result) {
-                                    $item.PSObject.TypeNames.Insert(0, $endpoint.TypeName)
-                                }
-                            } else {
-                                $result.PSObject.TypeNames.Insert(0, $endpoint.TypeName)
-                            }
                             Write-Verbose "Found policy $PolicyId as $($endpoint.Type) type"
-                            return $result
+                            return $result | Add-XdrCloudAppsTypeName -TypeName $endpoint.TypeName
                         }
                     } catch {
                         Write-Verbose "Policy $PolicyId not found as $($endpoint.Type) type, trying next..."
@@ -458,7 +441,7 @@
             $cache = Get-XdrCache -CacheKey $CacheKey -ErrorAction SilentlyContinue
             if ($cache -and $cache.NotValidAfter -gt (Get-Date)) {
                 Write-Verbose "Returning cached policies"
-                return $cache.Value
+                return $cache.Value | Add-XdrCloudAppsTypeName -TypeName $typeName
             }
         }
 
@@ -480,26 +463,12 @@
             $response = Invoke-RestMethod -Uri $Uri -Method Post -Body $jsonBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
 
             $result = if ($null -ne $response.data) { $response.data } else { $response }
-            if ($null -ne $result) {
-                if ($result -is [array]) {
-                    foreach ($item in $result) {
-                        if ($null -eq $item) {
-                            continue
-                        }
-
-                        $item.PSObject.TypeNames.Insert(0, $typeName)
-                    }
-                }
-                else {
-                    $result.PSObject.TypeNames.Insert(0, $typeName)
-                }
-            }
 
             # Templates cache longer than policies
             $ttl = if ($Type -eq "Template") { 15 } else { 5 }
             Set-XdrCache -CacheKey $CacheKey -Value $result -TTLMinutes $ttl
 
-            return $result
+            return $result | Add-XdrCloudAppsTypeName -TypeName $typeName
         } catch {
             $policyType = if ($Type) { "$Type " } else { "" }
             Write-Error "Failed to retrieve ${policyType}policies: $_"

@@ -193,10 +193,28 @@
 
         $result = @(Get-XdrCloudAppsPolicy -Type ShadowIT -Force)
 
-        $result | Should -HaveCount 2
-        $result[0] | Should -BeNullOrEmpty
-        $result[1].name | Should -Be 'Shadow IT policy'
-        $result[1].PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsPolicyShadowIT'
+        $result | Should -HaveCount 1
+        $result[0].name | Should -Be 'Shadow IT policy'
+        $result[0].PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsPolicyShadowIT'
+    }
+
+    It 'skips null entries when returning cached typed policy arrays' {
+        $cachedPolicy = [pscustomobject]@{ name = 'Shadow IT policy' }
+        Mock Get-XdrCache {
+            [pscustomobject]@{
+                NotValidAfter = (Get-Date).AddMinutes(5)
+                Value         = @(
+                    $null,
+                    $cachedPolicy
+                )
+            }
+        } -ModuleName XDRInternals
+
+        $result = @(Get-XdrCloudAppsPolicy -Type ShadowIT)
+
+        $result | Should -HaveCount 1
+        $result[0].name | Should -Be 'Shadow IT policy'
+        $result[0].PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsPolicyShadowIT'
     }
 
     It 'splits mixed recent and archived count-only timeline requests' {
@@ -339,6 +357,31 @@ Describe 'Invoke-XdrCloudAppsRequest' {
 
             $result.name | Should -Be 'Item1'
             $result.PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsTest'
+        }
+    }
+
+    It 'skips null items without duplicating an existing Cloud Apps type name' {
+        Mock Invoke-RestMethod {
+            $typedItem = [pscustomobject]@{ name = 'Item1' }
+            $typedItem.PSObject.TypeNames.Insert(0, 'XdrCloudAppsTest')
+
+            [pscustomobject]@{
+                data = @(
+                    $null,
+                    $typedItem,
+                    [pscustomobject]@{ name = 'Item2' }
+                )
+            }
+        } -ModuleName XDRInternals
+
+        InModuleScope XDRInternals {
+            $result = @(Invoke-XdrCloudAppsRequest -Path '/mcas/test' -TypeName 'XdrCloudAppsTest')
+
+            $result | Should -HaveCount 2
+            $result[0].name | Should -Be 'Item1'
+            ($result[0].PSObject.TypeNames | Where-Object { $_ -eq 'XdrCloudAppsTest' }).Count | Should -Be 1
+            $result[1].name | Should -Be 'Item2'
+            ($result[1].PSObject.TypeNames | Where-Object { $_ -eq 'XdrCloudAppsTest' }).Count | Should -Be 1
         }
     }
 

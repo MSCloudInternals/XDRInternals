@@ -991,6 +991,7 @@
                 }
             }
             $wallClockSeconds = $operationStartTime.Elapsed.TotalSeconds
+            $downloadSeconds = [math]::Round($wallClockSeconds, 2)
             $overallEventsPerSec = if ($wallClockSeconds -gt 0) { [math]::Round($totalEvents / $wallClockSeconds, 1) } else { 0 }
             Write-Information "=== Summary ===" -InformationAction Continue
             Write-Information "Total chunks: $($results.Count) | Total events: $totalEvents | Total size: $([math]::Round($totalSizeKB / 1024, 2)) MB" -InformationAction Continue
@@ -1040,6 +1041,7 @@
                 $exportedEventCount = 0
                 $filterExportByEventType = $PSBoundParameters.ContainsKey('EventType')
                 $exportSourceEventCount = 0
+                $exportStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                 try {
                     $exportWriter.Write('[')
                     $isFirstEvent = $true
@@ -1106,6 +1108,7 @@
                     }
                     $exportWriter.Write(']')
                 } finally {
+                    $exportStopwatch.Stop()
                     $exportWriter.Close()
                     $exportWriter.Dispose()
                 }
@@ -1133,6 +1136,9 @@
                     TotalSizeMB      = [math]::Round($totalSizeKB / 1024, 2)
                     WallClockSeconds = [math]::Round($wallClockSeconds, 2)
                     EffectiveRate    = $overallEventsPerSec
+                    DownloadSeconds  = $downloadSeconds
+                    MergeSeconds     = 0
+                    ExportSeconds    = [math]::Round($exportStopwatch.Elapsed.TotalSeconds, 2)
                 }
             }
 

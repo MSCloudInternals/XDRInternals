@@ -87,7 +87,7 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
         )
 
         {
-            Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive
+            Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -ExportPath $TestDrive
         } | Should -Throw -ExpectedMessage '*Failed to retrieve device timeline chunks: chunk 1: boom. Re-run with -AllowPartial to return completed chunks.*'
     }
 
@@ -119,7 +119,7 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
             }
         )
 
-        $result = @(Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive -AllowPartial)
+        $result = @(Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -ExportPath $TestDrive -AllowPartial)
 
         $result.Count | Should -Be 1
         $result[0].ActionType | Should -Be 'ProcessCreated'
@@ -156,13 +156,78 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
             }
         )
 
-        $result = @(Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive -AllowPartial -WarningAction SilentlyContinue)
+        $result = @(Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -ExportPath $TestDrive -AllowPartial -WarningAction SilentlyContinue)
 
         $result.Count | Should -Be 1
         $result[0].ActionType | Should -Be 'ProcessCreated'
     }
 
-    It 'canonicalizes a relative ExportPath before writing the export file' {
+    It 'uses ExportPath as the temporary chunk root when temp files are kept' {
+        $chunkFile = Join-Path $TestDrive 'device-timeline-temp-root.json'
+        $tempRoot = Join-Path $TestDrive 'chunk-root'
+        Set-Content -Path $chunkFile -Value '{"Events":[{"ActionType":"ProcessCreated"}],"EventCount":1}' -Encoding UTF8
+
+        $script:FakeTimelineResults = @(
+            [pscustomobject]@{
+                ChunkIndex     = 0
+                Success        = $true
+                FilePath       = $chunkFile
+                EventCount     = 1
+                FromDate       = $script:FromDate
+                ToDate         = $script:ToDate
+                ElapsedSeconds = 1
+                PagesRetrieved = 1
+                FileSizeKB     = 1
+            }
+        )
+
+        $result = @(Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -ExportPath $tempRoot -KeepTempFiles)
+        $deviceRoot = Join-Path $tempRoot $script:DeviceId
+
+        $result.Count | Should -Be 1
+        Test-Path -LiteralPath $deviceRoot | Should -BeTrue
+        @(Get-ChildItem -Path $deviceRoot -Directory).Count | Should -Be 1
+    }
+
+    It 'defaults temporary chunk storage to the user temp folder when ExportPath is omitted' {
+        $chunkFile = Join-Path $TestDrive 'device-timeline-default-temp-root.json'
+        $deviceId = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+        $deviceRoot = Join-Path (Join-Path ([System.IO.Path]::GetTempPath()) 'XdrTimeline') $deviceId
+        Set-Content -Path $chunkFile -Value '{"Events":[{"ActionType":"ProcessCreated"}],"EventCount":1}' -Encoding UTF8
+
+        $script:FakeTimelineResults = @(
+            [pscustomobject]@{
+                ChunkIndex     = 0
+                Success        = $true
+                FilePath       = $chunkFile
+                EventCount     = 1
+                FromDate       = $script:FromDate
+                ToDate         = $script:ToDate
+                ElapsedSeconds = 1
+                PagesRetrieved = 1
+                FileSizeKB     = 1
+            }
+        )
+
+        if (Test-Path -LiteralPath $deviceRoot) {
+            Remove-Item -LiteralPath $deviceRoot -Recurse -Force
+        }
+
+        try {
+            $result = @(Get-XdrEndpointDeviceTimeline -DeviceId $deviceId -FromDate $script:FromDate -ToDate $script:ToDate -KeepTempFiles)
+
+            $result.Count | Should -Be 1
+            Test-Path -LiteralPath $deviceRoot | Should -BeTrue
+            @(Get-ChildItem -Path $deviceRoot -Directory).Count | Should -Be 1
+        }
+        finally {
+            if (Test-Path -LiteralPath $deviceRoot) {
+                Remove-Item -LiteralPath $deviceRoot -Recurse -Force
+            }
+        }
+    }
+
+    It 'canonicalizes a relative OutputPath before writing the export file' {
         $chunkFile = Join-Path $TestDrive 'device-timeline-export-relative.json'
         Set-Content -Path $chunkFile -Value '{"Events":[{"ActionType":"ProcessCreated"}],"EventCount":1}' -Encoding UTF8
 
@@ -183,12 +248,12 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
         $startingLocation = Get-Location
         try {
             Set-Location $TestDrive
-            $relativeExportPath = '.\exports\timeline.json'
-            $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive -ExportPath $relativeExportPath
-            $expectedPath = [System.IO.Path]::GetFullPath($relativeExportPath)
+            $relativeOutputPath = '.\exports\timeline.json'
+            $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -ExportPath (Join-Path $TestDrive 'chunk-root') -OutputPath $relativeOutputPath
+            $expectedPath = [System.IO.Path]::GetFullPath($relativeOutputPath)
             $exportedEvents = Get-Content -Path $expectedPath -Raw | ConvertFrom-Json
 
-            $result.ExportPath | Should -Be $expectedPath
+            $result.OutputPath | Should -Be $expectedPath
             $result.TotalEvents | Should -Be 1
             Test-Path -LiteralPath $expectedPath | Should -BeTrue
             @($exportedEvents).Count | Should -Be 1
@@ -230,7 +295,7 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
             }
         )
 
-        $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive -ExportPath $exportPath
+        $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -ExportPath (Join-Path $TestDrive 'chunk-root') -OutputPath $exportPath
         $exportedEvents = Get-Content -Path $exportPath -Raw | ConvertFrom-Json
 
         $result.TotalEvents | Should -Be 1
@@ -273,7 +338,7 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
             }
         )
 
-        $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive -ExportPath $exportPath -EventType 'Process*'
+        $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -ExportPath (Join-Path $TestDrive 'chunk-root') -OutputPath $exportPath -EventType 'Process*'
         $exportedEvents = Get-Content -Path $exportPath -Raw | ConvertFrom-Json
 
         $result.TotalEvents | Should -Be 1
@@ -314,10 +379,10 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
             }
         )
 
-        $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive -ExportPath $exportPath -AllowPartial -WarningAction SilentlyContinue
+        $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -ExportPath (Join-Path $TestDrive 'chunk-root') -OutputPath $exportPath -AllowPartial -WarningAction SilentlyContinue
         $exportedEvents = Get-Content -Path $exportPath -Raw | ConvertFrom-Json
 
-        $result.ExportPath | Should -Be $exportPath
+        $result.OutputPath | Should -Be $exportPath
         $result.TotalEvents | Should -Be 1
         @($exportedEvents).Count | Should -Be 1
         $exportedEvents[0].ActionType | Should -Be 'ProcessCreated'

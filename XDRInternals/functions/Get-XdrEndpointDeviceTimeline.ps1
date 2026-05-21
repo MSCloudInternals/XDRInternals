@@ -81,7 +81,7 @@
         Larger chunks reduce overhead but may increase individual request times.
 
     .PARAMETER OutputPath
-        Optional. The path to store temporary JSON files. Defaults to a temp folder.
+        Optional. Export results directly to a JSON file at the specified path.
 
     .PARAMETER KeepTempFiles
         If specified, keeps the temporary JSON files after merging.
@@ -91,7 +91,7 @@
         By default, the cmdlet fails rather than returning incomplete timeline data.
 
     .PARAMETER ExportPath
-        Optional. Export results directly to a JSON file at the specified path.
+        Optional. The path to store temporary JSON chunk files. Defaults to a temp folder.
 
     .EXAMPLE
         Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2"
@@ -114,7 +114,7 @@
         Retrieves timeline events filtered to process-related events only.
 
     .EXAMPLE
-        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -LastNDays 7 -ExportPath "C:\Reports\timeline.json"
+        Get-XdrEndpointDeviceTimeline -DeviceId "2bec169acc9def3ebd0bf8cdcbd9d16eb37e50e2" -LastNDays 7 -OutputPath "C:\Reports\timeline.json"
         Retrieves 7 days of timeline events and exports directly to a JSON file.
 
     .EXAMPLE
@@ -276,10 +276,24 @@
         $safeFolderName = $computerDnsName -replace '[\\/:*?"<>|]', '_'
 
         # Set up output directory using cross-platform temp path
-        $baseTempPath = if ($OutputPath) {
-            $OutputPath
-        } else {
-            Join-Path ([System.IO.Path]::GetTempPath()) 'XdrTimeline'
+        $baseTempPath = Join-Path ([System.IO.Path]::GetTempPath()) 'XdrTimeline'
+        if ($PSBoundParameters.ContainsKey('ExportPath')) {
+            $requestedExportPath = $ExportPath
+            try {
+                $ExportPath = [System.IO.Path]::GetFullPath($ExportPath)
+                if (Test-Path -LiteralPath $ExportPath) {
+                    if (-not (Get-Item -LiteralPath $ExportPath -ErrorAction Stop).PSIsContainer) {
+                        throw "The export path resolves to an existing file."
+                    }
+                }
+                else {
+                    New-Item -Path $ExportPath -ItemType Directory -Force -ErrorAction Stop | Out-Null
+                }
+                $baseTempPath = $ExportPath
+            }
+            catch {
+                throw "ExportPath '$requestedExportPath' could not be prepared: $($_.Exception.Message)"
+            }
         }
         $deviceTempPath = Join-Path $baseTempPath $safeFolderName
         $runId = [guid]::NewGuid().ToString('N').Substring(0, 8)
@@ -997,24 +1011,24 @@
                     Sort-Object Name
             )
 
-            # If ExportPath is specified, use pure file-based merge (most memory efficient)
-            if ($PSBoundParameters.ContainsKey('ExportPath')) {
+            # If OutputPath is specified, use pure file-based merge (most memory efficient)
+            if ($PSBoundParameters.ContainsKey('OutputPath')) {
                 Write-Verbose "Exporting to file using streaming merge (memory-efficient)..."
-                $requestedExportPath = $ExportPath
+                $requestedOutputPath = $OutputPath
                 try {
-                    $ExportPath = [System.IO.Path]::GetFullPath($ExportPath)
-                    if (Test-Path -LiteralPath $ExportPath -PathType Container) {
-                        throw "The export path resolves to an existing directory."
+                    $OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
+                    if (Test-Path -LiteralPath $OutputPath -PathType Container) {
+                        throw "The output path resolves to an existing directory."
                     }
 
-                    $exportDir = Split-Path -Parent $ExportPath
+                    $exportDir = Split-Path -Parent $OutputPath
                     if ([string]::IsNullOrWhiteSpace($exportDir)) {
-                        throw "Could not determine the export directory."
+                        throw "Could not determine the output directory."
                     }
 
                     if (Test-Path -LiteralPath $exportDir) {
                         if (-not (Get-Item -LiteralPath $exportDir -ErrorAction Stop).PSIsContainer) {
-                            throw "The export directory path resolves to an existing file."
+                            throw "The output directory path resolves to an existing file."
                         }
                     }
                     else {
@@ -1022,11 +1036,11 @@
                     }
                 }
                 catch {
-                    throw "ExportPath '$requestedExportPath' could not be prepared: $($_.Exception.Message)"
+                    throw "OutputPath '$requestedOutputPath' could not be prepared: $($_.Exception.Message)"
                 }
 
                 # Stream merge directly to export file without loading into memory
-                $exportWriter = [System.IO.StreamWriter]::new($ExportPath, $false, [System.Text.Encoding]::UTF8)
+                $exportWriter = [System.IO.StreamWriter]::new($OutputPath, $false, [System.Text.Encoding]::UTF8)
                 $exportedEventCount = 0
                 $filterExportByEventType = $PSBoundParameters.ContainsKey('EventType')
                 $exportSourceEventCount = 0
@@ -1103,7 +1117,7 @@
                 if ($filterExportByEventType) {
                     Write-Information "Filtered from $exportSourceEventCount to $exportedEventCount events matching '$EventType'" -InformationAction Continue
                 }
-                Write-Information "Exported $exportedEventCount events to: $ExportPath" -InformationAction Continue
+                Write-Information "Exported $exportedEventCount events to: $OutputPath" -InformationAction Continue
 
                 # Clean up temp files unless KeepTempFiles is specified
                 if (-not $KeepTempFiles) {
@@ -1117,7 +1131,7 @@
 
                 # Return summary info instead of all events when exporting
                 return [PSCustomObject]@{
-                    ExportPath       = $ExportPath
+                    OutputPath       = $OutputPath
                     TotalEvents      = $exportedEventCount
                     TotalChunks      = $results.Count
                     TotalSizeMB      = [math]::Round($totalSizeKB / 1024, 2)

@@ -1041,7 +1041,7 @@
                 $exportedEventCount = 0
                 $filterExportByEventType = $PSBoundParameters.ContainsKey('EventType')
                 $exportSourceEventCount = 0
-                $exportStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                $mergeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                 try {
                     $exportWriter.Write('[')
                     $isFirstEvent = $true
@@ -1108,7 +1108,7 @@
                     }
                     $exportWriter.Write(']')
                 } finally {
-                    $exportStopwatch.Stop()
+                    $mergeStopwatch.Stop()
                     $exportWriter.Close()
                     $exportWriter.Dispose()
                 }
@@ -1129,16 +1129,19 @@
                 [System.GC]::Collect()
 
                 # Return summary info instead of all events when exporting
+                $totalWallClockSeconds = [math]::Round($operationStartTime.Elapsed.TotalSeconds, 2)
+                $mergeSeconds = [math]::Round($mergeStopwatch.Elapsed.TotalSeconds, 2)
+                $effectiveRate = if ($totalWallClockSeconds -gt 0) { [math]::Round($exportedEventCount / $totalWallClockSeconds, 1) } else { 0 }
                 return [PSCustomObject]@{
                     OutputPath       = $OutputPath
                     TotalEvents      = $exportedEventCount
                     TotalChunks      = $results.Count
                     TotalSizeMB      = [math]::Round($totalSizeKB / 1024, 2)
-                    WallClockSeconds = [math]::Round($wallClockSeconds, 2)
-                    EffectiveRate    = $overallEventsPerSec
+                    WallClockSeconds = $totalWallClockSeconds
+                    EffectiveRate    = $effectiveRate
                     DownloadSeconds  = $downloadSeconds
-                    MergeSeconds     = 0
-                    ExportSeconds    = [math]::Round($exportStopwatch.Elapsed.TotalSeconds, 2)
+                    MergeSeconds     = $mergeSeconds
+                    ExportSeconds    = $mergeSeconds
                 }
             }
 

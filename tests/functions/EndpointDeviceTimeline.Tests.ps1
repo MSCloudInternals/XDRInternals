@@ -52,10 +52,21 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
 
     It 'uses Prev for normal continuation and does not rely on Next' {
         $command = Get-Command Get-XdrEndpointDeviceTimeline
-        $definition = $command.ScriptBlock.ToString()
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseInput($command.ScriptBlock.ToString(), [ref]$tokens, [ref]$parseErrors)
+        $responseMemberAccess = @(
+            $ast.FindAll({
+                    param($node)
 
-        ([regex]::Matches($definition, 'IsNullOrWhiteSpace\(\$response\.Prev\)')).Count | Should -Be 2
-        $definition | Should -Not -Match '\$response\.Next'
+                    $node -is [System.Management.Automation.Language.MemberExpressionAst] -and
+                    $node.Expression -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                    $node.Expression.VariablePath.UserPath -eq 'response'
+                }, $true)
+        )
+
+        @($responseMemberAccess | Where-Object { $_.Member.Value -eq 'Prev' }).Count | Should -BeGreaterThan 0
+        @($responseMemberAccess | Where-Object { $_.Member.Value -eq 'Next' }) | Should -BeNullOrEmpty
     }
 
     It 'throws when a chunk fails and partial results are not allowed' {
@@ -245,22 +256,17 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
             }
         )
 
-        $startingLocation = Get-Location
-        try {
-            Set-Location $TestDrive
-            $relativeOutputPath = '.\exports\timeline.json'
-            $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -ExportPath (Join-Path $TestDrive 'chunk-root') -OutputPath $relativeOutputPath
-            $expectedPath = [System.IO.Path]::GetFullPath($relativeOutputPath)
-            $exportedEvents = Get-Content -Path $expectedPath -Raw | ConvertFrom-Json
+        $absoluteOutputPath = Join-Path (Join-Path $TestDrive 'exports') 'timeline.json'
+        $relativeOutputPath = [System.IO.Path]::GetRelativePath((Get-Location).Path, $absoluteOutputPath)
 
-            $result.OutputPath | Should -Be $expectedPath
-            $result.TotalEvents | Should -Be 1
-            Test-Path -LiteralPath $expectedPath | Should -BeTrue
-            @($exportedEvents).Count | Should -Be 1
-        }
-        finally {
-            Set-Location $startingLocation
-        }
+        $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -ExportPath (Join-Path $TestDrive 'chunk-root') -OutputPath $relativeOutputPath
+        $expectedPath = [System.IO.Path]::GetFullPath($relativeOutputPath)
+        $exportedEvents = Get-Content -Path $expectedPath -Raw | ConvertFrom-Json
+
+        $result.OutputPath | Should -Be $expectedPath
+        $result.TotalEvents | Should -Be 1
+        Test-Path -LiteralPath $expectedPath | Should -BeTrue
+        @($exportedEvents).Count | Should -Be 1
     }
 
     It 'exports events from formatted chunk JSON using parsed Events data' {

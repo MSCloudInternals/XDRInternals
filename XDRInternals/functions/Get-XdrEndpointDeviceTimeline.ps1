@@ -501,7 +501,7 @@
                                 }
 
                                 # Stream events directly to file instead of accumulating in memory
-                                $nextUri = $null
+                                $continuationUri = $null
                                 if ($response) {
                                     if ($response.Items) {
                                         foreach ($item in $response.Items) {
@@ -511,18 +511,17 @@
                                             $eventCount++
                                         }
                                     }
-                                    # Capture next page URL before clearing response
                                     if (-not [string]::IsNullOrWhiteSpace($response.Prev)) {
-                                        $nextUri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
+                                        $continuationUri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
                                     }
                                     # Clear response to free memory immediately
                                     $response = $null
                                 }
 
-                                if (-not $nextUri) {
+                                if (-not $continuationUri) {
                                     break
                                 } else {
-                                    $Uri = $nextUri
+                                    $Uri = $continuationUri
                                     # Small delay between pagination requests
                                     Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
                                 }
@@ -754,7 +753,7 @@
                             }
 
                             # Stream events directly to file instead of accumulating in memory
-                            $nextUri = $null
+                            $continuationUri = $null
                             if ($response) {
                                 if ($response.Items) {
                                     foreach ($item in $response.Items) {
@@ -764,18 +763,17 @@
                                         $eventCount++
                                     }
                                 }
-                                # Capture next page URL before clearing response
                                 if (-not [string]::IsNullOrWhiteSpace($response.Prev)) {
-                                    $nextUri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
+                                    $continuationUri = "$baseUrl/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
                                 }
                                 # Clear response to free memory immediately
                                 $response = $null
                             }
 
-                            if (-not $nextUri) {
+                            if (-not $continuationUri) {
                                 break
                             } else {
-                                $Uri = $nextUri
+                                $Uri = $continuationUri
                                 # Small delay between pagination requests
                                 Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
                             }

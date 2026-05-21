@@ -50,6 +50,14 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
         $command.Parameters.ContainsKey('AllowPartial') | Should -BeTrue
     }
 
+    It 'uses Prev for normal continuation and does not rely on Next' {
+        $command = Get-Command Get-XdrEndpointDeviceTimeline
+        $definition = $command.ScriptBlock.ToString()
+
+        ([regex]::Matches($definition, 'IsNullOrWhiteSpace\(\$response\.Prev\)')).Count | Should -Be 2
+        $definition | Should -Not -Match '\$response\.Next'
+    }
+
     It 'throws when a chunk fails and partial results are not allowed' {
         $goodFile = Join-Path $TestDrive 'device-timeline-good.json'
         Set-Content -Path $goodFile -Value '{"Events":[{"ActionType":"ProcessCreated"}],"EventCount":1}' -Encoding UTF8

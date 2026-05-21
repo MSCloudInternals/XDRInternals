@@ -1000,9 +1000,29 @@
             # If ExportPath is specified, use pure file-based merge (most memory efficient)
             if ($PSBoundParameters.ContainsKey('ExportPath')) {
                 Write-Verbose "Exporting to file using streaming merge (memory-efficient)..."
-                $exportDir = Split-Path -Parent $ExportPath
-                if ($exportDir -and -not (Test-Path $exportDir)) {
-                    New-Item -Path $exportDir -ItemType Directory -Force | Out-Null
+                $requestedExportPath = $ExportPath
+                try {
+                    $ExportPath = [System.IO.Path]::GetFullPath($ExportPath)
+                    if (Test-Path -LiteralPath $ExportPath -PathType Container) {
+                        throw "The export path resolves to an existing directory."
+                    }
+
+                    $exportDir = Split-Path -Parent $ExportPath
+                    if ([string]::IsNullOrWhiteSpace($exportDir)) {
+                        throw "Could not determine the export directory."
+                    }
+
+                    if (Test-Path -LiteralPath $exportDir) {
+                        if (-not (Get-Item -LiteralPath $exportDir -ErrorAction Stop).PSIsContainer) {
+                            throw "The export directory path resolves to an existing file."
+                        }
+                    }
+                    else {
+                        New-Item -Path $exportDir -ItemType Directory -Force -ErrorAction Stop | Out-Null
+                    }
+                }
+                catch {
+                    throw "ExportPath '$requestedExportPath' could not be prepared: $($_.Exception.Message)"
                 }
 
                 $resultByFilePath = @{}
@@ -1027,21 +1047,17 @@
                         Write-Progress -Activity "Processing Results" -Status "Merging file $fileIndex of $totalFiles to export" -PercentComplete $percentComplete -Id 2
 
                         try {
-                            # Read file content as text and extract just the Events array
+                            # Read and parse the chunk JSON using the same shape as the in-memory merge path
                             $rawContent = [System.IO.File]::ReadAllText($file.FullName)
-                            $eventsTokenIndex = $rawContent.IndexOf('"Events":[')
-                            $eventsEnd = $rawContent.LastIndexOf('],"EventCount"')
-                            if ($eventsEnd -lt 0) { $eventsEnd = $rawContent.LastIndexOf(']}') }
+                            $chunkData = $rawContent | ConvertFrom-Json -ErrorAction Stop
+                            $rawContent = $null
 
-                            if ($eventsTokenIndex -lt 0 -or $eventsEnd -le ($eventsTokenIndex + 10)) {
-                                throw "The chunk file does not contain a valid Events payload."
-                            }
-
-                            $eventsJson = $rawContent.Substring($eventsTokenIndex + 10, $eventsEnd - ($eventsTokenIndex + 10))
-                            if ($eventsJson.Length -gt 0) {
-                                if (-not $isFirstEvent) { $exportWriter.Write(',') }
-                                $exportWriter.Write($eventsJson)
-                                $isFirstEvent = $false
+                            if ($chunkData.Events) {
+                                foreach ($eventItem in $chunkData.Events) {
+                                    if (-not $isFirstEvent) { $exportWriter.Write(',') }
+                                    $exportWriter.Write(($eventItem | ConvertTo-Json -Depth 20 -Compress))
+                                    $isFirstEvent = $false
+                                }
                                 if ($resultByFilePath.ContainsKey($file.FullName)) {
                                     $exportedEventCount += [int]$resultByFilePath[$file.FullName].EventCount
                                 }
@@ -1056,6 +1072,7 @@
                             continue
                         }
                         finally {
+                            $chunkData = $null
                             $rawContent = $null
                         }
 

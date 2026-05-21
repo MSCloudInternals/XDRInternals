@@ -162,6 +162,83 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
         $result[0].ActionType | Should -Be 'ProcessCreated'
     }
 
+    It 'canonicalizes a relative ExportPath before writing the export file' {
+        $chunkFile = Join-Path $TestDrive 'device-timeline-export-relative.json'
+        Set-Content -Path $chunkFile -Value '{"Events":[{"ActionType":"ProcessCreated"}],"EventCount":1}' -Encoding UTF8
+
+        $script:FakeTimelineResults = @(
+            [pscustomobject]@{
+                ChunkIndex     = 0
+                Success        = $true
+                FilePath       = $chunkFile
+                EventCount     = 1
+                FromDate       = $script:FromDate
+                ToDate         = $script:ToDate
+                ElapsedSeconds = 1
+                PagesRetrieved = 1
+                FileSizeKB     = 1
+            }
+        )
+
+        $startingLocation = Get-Location
+        try {
+            Set-Location $TestDrive
+            $relativeExportPath = '.\exports\timeline.json'
+            $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive -ExportPath $relativeExportPath
+            $expectedPath = [System.IO.Path]::GetFullPath($relativeExportPath)
+            $exportedEvents = Get-Content -Path $expectedPath -Raw | ConvertFrom-Json
+
+            $result.ExportPath | Should -Be $expectedPath
+            $result.TotalEvents | Should -Be 1
+            Test-Path -LiteralPath $expectedPath | Should -BeTrue
+            @($exportedEvents).Count | Should -Be 1
+        }
+        finally {
+            Set-Location $startingLocation
+        }
+    }
+
+    It 'exports events from formatted chunk JSON using parsed Events data' {
+        $chunkFile = Join-Path $TestDrive 'device-timeline-export-formatted.json'
+        $exportPath = Join-Path $TestDrive 'device-timeline-export-formatted-output.json'
+        @"
+{
+  "ChunkIndex": 0,
+  "Events": [
+    {
+      "ActionType": "ProcessCreated",
+      "Nested": {
+        "Value": 1
+      }
+    }
+  ],
+  "EventCount": 1
+}
+"@ | Set-Content -Path $chunkFile -Encoding UTF8
+
+        $script:FakeTimelineResults = @(
+            [pscustomobject]@{
+                ChunkIndex     = 0
+                Success        = $true
+                FilePath       = $chunkFile
+                EventCount     = 1
+                FromDate       = $script:FromDate
+                ToDate         = $script:ToDate
+                ElapsedSeconds = 1
+                PagesRetrieved = 1
+                FileSizeKB     = 1
+            }
+        )
+
+        $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive -ExportPath $exportPath
+        $exportedEvents = Get-Content -Path $exportPath -Raw | ConvertFrom-Json
+
+        $result.TotalEvents | Should -Be 1
+        @($exportedEvents).Count | Should -Be 1
+        $exportedEvents[0].ActionType | Should -Be 'ProcessCreated'
+        $exportedEvents[0].Nested.Value | Should -Be 1
+    }
+
     It 'skips unreadable completed chunk files during export when partial results are allowed' {
         $goodFile = Join-Path $TestDrive 'device-timeline-export-readable.json'
         $badFile = Join-Path $TestDrive 'device-timeline-export-unreadable.json'

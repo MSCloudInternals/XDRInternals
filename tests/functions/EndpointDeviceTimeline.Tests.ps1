@@ -239,6 +239,49 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
         $exportedEvents[0].Nested.Value | Should -Be 1
     }
 
+    It 'filters exported events by EventType and reports the emitted event count' {
+        $chunkFile = Join-Path $TestDrive 'device-timeline-export-filtered.json'
+        $exportPath = Join-Path $TestDrive 'device-timeline-export-filtered-output.json'
+        @"
+{
+  "ChunkIndex": 0,
+  "Events": [
+    {
+      "ActionType": "ProcessCreated",
+      "Id": 1
+    },
+    {
+      "ActionType": "NetworkConnectionSuccess",
+      "Id": 2
+    }
+  ],
+  "EventCount": 2
+}
+"@ | Set-Content -Path $chunkFile -Encoding UTF8
+
+        $script:FakeTimelineResults = @(
+            [pscustomobject]@{
+                ChunkIndex     = 0
+                Success        = $true
+                FilePath       = $chunkFile
+                EventCount     = 2
+                FromDate       = $script:FromDate
+                ToDate         = $script:ToDate
+                ElapsedSeconds = 1
+                PagesRetrieved = 1
+                FileSizeKB     = 1
+            }
+        )
+
+        $result = Get-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -OutputPath $TestDrive -ExportPath $exportPath -EventType 'Process*'
+        $exportedEvents = Get-Content -Path $exportPath -Raw | ConvertFrom-Json
+
+        $result.TotalEvents | Should -Be 1
+        @($exportedEvents).Count | Should -Be 1
+        $exportedEvents[0].ActionType | Should -Be 'ProcessCreated'
+        $exportedEvents[0].Id | Should -Be 1
+    }
+
     It 'skips unreadable completed chunk files during export when partial results are allowed' {
         $goodFile = Join-Path $TestDrive 'device-timeline-export-readable.json'
         $badFile = Join-Path $TestDrive 'device-timeline-export-unreadable.json'

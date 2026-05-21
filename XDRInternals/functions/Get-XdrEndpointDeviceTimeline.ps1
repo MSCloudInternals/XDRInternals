@@ -1025,16 +1025,11 @@
                     throw "ExportPath '$requestedExportPath' could not be prepared: $($_.Exception.Message)"
                 }
 
-                $resultByFilePath = @{}
-                foreach ($result in $results) {
-                    if ($result.FilePath) {
-                        $resultByFilePath[$result.FilePath] = $result
-                    }
-                }
-
                 # Stream merge directly to export file without loading into memory
                 $exportWriter = [System.IO.StreamWriter]::new($ExportPath, $false, [System.Text.Encoding]::UTF8)
                 $exportedEventCount = 0
+                $filterExportByEventType = $PSBoundParameters.ContainsKey('EventType')
+                $exportSourceEventCount = 0
                 try {
                     $exportWriter.Write('[')
                     $isFirstEvent = $true
@@ -1053,13 +1048,31 @@
                             $rawContent = $null
 
                             if ($chunkData.Events) {
-                                foreach ($eventItem in $chunkData.Events) {
-                                    if (-not $isFirstEvent) { $exportWriter.Write(',') }
-                                    $exportWriter.Write(($eventItem | ConvertTo-Json -Depth 20 -Compress))
-                                    $isFirstEvent = $false
+                                if ($filterExportByEventType) {
+                                    foreach ($eventItem in $chunkData.Events) {
+                                        $exportSourceEventCount++
+
+                                        $eventTypeName = $eventItem.ActionType
+                                        if (-not $eventTypeName) { $eventTypeName = $eventItem.Type }
+                                        if (-not $eventTypeName) { $eventTypeName = $eventItem.EventType }
+
+                                        if (-not ($eventTypeName -and $eventTypeName -like $EventType)) {
+                                            continue
+                                        }
+
+                                        if (-not $isFirstEvent) { $exportWriter.Write(',') }
+                                        $exportWriter.Write(($eventItem | ConvertTo-Json -Depth 20 -Compress))
+                                        $isFirstEvent = $false
+                                        $exportedEventCount++
+                                    }
                                 }
-                                if ($resultByFilePath.ContainsKey($file.FullName)) {
-                                    $exportedEventCount += [int]$resultByFilePath[$file.FullName].EventCount
+                                else {
+                                    foreach ($eventItem in $chunkData.Events) {
+                                        if (-not $isFirstEvent) { $exportWriter.Write(',') }
+                                        $exportWriter.Write(($eventItem | ConvertTo-Json -Depth 20 -Compress))
+                                        $isFirstEvent = $false
+                                        $exportedEventCount++
+                                    }
                                 }
                             }
                         }
@@ -1087,6 +1100,9 @@
                     $exportWriter.Dispose()
                 }
                 Write-Progress -Activity "Processing Results" -Completed -Id 2
+                if ($filterExportByEventType) {
+                    Write-Information "Filtered from $exportSourceEventCount to $exportedEventCount events matching '$EventType'" -InformationAction Continue
+                }
                 Write-Information "Exported $exportedEventCount events to: $ExportPath" -InformationAction Continue
 
                 # Clean up temp files unless KeepTempFiles is specified

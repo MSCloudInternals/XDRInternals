@@ -534,11 +534,9 @@
 
                                 if (-not $continuationUri) {
                                     break
-                                } else {
-                                    $Uri = $continuationUri
-                                    # Small delay between pagination requests
-                                    Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
                                 }
+
+                                $Uri = $continuationUri
                             } while ($true)
 
                             # Complete the JSON structure
@@ -786,11 +784,9 @@
 
                             if (-not $continuationUri) {
                                 break
-                            } else {
-                                $Uri = $continuationUri
-                                # Small delay between pagination requests
-                                Start-Sleep -Milliseconds (Get-Random -Minimum 500 -Maximum 1500)
                             }
+
+                            $Uri = $continuationUri
                         } while ($true)
 
                         # Complete the JSON structure

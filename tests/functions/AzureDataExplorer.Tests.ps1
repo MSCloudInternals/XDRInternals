@@ -2026,6 +2026,35 @@
             }
         }
 
+        It 'uses the shared response-table conversion for regular KQL queries' {
+            InModuleScope XDRInternals {
+                Mock Get-XdrAzureAccessToken { return 'mock-token' }
+                Mock Invoke-XdrAzureDataExplorerRestRequest {
+                    @(
+                        @{ FrameType = 'DataSetHeader'; IsProgressive = $false },
+                        @{ FrameType = 'DataTable'; TableKind = 'PrimaryResult'; Columns = @(
+                                @{ ColumnName = 'Col1'; ColumnType = 'string' }
+                            ); Rows = @(, @('value1'))
+                        },
+                        @{ FrameType = 'DataSetCompletion'; HasErrors = $false }
+                    )
+                }
+                Mock ConvertFrom-XdrAzureDataExplorerResponseTable {
+                    @([pscustomobject]@{ Col1 = 'converted-value' })
+                }
+
+                $results = Invoke-XdrAzureDataExplorerQuery -Query 'MyTable | take 1'
+
+                $results | Should -HaveCount 1
+                $results[0].Col1 | Should -Be 'converted-value'
+
+                Should -Invoke ConvertFrom-XdrAzureDataExplorerResponseTable -Times 1 -Exactly -ParameterFilter {
+                    $Response.Tables.Count -eq 1 -and
+                    $Response.Tables[0].TableKind -eq 'PrimaryResult'
+                }
+            }
+        }
+
         It 'sends management commands to the v1 mgmt endpoint' {
             InModuleScope XDRInternals {
                 Mock Get-XdrAzureAccessToken { return 'mock-token' }

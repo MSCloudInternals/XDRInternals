@@ -92,22 +92,19 @@
             return $response
         }
 
-        if ($isManagementCommand) {
-            ConvertFrom-XdrAzureDataExplorerResponseTable -Response $response
+        $tableResponse = if ($isManagementCommand) {
+            $response
         }
         else {
-            $primaryResult = $response | Where-Object { $_.FrameType -eq 'DataTable' -and $_.TableKind -eq 'PrimaryResult' }
-            if (-not $primaryResult -or -not $primaryResult.Columns -or -not $primaryResult.Rows) {
-                return
-            }
-
-            foreach ($row in @($primaryResult.Rows)) {
-                $values = [ordered]@{}
-                for ($i = 0; $i -lt $primaryResult.Columns.Count; $i++) {
-                    $values[$primaryResult.Columns[$i].ColumnName] = $row[$i]
-                }
-                [pscustomobject]$values
+            [pscustomobject]@{
+                Tables = @(
+                    $response |
+                        Where-Object { $_.FrameType -eq 'DataTable' -and $_.TableKind -eq 'PrimaryResult' } |
+                        Select-Object -First 1
+                )
             }
         }
+
+        ConvertFrom-XdrAzureDataExplorerResponseTable -Response $tableResponse
     }
 }

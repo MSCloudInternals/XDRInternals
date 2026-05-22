@@ -1,26 +1,4 @@
-﻿function Get-XdrWebResponseLocation {
-    [OutputType([string])]
-    [CmdletBinding()]
-    param(
-        $Response
-    )
-
-    if ($null -eq $Response) {
-        return $null
-    }
-
-    if ($Response.Headers -and $Response.Headers.Location) {
-        return [string]$Response.Headers.Location
-    }
-
-    if ($Response.BaseResponse -and $Response.BaseResponse.Headers -and $Response.BaseResponse.Headers['Location']) {
-        return [string]$Response.BaseResponse.Headers['Location']
-    }
-
-    return $null
-}
-
-function Invoke-XdrRedirectCaptureWebRequest {
+﻿function Invoke-XdrRedirectCaptureWebRequest {
     [OutputType([object])]
     [CmdletBinding()]
     param(
@@ -77,7 +55,17 @@ function Invoke-XdrRedirectCaptureWebRequest {
 
     foreach ($errorRecord in $redirectErrors) {
         $redirectResponse = if ($errorRecord.Exception) { $errorRecord.Exception.Response } else { $null }
-        if ($null -ne $redirectResponse -and (Get-XdrWebResponseLocation -Response $redirectResponse)) {
+        $redirectLocation = if ($redirectResponse.Headers -and $redirectResponse.Headers.Location) {
+            [string]$redirectResponse.Headers.Location
+        }
+        elseif ($redirectResponse.BaseResponse -and $redirectResponse.BaseResponse.Headers -and $redirectResponse.BaseResponse.Headers['Location']) {
+            [string]$redirectResponse.BaseResponse.Headers['Location']
+        }
+        else {
+            $null
+        }
+
+        if ($null -ne $redirectResponse -and $redirectLocation) {
             return $redirectResponse
         }
 
@@ -124,6 +112,96 @@ function ConvertFrom-XdrUriParameterString {
     }
 
     return $values
+}
+
+function Get-XdrEstsAuthorizationCode {
+    [OutputType([string])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [Microsoft.PowerShell.Commands.WebRequestSession]$Session,
+
+        [Parameter(Mandatory)]
+        [string]$AuthorizeUri,
+
+        [string]$ExpectedRedirectUri,
+
+        [string]$ResourceDisplayName = 'Microsoft Entra',
+
+        [string]$FlowDescription = 'Silent token acquisition'
+    )
+
+    try {
+        $currentResponse = Invoke-XdrRedirectCaptureWebRequest -Uri $AuthorizeUri -Method Get -Session $Session
+        $callbackUri = $null
+        $expectedRedirectPath = if ([string]::IsNullOrWhiteSpace($ExpectedRedirectUri)) {
+            $null
+        }
+        else {
+            ([uri]$ExpectedRedirectUri).GetLeftPart([System.UriPartial]::Path).TrimEnd('/')
+        }
+
+        for ($redirectCount = 0; $redirectCount -lt 10 -and $null -ne $currentResponse; $redirectCount++) {
+            $location = if ($currentResponse.Headers -and $currentResponse.Headers.Location) {
+                [string]$currentResponse.Headers.Location
+            }
+            elseif ($currentResponse.BaseResponse -and $currentResponse.BaseResponse.Headers -and $currentResponse.BaseResponse.Headers['Location']) {
+                [string]$currentResponse.BaseResponse.Headers['Location']
+            }
+            else {
+                $null
+            }
+
+            if (-not $location) {
+                break
+            }
+
+            $baseUri = if ($currentResponse.BaseResponse -and $currentResponse.BaseResponse.ResponseUri) {
+                $currentResponse.BaseResponse.ResponseUri
+            }
+            else {
+                [uri]'https://login.microsoftonline.com/'
+            }
+
+            $nextUri = [uri]::new($baseUri, $location)
+            $reachedCallbackUri = $nextUri.Scheme -notin @('http', 'https')
+            if (-not $reachedCallbackUri -and $expectedRedirectPath) {
+                $reachedCallbackUri = $nextUri.GetLeftPart([System.UriPartial]::Path).TrimEnd('/') -eq $expectedRedirectPath
+            }
+
+            if ($reachedCallbackUri) {
+                $callbackUri = $nextUri
+                break
+            }
+
+            $currentResponse = Invoke-XdrRedirectCaptureWebRequest -Uri $nextUri.AbsoluteUri -Method Get -Session $Session
+        }
+
+        if (-not $callbackUri) {
+            Write-Verbose "$FlowDescription for $ResourceDisplayName did not reach the native callback URI."
+            return $null
+        }
+
+        $callbackParameters = ConvertFrom-XdrUriParameterString -ParameterString $callbackUri.Query
+        if ($callbackParameters.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($callbackUri.Fragment)) {
+            $callbackParameters = ConvertFrom-XdrUriParameterString -ParameterString $callbackUri.Fragment
+        }
+
+        if ($callbackParameters.ContainsKey('error')) {
+            Write-Verbose "$FlowDescription failed for ${ResourceDisplayName}: $($callbackParameters['error']) $($callbackParameters['error_description'])"
+            return $null
+        }
+
+        if (-not $callbackParameters.ContainsKey('code')) {
+            Write-Verbose "$FlowDescription for $ResourceDisplayName did not return an authorization code."
+            return $null
+        }
+
+        return [string]$callbackParameters['code']
+    }
+    catch {
+        Write-Verbose "$FlowDescription failed for ${ResourceDisplayName}: $($_.Exception.Message)"
+    }
 }
 
 function Get-XdrEstsAuthorityTenant {
@@ -189,58 +267,23 @@ function Invoke-XdrEstsAuthTokenRequest {
     "&prompt=none" +
     "&sso_reload=true"
 
+    $authorizationCode = Get-XdrEstsAuthorizationCode `
+        -Session $Session `
+        -AuthorizeUri $authorizeUri `
+        -ResourceDisplayName $ResourceDisplayName `
+        -FlowDescription 'Silent token acquisition'
+
+    if ([string]::IsNullOrWhiteSpace($authorizationCode)) {
+        return $null
+    }
+
     try {
-        $currentResponse = Invoke-XdrRedirectCaptureWebRequest -Uri $authorizeUri -Method Get -Session $Session
-        $callbackUri = $null
-
-        for ($redirectCount = 0; $redirectCount -lt 10 -and $null -ne $currentResponse; $redirectCount++) {
-            $location = Get-XdrWebResponseLocation -Response $currentResponse
-            if (-not $location) {
-                break
-            }
-
-            $baseUri = if ($currentResponse.BaseResponse -and $currentResponse.BaseResponse.ResponseUri) {
-                $currentResponse.BaseResponse.ResponseUri
-            }
-            else {
-                [uri]'https://login.microsoftonline.com/'
-            }
-
-            $nextUri = [uri]::new($baseUri, $location)
-            if ($nextUri.Scheme -notin @('http', 'https')) {
-                $callbackUri = $nextUri
-                break
-            }
-
-            $currentResponse = Invoke-XdrRedirectCaptureWebRequest -Uri $nextUri.AbsoluteUri -Method Get -Session $Session
-        }
-
-        if (-not $callbackUri) {
-            Write-Verbose "Silent token acquisition for $ResourceDisplayName did not reach the native callback URI."
-            return $null
-        }
-
-        $callbackParameters = ConvertFrom-XdrUriParameterString -ParameterString $callbackUri.Query
-        if ($callbackParameters.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($callbackUri.Fragment)) {
-            $callbackParameters = ConvertFrom-XdrUriParameterString -ParameterString $callbackUri.Fragment
-        }
-
-        if ($callbackParameters.ContainsKey('error')) {
-            Write-Verbose "Silent token acquisition failed for ${ResourceDisplayName}: $($callbackParameters['error']) $($callbackParameters['error_description'])"
-            return $null
-        }
-
-        if (-not $callbackParameters.ContainsKey('code')) {
-            Write-Verbose "Silent token acquisition for $ResourceDisplayName did not return an authorization code."
-            return $null
-        }
-
         $tokenResponse = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$authorityTenant/oauth2/v2.0/token" `
             -Method Post `
             -Body @{
             client_id    = $clientId
             grant_type   = 'authorization_code'
-            code         = $callbackParameters['code']
+            code         = $authorizationCode
             redirect_uri = $redirectUri
             scope        = $Scope
         } `
@@ -293,61 +336,24 @@ function Invoke-XdrEstsCliBridgeTokenRequest {
     "&prompt=none" +
     "&sso_reload=true"
 
+    $authorizationCode = Get-XdrEstsAuthorizationCode `
+        -Session $Session `
+        -AuthorizeUri $authorizeUri `
+        -ExpectedRedirectUri $redirectUriValue.AbsoluteUri `
+        -ResourceDisplayName $ResourceDisplayName `
+        -FlowDescription 'Azure CLI-style token bridging'
+
+    if ([string]::IsNullOrWhiteSpace($authorizationCode)) {
+        return $null
+    }
+
     try {
-        $currentResponse = Invoke-XdrRedirectCaptureWebRequest -Uri $authorizeUri -Method Get -Session $Session
-        $callbackUri = $null
-
-        for ($redirectCount = 0; $redirectCount -lt 10 -and $null -ne $currentResponse; $redirectCount++) {
-            $location = Get-XdrWebResponseLocation -Response $currentResponse
-            if (-not $location) {
-                break
-            }
-
-            $baseUri = if ($currentResponse.BaseResponse -and $currentResponse.BaseResponse.ResponseUri) {
-                $currentResponse.BaseResponse.ResponseUri
-            }
-            else {
-                [uri]'https://login.microsoftonline.com/'
-            }
-
-            $nextUri = [uri]::new($baseUri, $location)
-            if (
-                $nextUri.Scheme -notin @('http', 'https') -or
-                $nextUri.GetLeftPart([System.UriPartial]::Path).TrimEnd('/') -eq $redirectUriValue.GetLeftPart([System.UriPartial]::Path).TrimEnd('/')
-            ) {
-                $callbackUri = $nextUri
-                break
-            }
-
-            $currentResponse = Invoke-XdrRedirectCaptureWebRequest -Uri $nextUri.AbsoluteUri -Method Get -Session $Session
-        }
-
-        if (-not $callbackUri) {
-            Write-Verbose "Azure CLI-style token bridging for $ResourceDisplayName did not reach the native callback URI."
-            return $null
-        }
-
-        $callbackParameters = ConvertFrom-XdrUriParameterString -ParameterString $callbackUri.Query
-        if ($callbackParameters.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($callbackUri.Fragment)) {
-            $callbackParameters = ConvertFrom-XdrUriParameterString -ParameterString $callbackUri.Fragment
-        }
-
-        if ($callbackParameters.ContainsKey('error')) {
-            Write-Verbose "Azure CLI-style token bridging failed for ${ResourceDisplayName}: $($callbackParameters['error']) $($callbackParameters['error_description'])"
-            return $null
-        }
-
-        if (-not $callbackParameters.ContainsKey('code')) {
-            Write-Verbose "Azure CLI-style token bridging for $ResourceDisplayName did not return an authorization code."
-            return $null
-        }
-
         $bridgeTokenResponse = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$authorityTenant/oauth2/token" `
             -Method Post `
             -Body @{
             client_id    = $clientId
             grant_type   = 'authorization_code'
-            code         = $callbackParameters['code']
+            code         = $authorizationCode
             redirect_uri = $redirectUri
             resource     = $bridgeResource
         } `

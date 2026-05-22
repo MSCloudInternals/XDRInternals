@@ -296,6 +296,38 @@ function Test-XdrAzureDataExplorerTransientRestError {
     )
 }
 
+function Invoke-XdrRetryingAzureRestMethod {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [hashtable]$RequestParams,
+
+        [Parameter(Mandatory)]
+        [uri]$RequestUri,
+
+        [Parameter(Mandatory)]
+        [string]$RequestDescription,
+
+        [ValidateRange(1, 10)]
+        [int]$RetryCount = 10
+    )
+
+    for ($attempt = 1; $attempt -le $RetryCount; $attempt++) {
+        try {
+            return Invoke-RestMethod @RequestParams
+        }
+        catch {
+            if (-not (Test-XdrAzureDataExplorerTransientRestError -ErrorRecord $_) -or $attempt -ge $RetryCount) {
+                throw
+            }
+
+            $delaySeconds = [math]::Min([math]::Pow(2, $attempt - 1), 8)
+            Write-Verbose "$RequestDescription to '$requestUri' failed with a transient transport error on attempt $attempt of $RetryCount. Retrying in $delaySeconds second(s)."
+            Start-Sleep -Seconds $delaySeconds
+        }
+    }
+}
+
 function Invoke-XdrAzureDataExplorerRestRequest {
     [CmdletBinding()]
     param(
@@ -354,20 +386,7 @@ function Invoke-XdrAzureDataExplorerRestRequest {
         $requestParams['Body'] = $requestBody
     }
 
-    for ($attempt = 1; $attempt -le $RetryCount; $attempt++) {
-        try {
-            return Invoke-RestMethod @requestParams
-        }
-        catch {
-            if (-not (Test-XdrAzureDataExplorerTransientRestError -ErrorRecord $_) -or $attempt -ge $RetryCount) {
-                throw
-            }
-
-            $delaySeconds = [math]::Min([math]::Pow(2, $attempt - 1), 8)
-            Write-Verbose "Azure Data Explorer REST request to '$requestUri' failed with a transient transport error on attempt $attempt of $RetryCount. Retrying in $delaySeconds second(s)."
-            Start-Sleep -Seconds $delaySeconds
-        }
-    }
+    Invoke-XdrRetryingAzureRestMethod -RequestParams $requestParams -RequestUri $requestUri -RequestDescription 'Azure Data Explorer REST request' -RetryCount $RetryCount
 }
 
 function Invoke-XdrAzureResourceManagerRequest {
@@ -418,20 +437,7 @@ function Invoke-XdrAzureResourceManagerRequest {
         $requestParams['TimeoutSec'] = $TimeoutSec
     }
 
-    for ($attempt = 1; $attempt -le $RetryCount; $attempt++) {
-        try {
-            return Invoke-RestMethod @requestParams
-        }
-        catch {
-            if (-not (Test-XdrAzureDataExplorerTransientRestError -ErrorRecord $_) -or $attempt -ge $RetryCount) {
-                throw
-            }
-
-            $delaySeconds = [math]::Min([math]::Pow(2, $attempt - 1), 8)
-            Write-Verbose "Azure Resource Manager request to '$requestUri' failed with a transient transport error on attempt $attempt of $RetryCount. Retrying in $delaySeconds second(s)."
-            Start-Sleep -Seconds $delaySeconds
-        }
-    }
+    Invoke-XdrRetryingAzureRestMethod -RequestParams $requestParams -RequestUri $requestUri -RequestDescription 'Azure Resource Manager request' -RetryCount $RetryCount
 }
 
 function Get-XdrAzureResourceManagerCollection {

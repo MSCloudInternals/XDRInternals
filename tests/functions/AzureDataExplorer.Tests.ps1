@@ -846,6 +846,34 @@
         }
     }
 
+    Describe 'Invoke-XdrAzureResourceManagerRequest' {
+        It 'retries transient transport EOF failures' {
+            $script:armRestAttempts = 0
+
+            Mock Start-Sleep {} -ModuleName XDRInternals
+            Mock Invoke-RestMethod {
+                $script:armRestAttempts++
+                if ($script:armRestAttempts -eq 1) {
+                    throw [System.IO.IOException]::new('Received an unexpected EOF or 0 bytes from the transport stream.')
+                }
+
+                [pscustomobject]@{ ok = $true }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $result = Invoke-XdrAzureResourceManagerRequest `
+                    -Path '/subscriptions?api-version=2022-12-01' `
+                    -Token 'token' `
+                    -RetryCount 2
+
+                $result.ok | Should -BeTrue
+            }
+
+            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 2 -Exactly
+            Should -Invoke Start-Sleep -ModuleName XDRInternals -Times 1 -Exactly
+        }
+    }
+
     Describe 'Test-XdrAzureDataExplorerTable' {
         It 'returns true when the filtered table list contains a matching row' {
             Mock Invoke-XdrAzureDataExplorerManagementCommand {

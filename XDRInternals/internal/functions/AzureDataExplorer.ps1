@@ -739,24 +739,6 @@ function Test-XdrAzureDataExplorerIngestionConfigurationRefreshDue {
     return (([DateTime]::UtcNow - $Configuration.RetrievedAtUtc) -ge $Configuration.RefreshInterval)
 }
 
-function Get-XdrAzureDataExplorerBlobUri {
-    [CmdletBinding()]
-    [OutputType([string])]
-    param(
-        [Parameter(Mandatory)]
-        [string]$ContainerUri,
-
-        [Parameter(Mandatory)]
-        [string]$BlobName
-    )
-
-    $container = [uri]$ContainerUri
-    $builder = [System.UriBuilder]::new($container)
-    $basePath = $builder.Path.TrimEnd('/')
-    $builder.Path = "$basePath/$BlobName"
-    $builder.Uri.AbsoluteUri
-}
-
 function Compress-XdrFileToGzip {
     [CmdletBinding()]
     [OutputType([string])]

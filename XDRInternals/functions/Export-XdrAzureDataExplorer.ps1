@@ -169,13 +169,7 @@
             -AccessToken $connection.AccessToken `
             -ResourceDisplayName 'Azure Data Explorer'
 
-        $ingestionRuntime = Get-XdrAzureDataExplorerIngestionRuntimeConfiguration -IngestionUri $connection.IngestionUri -Token $token -MaxBlobSizeMB $MaxBlobSizeMB
-        $containerPath = $ingestionRuntime.ContainerPath
-        $serviceMaxDataSizeBytes = $ingestionRuntime.ServiceMaxDataSizeBytes
-        $targetMaxBlobSizeBytes = $ingestionRuntime.TargetMaxBlobSizeBytes
-        $maxBlobsPerRequest = $ingestionRuntime.MaxBlobsPerRequest
         $shouldTrackIngestion = $TrackIngestion -or $WaitForIngestion
-
         $stagingRoot = if ($TempPath) {
             $TempPath
         }
@@ -187,11 +181,156 @@
         $null = New-Item -ItemType Directory -Path $sessionStagingPath -Force
 
         $utf8 = [System.Text.UTF8Encoding]::new($false)
-
-        if ($isSourceMode) {
-            $tableStates = @{}
+        $tableStates = @{}
+        $runtimeState = @{
+            Configuration           = $null
+            ContainerPath           = $null
+            ServiceMaxDataSizeBytes = 0L
+            TargetMaxBlobSizeBytes  = 0L
+            MaxBlobsPerRequest      = 0
         }
-        else {
+
+        $updateIngestionRuntimeState = {
+            param(
+                [Parameter(Mandatory)]
+                [hashtable]$State
+            )
+
+            $State.Configuration = Get-XdrAzureDataExplorerIngestionRuntimeConfiguration -IngestionUri $connection.IngestionUri -Token $token -MaxBlobSizeMB $MaxBlobSizeMB
+            $State.ContainerPath = $State.Configuration.ContainerPath
+            $State.ServiceMaxDataSizeBytes = $State.Configuration.ServiceMaxDataSizeBytes
+            $State.TargetMaxBlobSizeBytes = $State.Configuration.TargetMaxBlobSizeBytes
+            $State.MaxBlobsPerRequest = $State.Configuration.MaxBlobsPerRequest
+        }
+
+        $newTableState = {
+            param(
+                [Parameter(Mandatory)]
+                [string]$TargetTableName,
+
+                [Parameter(Mandatory)]
+                [string]$TargetMappingName,
+
+                $TargetProfile
+            )
+
+            $tableStagingPath = Join-Path $sessionStagingPath $TargetTableName
+            $null = New-Item -ItemType Directory -Path $tableStagingPath -Force
+
+            return @{
+                tableName           = $TargetTableName
+                mappingName         = $TargetMappingName
+                profile             = $TargetProfile
+                initialized         = $false
+                writer              = $null
+                jsonPath            = $null
+                rawSizeBytes        = 0L
+                pendingBlobs        = [System.Collections.Generic.List[hashtable]]::new()
+                pendingRawSizeBytes = 0L
+                queuedOperationIds  = [System.Collections.Generic.List[string]]::new()
+                blobSequence        = 0
+                recordCount         = 0
+                stagingPath         = $tableStagingPath
+            }
+        }
+
+        $submitPendingBlobBatch = {
+            param(
+                [Parameter(Mandatory)]
+                [hashtable]$TableState
+            )
+
+            if ($TableState.pendingBlobs.Count -eq 0) {
+                return
+            }
+
+            $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
+                -Database $connection.Database `
+                -TableName $TableState.tableName `
+                -MappingName $TableState.mappingName `
+                -Token $token `
+                -PendingBlobs $TableState.pendingBlobs `
+                -PendingRawSizeBytes ([ref]$TableState.pendingRawSizeBytes) `
+                -QueuedOperationIds $TableState.queuedOperationIds `
+                -TrackIngestion:$shouldTrackIngestion
+        }
+
+        $refreshIngestionRuntimeIfDue = {
+            if (-not (Test-XdrAzureDataExplorerIngestionConfigurationRefreshDue -Configuration $runtimeState.Configuration)) {
+                return
+            }
+
+            foreach ($refreshTs in $tableStates.Values) {
+                & $submitPendingBlobBatch $refreshTs
+            }
+
+            & $updateIngestionRuntimeState $runtimeState
+        }
+
+        $closeStagedBlob = {
+            param(
+                [Parameter(Mandatory)]
+                [hashtable]$TableState,
+
+                [bool]$SubmitWhenBatchFull = $false
+            )
+
+            if (-not $TableState.writer -or $TableState.rawSizeBytes -le 0) {
+                return
+            }
+
+            $TableState.writer.Flush()
+            $TableState.writer.Dispose()
+            $TableState.writer = $null
+
+            $uploadPath = $TableState.jsonPath
+            $compressed = $false
+            if (-not $DisableCompression) {
+                $uploadPath = "$($TableState.jsonPath).gz"
+                $null = Compress-XdrFileToGzip -SourcePath $TableState.jsonPath -DestinationPath $uploadPath
+                $compressed = $true
+            }
+
+            & $refreshIngestionRuntimeIfDue
+
+            $blobExtension = if ($compressed) { '.json.gz' } else { '.json' }
+            $blobName = "XDRInternals/$($TableState.tableName)/$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))-$([guid]::NewGuid().ToString('N'))$blobExtension"
+            $blobBuilder = [System.UriBuilder]::new([uri]$runtimeState.ContainerPath)
+            $basePath = $blobBuilder.Path.TrimEnd('/')
+            $blobBuilder.Path = if ([string]::IsNullOrEmpty($basePath)) { "/$blobName" } else { "$basePath/$blobName" }
+            $blobUri = $blobBuilder.Uri.AbsoluteUri
+
+            Send-XdrAzureDataExplorerBlobUpload -BlobUri $blobUri -FilePath $uploadPath -Compressed:$compressed
+
+            if ($TableState.pendingBlobs.Count -gt 0 -and ($TableState.pendingRawSizeBytes + $TableState.rawSizeBytes) -gt $runtimeState.ServiceMaxDataSizeBytes) {
+                & $submitPendingBlobBatch $TableState
+            }
+
+            $TableState.pendingBlobs.Add(@{
+                    url      = $blobUri
+                    sourceId = [guid]::NewGuid().Guid
+                    rawSize  = $TableState.rawSizeBytes
+                }) | Out-Null
+            $TableState.pendingRawSizeBytes += $TableState.rawSizeBytes
+
+            if ($SubmitWhenBatchFull -and $TableState.pendingBlobs.Count -ge $runtimeState.MaxBlobsPerRequest) {
+                & $submitPendingBlobBatch $TableState
+            }
+
+            if (-not $KeepTempFiles) {
+                Remove-Item -Path $TableState.jsonPath -Force -ErrorAction SilentlyContinue
+                if ($compressed) {
+                    Remove-Item -Path $uploadPath -Force -ErrorAction SilentlyContinue
+                }
+            }
+
+            $TableState.jsonPath = $null
+            $TableState.rawSizeBytes = 0L
+        }
+
+        & $updateIngestionRuntimeState $runtimeState
+
+        if (-not $isSourceMode) {
             $resolvedMappingName = if ($PSBoundParameters.ContainsKey('MappingName')) {
                 $MappingName
             }
@@ -199,22 +338,20 @@
                 "${TableName}_EventMapping"
             }
 
+            $tableStates[$TableName] = & $newTableState $TableName $resolvedMappingName $null
+
             if (-not $SkipBootstrap) {
                 Initialize-XdrAzureDataExplorerTable -ClusterUri $connection.ClusterUri -Database $connection.Database -TableName $TableName -MappingName $resolvedMappingName -Token $token
+                $tableStates[$TableName].initialized = $true
             }
-
-            $pendingBlobs = [System.Collections.Generic.List[hashtable]]::new()
-            $pendingRawSizeBytes = 0L
-            $queuedOperationIds = [System.Collections.Generic.List[string]]::new()
-            $blobSequence = 0
-            $recordCount = 0
-            $activeWriter = $null
-            $activeJsonPath = $null
-            $activeRawSizeBytes = 0L
         }
     }
 
     process {
+        $targetTableName = $null
+        $targetMappingName = $null
+        $targetProfile = $null
+
         if ($isSourceMode) {
             $resolvedProfile = Resolve-XdrAzureDataExplorerTableProfile -Source $Source -InputEvent $Data
 
@@ -222,7 +359,6 @@
                 if ($TableName) {
                     $targetTableName = $TableName
                     $targetMappingName = "${TableName}_EventMapping"
-                    $targetProfile = $null
                 }
                 else {
                     Write-Warning "No table profile matched for event and no -TableName fallback specified. Skipping event."
@@ -235,545 +371,147 @@
                 $targetMappingName = "$($resolvedProfile.TableName)_EventMapping"
                 $targetProfile = $resolvedProfile
             }
-
-            if (-not $tableStates.ContainsKey($targetTableName)) {
-                $tableStagingPath = Join-Path $sessionStagingPath $targetTableName
-                $null = New-Item -ItemType Directory -Path $tableStagingPath -Force
-                $tableStates[$targetTableName] = @{
-                    tableName           = $targetTableName
-                    mappingName         = $targetMappingName
-                    profile             = $targetProfile
-                    initialized         = $false
-                    writer              = $null
-                    jsonPath            = $null
-                    rawSizeBytes        = 0L
-                    pendingBlobs        = [System.Collections.Generic.List[hashtable]]::new()
-                    pendingRawSizeBytes = 0L
-                    queuedOperationIds  = [System.Collections.Generic.List[string]]::new()
-                    blobSequence        = 0
-                    recordCount         = 0
-                    stagingPath         = $tableStagingPath
-                }
-            }
-
-            $ts = $tableStates[$targetTableName]
-
-            if (-not $ts.initialized -and -not $SkipBootstrap) {
-                $initParams = @{
-                    ClusterUri  = $connection.ClusterUri
-                    Database    = $connection.Database
-                    TableName   = $ts.tableName
-                    MappingName = $ts.mappingName
-                    Token       = $token
-                }
-                if ($ts.profile) {
-                    $initParams['TableProfile'] = $ts.profile
-                }
-                Initialize-XdrAzureDataExplorerTable @initParams
-                $ts.initialized = $true
-            }
-
-            $jsonLine = $Data | ConvertTo-Json -Depth 20 -Compress
-            $lineText = "$jsonLine`n"
-            $lineByteCount = $utf8.GetByteCount($lineText)
-
-            if ($lineByteCount -gt $targetMaxBlobSizeBytes) {
-                throw "A single serialized record is $lineByteCount bytes, which exceeds the configured maximum blob size of $targetMaxBlobSizeBytes bytes."
-            }
-
-            if (-not $ts.writer) {
-                $ts.jsonPath = Join-Path $ts.stagingPath ("{0:D6}.json" -f $ts.blobSequence)
-                $ts.writer = [System.IO.StreamWriter]::new($ts.jsonPath, $false, $utf8)
-                $ts.rawSizeBytes = 0L
-                $ts.blobSequence++
-            }
-
-            if ($ts.rawSizeBytes -gt 0 -and ($ts.rawSizeBytes + $lineByteCount) -gt $targetMaxBlobSizeBytes) {
-                $ts.writer.Flush()
-                $ts.writer.Dispose()
-                $ts.writer = $null
-
-                $uploadPath = $ts.jsonPath
-                $compressed = $false
-                if (-not $DisableCompression) {
-                    $uploadPath = "$($ts.jsonPath).gz"
-                    $null = Compress-XdrFileToGzip -SourcePath $ts.jsonPath -DestinationPath $uploadPath
-                    $compressed = $true
-                }
-
-                if (Test-XdrAzureDataExplorerIngestionConfigurationRefreshDue -Configuration $ingestionRuntime) {
-                    foreach ($refreshTs in $tableStates.Values) {
-                        if ($refreshTs.pendingBlobs.Count -gt 0) {
-                            $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
-                                -Database $connection.Database `
-                                -TableName $refreshTs.tableName `
-                                -MappingName $refreshTs.mappingName `
-                                -Token $token `
-                                -PendingBlobs $refreshTs.pendingBlobs `
-                                -PendingRawSizeBytes ([ref]$refreshTs.pendingRawSizeBytes) `
-                                -QueuedOperationIds $refreshTs.queuedOperationIds `
-                                -TrackIngestion:$shouldTrackIngestion
-                        }
-                    }
-
-                    $ingestionRuntime = Get-XdrAzureDataExplorerIngestionRuntimeConfiguration -IngestionUri $connection.IngestionUri -Token $token -MaxBlobSizeMB $MaxBlobSizeMB
-                    $containerPath = $ingestionRuntime.ContainerPath
-                    $serviceMaxDataSizeBytes = $ingestionRuntime.ServiceMaxDataSizeBytes
-                    $targetMaxBlobSizeBytes = $ingestionRuntime.TargetMaxBlobSizeBytes
-                    $maxBlobsPerRequest = $ingestionRuntime.MaxBlobsPerRequest
-                }
-
-                $blobExtension = if ($compressed) { '.json.gz' } else { '.json' }
-                $blobName = "XDRInternals/$($ts.tableName)/$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))-$([guid]::NewGuid().ToString('N'))$blobExtension"
-                $blobUri = Get-XdrAzureDataExplorerBlobUri -ContainerUri $containerPath -BlobName $blobName
-
-                Send-XdrAzureDataExplorerBlobUpload -BlobUri $blobUri -FilePath $uploadPath -Compressed:$compressed
-
-                if ($ts.pendingBlobs.Count -gt 0 -and ($ts.pendingRawSizeBytes + $ts.rawSizeBytes) -gt $serviceMaxDataSizeBytes) {
-                    $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
-                        -Database $connection.Database `
-                        -TableName $ts.tableName `
-                        -MappingName $ts.mappingName `
-                        -Token $token `
-                        -PendingBlobs $ts.pendingBlobs `
-                        -PendingRawSizeBytes ([ref]$ts.pendingRawSizeBytes) `
-                        -QueuedOperationIds $ts.queuedOperationIds `
-                        -TrackIngestion:$shouldTrackIngestion
-                }
-
-                $ts.pendingBlobs.Add(@{
-                        url      = $blobUri
-                        sourceId = [guid]::NewGuid().Guid
-                        rawSize  = $ts.rawSizeBytes
-                    }) | Out-Null
-                $ts.pendingRawSizeBytes += $ts.rawSizeBytes
-
-                if ($ts.pendingBlobs.Count -ge $maxBlobsPerRequest) {
-                    $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
-                        -Database $connection.Database `
-                        -TableName $ts.tableName `
-                        -MappingName $ts.mappingName `
-                        -Token $token `
-                        -PendingBlobs $ts.pendingBlobs `
-                        -PendingRawSizeBytes ([ref]$ts.pendingRawSizeBytes) `
-                        -QueuedOperationIds $ts.queuedOperationIds `
-                        -TrackIngestion:$shouldTrackIngestion
-                }
-
-                if (-not $KeepTempFiles) {
-                    Remove-Item -Path $ts.jsonPath -Force -ErrorAction SilentlyContinue
-                    if ($compressed) {
-                        Remove-Item -Path $uploadPath -Force -ErrorAction SilentlyContinue
-                    }
-                }
-
-                $ts.jsonPath = Join-Path $ts.stagingPath ("{0:D6}.json" -f $ts.blobSequence)
-                $ts.writer = [System.IO.StreamWriter]::new($ts.jsonPath, $false, $utf8)
-                $ts.rawSizeBytes = 0L
-                $ts.blobSequence++
-            }
-
-            $ts.writer.Write($lineText)
-            $ts.rawSizeBytes += $lineByteCount
-            $ts.recordCount++
-
-            if ($PassThru) {
-                $Data
-            }
         }
         else {
-            $jsonLine = $Data | ConvertTo-Json -Depth 20 -Compress
-            $lineText = "$jsonLine`n"
-            $lineByteCount = $utf8.GetByteCount($lineText)
+            $targetTableName = $TableName
+            $targetMappingName = $resolvedMappingName
+        }
 
-            if ($lineByteCount -gt $targetMaxBlobSizeBytes) {
-                throw "A single serialized record is $lineByteCount bytes, which exceeds the configured maximum blob size of $targetMaxBlobSizeBytes bytes."
+        if (-not $tableStates.ContainsKey($targetTableName)) {
+            $tableStates[$targetTableName] = & $newTableState $targetTableName $targetMappingName $targetProfile
+        }
+
+        $ts = $tableStates[$targetTableName]
+        if (-not $ts.initialized -and -not $SkipBootstrap) {
+            $initParams = @{
+                ClusterUri  = $connection.ClusterUri
+                Database    = $connection.Database
+                TableName   = $ts.tableName
+                MappingName = $ts.mappingName
+                Token       = $token
+            }
+            if ($ts.profile) {
+                $initParams['TableProfile'] = $ts.profile
             }
 
-            if (-not $activeWriter) {
-                $activeJsonPath = Join-Path $sessionStagingPath ("{0:D6}.json" -f $blobSequence)
-                $activeWriter = [System.IO.StreamWriter]::new($activeJsonPath, $false, $utf8)
-                $activeRawSizeBytes = 0L
-                $blobSequence++
-            }
+            Initialize-XdrAzureDataExplorerTable @initParams
+            $ts.initialized = $true
+        }
 
-            if ($activeRawSizeBytes -gt 0 -and ($activeRawSizeBytes + $lineByteCount) -gt $targetMaxBlobSizeBytes) {
-                $activeWriter.Flush()
-                $activeWriter.Dispose()
-                $activeWriter = $null
+        $jsonLine = $Data | ConvertTo-Json -Depth 20 -Compress
+        $lineText = "$jsonLine`n"
+        $lineByteCount = $utf8.GetByteCount($lineText)
 
-                $uploadPath = $activeJsonPath
-                $compressed = $false
-                if (-not $DisableCompression) {
-                    $uploadPath = "$activeJsonPath.gz"
-                    $null = Compress-XdrFileToGzip -SourcePath $activeJsonPath -DestinationPath $uploadPath
-                    $compressed = $true
-                }
+        if ($lineByteCount -gt $runtimeState.TargetMaxBlobSizeBytes) {
+            throw "A single serialized record is $lineByteCount bytes, which exceeds the configured maximum blob size of $($runtimeState.TargetMaxBlobSizeBytes) bytes."
+        }
 
-                if (Test-XdrAzureDataExplorerIngestionConfigurationRefreshDue -Configuration $ingestionRuntime) {
-                    if ($pendingBlobs.Count -gt 0) {
-                        $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
-                            -Database $connection.Database `
-                            -TableName $TableName `
-                            -MappingName $resolvedMappingName `
-                            -Token $token `
-                            -PendingBlobs $pendingBlobs `
-                            -PendingRawSizeBytes ([ref]$pendingRawSizeBytes) `
-                            -QueuedOperationIds $queuedOperationIds `
-                            -TrackIngestion:$shouldTrackIngestion
-                    }
+        if ($ts.rawSizeBytes -gt 0 -and ($ts.rawSizeBytes + $lineByteCount) -gt $runtimeState.TargetMaxBlobSizeBytes) {
+            & $closeStagedBlob $ts $true
+        }
 
-                    $ingestionRuntime = Get-XdrAzureDataExplorerIngestionRuntimeConfiguration -IngestionUri $connection.IngestionUri -Token $token -MaxBlobSizeMB $MaxBlobSizeMB
-                    $containerPath = $ingestionRuntime.ContainerPath
-                    $serviceMaxDataSizeBytes = $ingestionRuntime.ServiceMaxDataSizeBytes
-                    $targetMaxBlobSizeBytes = $ingestionRuntime.TargetMaxBlobSizeBytes
-                    $maxBlobsPerRequest = $ingestionRuntime.MaxBlobsPerRequest
-                }
+        if (-not $ts.writer) {
+            $ts.jsonPath = Join-Path $ts.stagingPath ("{0:D6}.json" -f $ts.blobSequence)
+            $ts.writer = [System.IO.StreamWriter]::new($ts.jsonPath, $false, $utf8)
+            $ts.rawSizeBytes = 0L
+            $ts.blobSequence++
+        }
 
-                $blobExtension = if ($compressed) { '.json.gz' } else { '.json' }
-                $blobName = "XDRInternals/$TableName/$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))-$([guid]::NewGuid().ToString('N'))$blobExtension"
-                $blobUri = Get-XdrAzureDataExplorerBlobUri -ContainerUri $containerPath -BlobName $blobName
+        $ts.writer.Write($lineText)
+        $ts.rawSizeBytes += $lineByteCount
+        $ts.recordCount++
 
-                Send-XdrAzureDataExplorerBlobUpload -BlobUri $blobUri -FilePath $uploadPath -Compressed:$compressed
-
-                if ($pendingBlobs.Count -gt 0 -and ($pendingRawSizeBytes + $activeRawSizeBytes) -gt $serviceMaxDataSizeBytes) {
-                    $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
-                        -Database $connection.Database `
-                        -TableName $TableName `
-                        -MappingName $resolvedMappingName `
-                        -Token $token `
-                        -PendingBlobs $pendingBlobs `
-                        -PendingRawSizeBytes ([ref]$pendingRawSizeBytes) `
-                        -QueuedOperationIds $queuedOperationIds `
-                        -TrackIngestion:$shouldTrackIngestion
-                }
-
-                $pendingBlobs.Add(@{
-                        url      = $blobUri
-                        sourceId = [guid]::NewGuid().Guid
-                        rawSize  = $activeRawSizeBytes
-                    }) | Out-Null
-                $pendingRawSizeBytes += $activeRawSizeBytes
-
-                if ($pendingBlobs.Count -ge $maxBlobsPerRequest) {
-                    $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
-                        -Database $connection.Database `
-                        -TableName $TableName `
-                        -MappingName $resolvedMappingName `
-                        -Token $token `
-                        -PendingBlobs $pendingBlobs `
-                        -PendingRawSizeBytes ([ref]$pendingRawSizeBytes) `
-                        -QueuedOperationIds $queuedOperationIds `
-                        -TrackIngestion:$shouldTrackIngestion
-                }
-
-                if (-not $KeepTempFiles) {
-                    Remove-Item -Path $activeJsonPath -Force -ErrorAction SilentlyContinue
-                    if ($compressed) {
-                        Remove-Item -Path $uploadPath -Force -ErrorAction SilentlyContinue
-                    }
-                }
-
-                $activeJsonPath = Join-Path $sessionStagingPath ("{0:D6}.json" -f $blobSequence)
-                $activeWriter = [System.IO.StreamWriter]::new($activeJsonPath, $false, $utf8)
-                $activeRawSizeBytes = 0L
-                $blobSequence++
-            }
-
-            $activeWriter.Write($lineText)
-            $activeRawSizeBytes += $lineByteCount
-            $recordCount++
-
-            if ($PassThru) {
-                $Data
-            }
+        if ($PassThru) {
+            $Data
         }
     }
 
     end {
         try {
-            if ($isSourceMode) {
-                foreach ($ts in $tableStates.Values) {
-                    if ($ts.writer -and $ts.rawSizeBytes -gt 0) {
-                        $ts.writer.Flush()
-                        $ts.writer.Dispose()
-                        $ts.writer = $null
+            foreach ($ts in $tableStates.Values) {
+                & $closeStagedBlob $ts
+            }
 
-                        $uploadPath = $ts.jsonPath
-                        $compressed = $false
-                        if (-not $DisableCompression) {
-                            $uploadPath = "$($ts.jsonPath).gz"
-                            $null = Compress-XdrFileToGzip -SourcePath $ts.jsonPath -DestinationPath $uploadPath
-                            $compressed = $true
-                        }
+            foreach ($ts in $tableStates.Values) {
+                & $submitPendingBlobBatch $ts
+            }
 
-                        if (Test-XdrAzureDataExplorerIngestionConfigurationRefreshDue -Configuration $ingestionRuntime) {
-                            foreach ($refreshTs in $tableStates.Values) {
-                                if ($refreshTs.pendingBlobs.Count -gt 0) {
-                                    $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
-                                        -Database $connection.Database `
-                                        -TableName $refreshTs.tableName `
-                                        -MappingName $refreshTs.mappingName `
-                                        -Token $token `
-                                        -PendingBlobs $refreshTs.pendingBlobs `
-                                        -PendingRawSizeBytes ([ref]$refreshTs.pendingRawSizeBytes) `
-                                        -QueuedOperationIds $refreshTs.queuedOperationIds `
-                                        -TrackIngestion:$shouldTrackIngestion
-                                }
-                            }
-
-                            $ingestionRuntime = Get-XdrAzureDataExplorerIngestionRuntimeConfiguration -IngestionUri $connection.IngestionUri -Token $token -MaxBlobSizeMB $MaxBlobSizeMB
-                            $containerPath = $ingestionRuntime.ContainerPath
-                            $serviceMaxDataSizeBytes = $ingestionRuntime.ServiceMaxDataSizeBytes
-                            $targetMaxBlobSizeBytes = $ingestionRuntime.TargetMaxBlobSizeBytes
-                            $maxBlobsPerRequest = $ingestionRuntime.MaxBlobsPerRequest
-                        }
-
-                        $blobExtension = if ($compressed) { '.json.gz' } else { '.json' }
-                        $blobName = "XDRInternals/$($ts.tableName)/$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))-$([guid]::NewGuid().ToString('N'))$blobExtension"
-                        $blobUri = Get-XdrAzureDataExplorerBlobUri -ContainerUri $containerPath -BlobName $blobName
-
-                        Send-XdrAzureDataExplorerBlobUpload -BlobUri $blobUri -FilePath $uploadPath -Compressed:$compressed
-
-                        if ($ts.pendingBlobs.Count -gt 0 -and ($ts.pendingRawSizeBytes + $ts.rawSizeBytes) -gt $serviceMaxDataSizeBytes) {
-                            $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
-                                -Database $connection.Database `
-                                -TableName $ts.tableName `
-                                -MappingName $ts.mappingName `
-                                -Token $token `
-                                -PendingBlobs $ts.pendingBlobs `
-                                -PendingRawSizeBytes ([ref]$ts.pendingRawSizeBytes) `
-                                -QueuedOperationIds $ts.queuedOperationIds `
-                                -TrackIngestion:$shouldTrackIngestion
-                        }
-
-                        $ts.pendingBlobs.Add(@{
-                                url      = $blobUri
-                                sourceId = [guid]::NewGuid().Guid
-                                rawSize  = $ts.rawSizeBytes
-                            }) | Out-Null
-                        $ts.pendingRawSizeBytes += $ts.rawSizeBytes
-
-                        if (-not $KeepTempFiles) {
-                            Remove-Item -Path $ts.jsonPath -Force -ErrorAction SilentlyContinue
-                            if ($compressed) {
-                                Remove-Item -Path $uploadPath -Force -ErrorAction SilentlyContinue
-                            }
-                        }
-                    }
+            $totalRecords = ($tableStates.Values | Measure-Object -Property recordCount -Sum).Sum
+            foreach ($ts in $tableStates.Values) {
+                if ($ts.recordCount -le 0) {
+                    continue
                 }
 
-                foreach ($ts in $tableStates.Values) {
-                    if ($ts.pendingBlobs.Count -gt 0) {
-                        $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
-                            -Database $connection.Database `
-                            -TableName $ts.tableName `
-                            -MappingName $ts.mappingName `
-                            -Token $token `
-                            -PendingBlobs $ts.pendingBlobs `
-                            -PendingRawSizeBytes ([ref]$ts.pendingRawSizeBytes) `
-                            -QueuedOperationIds $ts.queuedOperationIds `
-                            -TrackIngestion:$shouldTrackIngestion
-                    }
+                if ($isSourceMode) {
+                    Write-Verbose "Queued $($ts.recordCount) record(s) for table '$($ts.tableName)'"
+                }
+                else {
+                    Write-Verbose "Queued $($ts.recordCount) record(s) for Azure Data Explorer table '$($ts.tableName)'."
                 }
 
-                foreach ($ts in $tableStates.Values) {
-                    if ($ts.recordCount -gt 0) {
-                        Write-Verbose "Queued $($ts.recordCount) record(s) for table '$($ts.tableName)'"
-                        if ($shouldTrackIngestion -and $ts.queuedOperationIds.Count -gt 0) {
-                            Write-Verbose "  Queued ingestion operation IDs: $($ts.queuedOperationIds -join ', ')"
-                        }
-                    }
-                }
-
-                $totalRecords = ($tableStates.Values | Measure-Object -Property recordCount -Sum).Sum
-                if ($totalRecords -gt 0 -and -not $WaitForIngestion) {
-                    Write-Verbose "Azure Data Explorer queued ingestion is asynchronous, so the exported data may take a few minutes before it becomes queryable."
-                }
-
-                if ($WaitForIngestion) {
-                    $allFailedStatuses = [System.Collections.Generic.List[pscustomobject]]::new()
-
-                    foreach ($ts in $tableStates.Values) {
-                        if ($ts.queuedOperationIds.Count -eq 0) { continue }
-
-                        $statuses = Wait-XdrAzureDataExplorerQueuedIngestion -IngestionUri $connection.IngestionUri `
-                            -Database $connection.Database `
-                            -TableName $ts.tableName `
-                            -OperationId ($ts.queuedOperationIds.ToArray()) `
-                            -Token $token `
-                            -TimeoutMinutes $WaitTimeoutMinutes `
-                            -PollingIntervalSeconds $StatusPollingIntervalSeconds `
-                            -Details
-
-                        $failedStatuses = @($statuses | Where-Object HasFailures)
-                        foreach ($fs in $failedStatuses) {
-                            $allFailedStatuses.Add($fs) | Out-Null
-                        }
-                    }
-
-                    if ($allFailedStatuses.Count -gt 0) {
-                        $failureSummary = $allFailedStatuses | ForEach-Object {
-                            $detailText = if ($_.Details) {
-                                @($_.Details | Where-Object { $_.Status -eq 'Failed' -or $_.Status -eq 'Canceled' } | ForEach-Object {
-                                        if ($_.ErrorCode) { "$($_.ErrorCode): $($_.Details)" } else { $_.Details }
-                                    }) -join ' | '
-                            }
-                            else {
-                                $null
-                            }
-
-                            if ([string]::IsNullOrWhiteSpace($detailText)) {
-                                "$($_.OperationId) ($($_.Status))"
-                            }
-                            else {
-                                "$($_.OperationId) ($($_.Status)): $detailText"
-                            }
-                        }
-
-                        throw "One or more Azure Data Explorer queued ingestion operations failed: $($failureSummary -join '; ')"
-                    }
-
-                    Write-Verbose "All Azure Data Explorer queued ingestion operations completed successfully."
+                if ($shouldTrackIngestion -and $ts.queuedOperationIds.Count -gt 0) {
+                    Write-Verbose "Queued ingestion operation IDs for '$($ts.tableName)': $($ts.queuedOperationIds -join ', ')"
                 }
             }
-            else {
-                if ($activeWriter -and $activeRawSizeBytes -gt 0) {
-                    $activeWriter.Flush()
-                    $activeWriter.Dispose()
-                    $activeWriter = $null
 
-                    $uploadPath = $activeJsonPath
-                    $compressed = $false
-                    if (-not $DisableCompression) {
-                        $uploadPath = "$activeJsonPath.gz"
-                        $null = Compress-XdrFileToGzip -SourcePath $activeJsonPath -DestinationPath $uploadPath
-                        $compressed = $true
+            if ($totalRecords -gt 0 -and -not $WaitForIngestion) {
+                Write-Verbose "Azure Data Explorer queued ingestion is asynchronous, so the exported data may take a few minutes before it becomes queryable."
+            }
+
+            if ($WaitForIngestion) {
+                $allFailedStatuses = [System.Collections.Generic.List[pscustomobject]]::new()
+
+                foreach ($ts in $tableStates.Values) {
+                    if ($ts.queuedOperationIds.Count -eq 0) {
+                        continue
                     }
 
-                    if (Test-XdrAzureDataExplorerIngestionConfigurationRefreshDue -Configuration $ingestionRuntime) {
-                        if ($pendingBlobs.Count -gt 0) {
-                            $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
-                                -Database $connection.Database `
-                                -TableName $TableName `
-                                -MappingName $resolvedMappingName `
-                                -Token $token `
-                                -PendingBlobs $pendingBlobs `
-                                -PendingRawSizeBytes ([ref]$pendingRawSizeBytes) `
-                                -QueuedOperationIds $queuedOperationIds `
-                                -TrackIngestion:$shouldTrackIngestion
-                        }
-
-                        $ingestionRuntime = Get-XdrAzureDataExplorerIngestionRuntimeConfiguration -IngestionUri $connection.IngestionUri -Token $token -MaxBlobSizeMB $MaxBlobSizeMB
-                        $containerPath = $ingestionRuntime.ContainerPath
-                        $serviceMaxDataSizeBytes = $ingestionRuntime.ServiceMaxDataSizeBytes
-                        $targetMaxBlobSizeBytes = $ingestionRuntime.TargetMaxBlobSizeBytes
-                        $maxBlobsPerRequest = $ingestionRuntime.MaxBlobsPerRequest
-                    }
-
-                    $blobExtension = if ($compressed) { '.json.gz' } else { '.json' }
-                    $blobName = "XDRInternals/$TableName/$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))-$([guid]::NewGuid().ToString('N'))$blobExtension"
-                    $blobUri = Get-XdrAzureDataExplorerBlobUri -ContainerUri $containerPath -BlobName $blobName
-
-                    Send-XdrAzureDataExplorerBlobUpload -BlobUri $blobUri -FilePath $uploadPath -Compressed:$compressed
-
-                    if ($pendingBlobs.Count -gt 0 -and ($pendingRawSizeBytes + $activeRawSizeBytes) -gt $serviceMaxDataSizeBytes) {
-                        $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
-                            -Database $connection.Database `
-                            -TableName $TableName `
-                            -MappingName $resolvedMappingName `
-                            -Token $token `
-                            -PendingBlobs $pendingBlobs `
-                            -PendingRawSizeBytes ([ref]$pendingRawSizeBytes) `
-                            -QueuedOperationIds $queuedOperationIds `
-                            -TrackIngestion:$shouldTrackIngestion
-                    }
-
-                    $pendingBlobs.Add(@{
-                            url      = $blobUri
-                            sourceId = [guid]::NewGuid().Guid
-                            rawSize  = $activeRawSizeBytes
-                        }) | Out-Null
-                    $pendingRawSizeBytes += $activeRawSizeBytes
-
-                    if (-not $KeepTempFiles) {
-                        Remove-Item -Path $activeJsonPath -Force -ErrorAction SilentlyContinue
-                        if ($compressed) {
-                            Remove-Item -Path $uploadPath -Force -ErrorAction SilentlyContinue
-                        }
-                    }
-                }
-
-                if ($pendingBlobs.Count -gt 0) {
-                    $null = Submit-XdrAzureDataExplorerQueuedIngestionBatch -IngestionUri $connection.IngestionUri `
-                        -Database $connection.Database `
-                        -TableName $TableName `
-                        -MappingName $resolvedMappingName `
-                        -Token $token `
-                        -PendingBlobs $pendingBlobs `
-                        -PendingRawSizeBytes ([ref]$pendingRawSizeBytes) `
-                        -QueuedOperationIds $queuedOperationIds `
-                        -TrackIngestion:$shouldTrackIngestion
-                }
-
-                if ($recordCount -gt 0) {
-                    Write-Verbose "Queued $recordCount record(s) for Azure Data Explorer table '$TableName'."
-                    if ($shouldTrackIngestion -and $queuedOperationIds.Count -gt 0) {
-                        Write-Verbose "Queued ingestion operation IDs: $($queuedOperationIds -join ', ')"
-                    }
-                    if (-not $WaitForIngestion) {
-                        Write-Verbose "Azure Data Explorer queued ingestion is asynchronous, so the exported data may take a few minutes before it becomes queryable."
-                    }
-                }
-
-                if ($WaitForIngestion -and $queuedOperationIds.Count -gt 0) {
                     $statuses = Wait-XdrAzureDataExplorerQueuedIngestion -IngestionUri $connection.IngestionUri `
                         -Database $connection.Database `
-                        -TableName $TableName `
-                        -OperationId ($queuedOperationIds.ToArray()) `
+                        -TableName $ts.tableName `
+                        -OperationId ($ts.queuedOperationIds.ToArray()) `
                         -Token $token `
                         -TimeoutMinutes $WaitTimeoutMinutes `
                         -PollingIntervalSeconds $StatusPollingIntervalSeconds `
                         -Details
 
                     $failedStatuses = @($statuses | Where-Object HasFailures)
-                    if ($failedStatuses.Count -gt 0) {
-                        $failureSummary = $failedStatuses | ForEach-Object {
-                            $detailText = if ($_.Details) {
-                                @($_.Details | Where-Object { $_.Status -eq 'Failed' -or $_.Status -eq 'Canceled' } | ForEach-Object {
-                                        if ($_.ErrorCode) { "$($_.ErrorCode): $($_.Details)" } else { $_.Details }
-                                    }) -join ' | '
-                            }
-                            else {
-                                $null
-                            }
+                    foreach ($fs in $failedStatuses) {
+                        $allFailedStatuses.Add($fs) | Out-Null
+                    }
+                }
 
-                            if ([string]::IsNullOrWhiteSpace($detailText)) {
-                                "$($_.OperationId) ($($_.Status))"
-                            }
-                            else {
-                                "$($_.OperationId) ($($_.Status)): $detailText"
-                            }
+                if ($allFailedStatuses.Count -gt 0) {
+                    $failureSummary = $allFailedStatuses | ForEach-Object {
+                        $detailText = if ($_.Details) {
+                            @($_.Details | Where-Object { $_.Status -eq 'Failed' -or $_.Status -eq 'Canceled' } | ForEach-Object {
+                                    if ($_.ErrorCode) { "$($_.ErrorCode): $($_.Details)" } else { $_.Details }
+                                }) -join ' | '
+                        }
+                        else {
+                            $null
                         }
 
-                        throw "One or more Azure Data Explorer queued ingestion operations failed: $($failureSummary -join '; ')"
+                        if ([string]::IsNullOrWhiteSpace($detailText)) {
+                            "$($_.OperationId) ($($_.Status))"
+                        }
+                        else {
+                            "$($_.OperationId) ($($_.Status)): $detailText"
+                        }
                     }
 
+                    throw "One or more Azure Data Explorer queued ingestion operations failed: $($failureSummary -join '; ')"
+                }
+
+                if ($totalRecords -gt 0) {
                     Write-Verbose "All Azure Data Explorer queued ingestion operations completed successfully."
                 }
             }
         }
         finally {
-            if ($isSourceMode) {
-                foreach ($ts in $tableStates.Values) {
-                    if ($ts.writer) {
-                        $ts.writer.Dispose()
-                    }
-                }
-            }
-            else {
-                if ($activeWriter) {
-                    $activeWriter.Dispose()
+            foreach ($ts in $tableStates.Values) {
+                if ($ts.writer) {
+                    $ts.writer.Dispose()
                 }
             }
 

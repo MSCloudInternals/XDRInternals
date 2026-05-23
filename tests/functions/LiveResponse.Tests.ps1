@@ -475,6 +475,36 @@
             $createCommandBodies[0].raw_command_line | Should -Be 'run -id hello-world.ps1 -parameters ''Write-Host "hi there"'''
         }
 
+        It 'fails fast when rebuild would drop unmapped positional arguments' {
+            Mock Invoke-RestMethod {
+                throw "Invoke-RestMethod should not be called when unmapped positional arguments are present."
+            } -ModuleName XDRInternals
+
+            $runDefinitions = @(
+                [PSCustomObject]@{
+                    command_definition_id = 'run'
+                    aliases               = @('execute', 'PS', 'start', 'PowerShell')
+                    params                = @(
+                        [PSCustomObject]@{
+                            param_id = 'id'
+                            optional = $false
+                            isHidden = $false
+                        },
+                        [PSCustomObject]@{
+                            param_id = 'parameters'
+                            optional = $true
+                            isHidden = $false
+                        }
+                    )
+                    flags                 = @()
+                }
+            )
+
+            {
+                Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId 'CLR1' -Command 'run hello-world.ps1 -parameters "-List" extra-arg' -CommandDefinitions $runDefinitions -RawCommandResult -ErrorAction Stop
+            } | Should -Throw '*unmapped positional arguments*extra-arg*'
+        }
+
         It 'normalizes nested command definitions before batching' {
             Mock Invoke-XdrRateLimitedBatch { @() } -ModuleName XDRInternals
 

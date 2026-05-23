@@ -789,7 +789,6 @@
                     $parsedArgument.kind = 'mappedParam'
                     $parsedArgument.param_id = $mappedParam.param_id
                     $parsedArgument.value = $mappedParam.value
-                    $parsedArgument.raw_value = $parsedArgument.raw_value
                     $mappedPositionalIndex++
                 }
             }
@@ -854,6 +853,12 @@
                         }
                     }
                 }
+            }
+
+            $unmappedPositionalArguments = @($parsedArguments | Where-Object { $_.kind -eq 'positional' })
+            if ($needsRebuild -and $unmappedPositionalArguments.Count -gt 0) {
+                $unmappedText = @($unmappedPositionalArguments | ForEach-Object { $_.raw_value }) -join ' '
+                throw "Cannot safely rebuild Live Response command '$commandLine' because it contains unmapped positional arguments: $unmappedText"
             }
 
             if ($needsRebuild) {

@@ -622,12 +622,14 @@
 
             $tokenList = [System.Collections.Generic.List[string]]::new()
             $tokenIsQuoted = [System.Collections.Generic.List[bool]]::new()
+            $tokenRawText = [System.Collections.Generic.List[string]]::new()
             $pos = 0
             $line = $commandLine.Trim()
             while ($pos -lt $line.Length) {
                 while ($pos -lt $line.Length -and $line[$pos] -eq ' ') { $pos++ }
                 if ($pos -ge $line.Length) { break }
 
+                $tokenStart = $pos
                 $tokenBuf = [System.Text.StringBuilder]::new()
                 $wasQuoted = $false
                 while ($pos -lt $line.Length -and $line[$pos] -ne ' ') {
@@ -650,6 +652,7 @@
                 if ($tokenBuf.Length -gt 0) {
                     $tokenList.Add($tokenBuf.ToString())
                     $tokenIsQuoted.Add($wasQuoted)
+                    $tokenRawText.Add($line.Substring($tokenStart, $pos - $tokenStart))
                 }
             }
 
@@ -704,6 +707,8 @@
             $flags = [System.Collections.Generic.List[string]]::new()
             $positional = [System.Collections.Generic.List[string]]::new()
             $namedParamSpecs = [System.Collections.Generic.List[hashtable]]::new()
+            $mappedPositionalSpecs = [System.Collections.Generic.List[hashtable]]::new()
+            $parsedArguments = [System.Collections.Generic.List[hashtable]]::new()
 
             $i = 1
             while ($i -lt $tokenList.Count) {
@@ -720,21 +725,28 @@
 
                     if ($isKnownFlag) {
                         $flags.Add($nameWithoutDash)
+                        $parsedArguments.Add(@{ kind = 'flag'; flag_id = $nameWithoutDash })
                         $i++
                     } elseif ($isKnownParam -and $hasNext -and -not $nextIsFlag) {
-                        $params.Add(@{ param_id = $nameWithoutDash; value = $nextToken })
-                        $namedParamSpecs.Add(@{ param_id = $nameWithoutDash; value = $nextToken })
+                        $paramSpec = @{ param_id = $nameWithoutDash; value = $nextToken; raw_value = $tokenRawText[$nextIdx] }
+                        $params.Add($paramSpec)
+                        $namedParamSpecs.Add($paramSpec)
+                        $parsedArguments.Add(@{ kind = 'named'; param_id = $nameWithoutDash; value = $nextToken; raw_value = $tokenRawText[$nextIdx] })
                         $i += 2
                     } elseif (-not $isKnownFlag -and -not $isKnownParam -and $hasNext -and -not $nextIsFlag) {
-                        $params.Add(@{ param_id = $nameWithoutDash; value = $nextToken })
-                        $namedParamSpecs.Add(@{ param_id = $nameWithoutDash; value = $nextToken })
+                        $paramSpec = @{ param_id = $nameWithoutDash; value = $nextToken; raw_value = $tokenRawText[$nextIdx] }
+                        $params.Add($paramSpec)
+                        $namedParamSpecs.Add($paramSpec)
+                        $parsedArguments.Add(@{ kind = 'named'; param_id = $nameWithoutDash; value = $nextToken; raw_value = $tokenRawText[$nextIdx] })
                         $i += 2
                     } else {
                         $flags.Add($nameWithoutDash)
+                        $parsedArguments.Add(@{ kind = 'flag'; flag_id = $nameWithoutDash })
                         $i++
                     }
                 } else {
                     $positional.Add($token)
+                    $parsedArguments.Add(@{ kind = 'positional'; value = $token; raw_value = $tokenRawText[$i] })
                     $i++
                 }
             }
@@ -751,23 +763,95 @@
                         })
 
                     for ($j = 0; $j -lt [Math]::Min($positional.Count, $remainingParamDefs.Count); $j++) {
-                        $params.Add(@{ param_id = $remainingParamDefs[$j].param_id; value = $positional[$j] })
+                        $paramSpec = @{ param_id = $remainingParamDefs[$j].param_id; value = $positional[$j]; raw_value = $null }
+                        $params.Add($paramSpec)
+                        $mappedPositionalSpecs.Add($paramSpec)
                     }
                 } elseif ($positional.Count -eq 1) {
-                    $params.Add(@{ param_id = 'path'; value = $positional[0] })
+                    $paramSpec = @{ param_id = 'path'; value = $positional[0]; raw_value = $null }
+                    $params.Add($paramSpec)
+                    $mappedPositionalSpecs.Add($paramSpec)
+                }
+            }
+
+            if ($mappedPositionalSpecs.Count -gt 0) {
+                $mappedPositionalIndex = 0
+                foreach ($parsedArgument in $parsedArguments) {
+                    if ($parsedArgument.kind -ne 'positional') {
+                        continue
+                    }
+
+                    if ($mappedPositionalIndex -ge $mappedPositionalSpecs.Count) {
+                        break
+                    }
+
+                    $mappedParam = $mappedPositionalSpecs[$mappedPositionalIndex]
+                    $parsedArgument.kind = 'mappedParam'
+                    $parsedArgument.param_id = $mappedParam.param_id
+                    $parsedArgument.value = $mappedParam.value
+                    $parsedArgument.raw_value = $parsedArgument.raw_value
+                    $mappedPositionalIndex++
+                }
+            }
+
+            $orderedParamSpecs = [System.Collections.Generic.List[hashtable]]::new()
+            $encounteredParamSpecs = [System.Collections.Generic.List[hashtable]]::new()
+            foreach ($parsedArgument in $parsedArguments) {
+                if ($parsedArgument.kind -eq 'mappedParam' -or $parsedArgument.kind -eq 'named') {
+                    $encounteredParamSpecs.Add(@{
+                            param_id = $parsedArgument.param_id
+                            value    = $parsedArgument.value
+                            raw_value = $parsedArgument.raw_value
+                        })
+                }
+            }
+
+            if ($cmdDef -and $cmdDef.params -and $encounteredParamSpecs.Count -gt 0) {
+                $remainingEncounteredParamSpecs = [System.Collections.Generic.List[hashtable]]::new()
+                foreach ($encounteredParamSpec in $encounteredParamSpecs) {
+                    $remainingEncounteredParamSpecs.Add($encounteredParamSpec)
+                }
+
+                foreach ($paramDef in @($cmdDef.params | Where-Object { $null -ne $_ -and $_.param_id })) {
+                    $matchedParamSpec = $null
+                    for ($paramIndex = 0; $paramIndex -lt $remainingEncounteredParamSpecs.Count; $paramIndex++) {
+                        if ($remainingEncounteredParamSpecs[$paramIndex].param_id -ieq $paramDef.param_id) {
+                            $matchedParamSpec = $remainingEncounteredParamSpecs[$paramIndex]
+                            $remainingEncounteredParamSpecs.RemoveAt($paramIndex)
+                            break
+                        }
+                    }
+
+                    if ($matchedParamSpec) {
+                        $orderedParamSpecs.Add($matchedParamSpec)
+                    }
+                }
+
+                foreach ($remainingParamSpec in $remainingEncounteredParamSpecs) {
+                    $orderedParamSpecs.Add($remainingParamSpec)
+                }
+            } elseif ($encounteredParamSpecs.Count -gt 0) {
+                foreach ($encounteredParamSpec in $encounteredParamSpecs) {
+                    $orderedParamSpecs.Add($encounteredParamSpec)
+                }
+            } else {
+                foreach ($paramSpec in $params) {
+                    $orderedParamSpecs.Add($paramSpec)
                 }
             }
 
             $rawCommandLine = $commandLine.Trim()
-            $needsRebuild = $false
-            foreach ($paramSpec in $params) {
-                if ($paramSpec.value -match '\s') {
-                    $doubleQuotedValue = '"' + $paramSpec.value + '"'
-                    $singleQuotedValue = "'$($paramSpec.value)'"
-                    if (-not ($rawCommandLine -match [regex]::Escape($doubleQuotedValue)) -and
-                        -not ($rawCommandLine -match [regex]::Escape($singleQuotedValue))) {
-                        $needsRebuild = $true
-                        break
+            $needsRebuild = $namedParamSpecs.Count -gt 0 -and $mappedPositionalSpecs.Count -gt 0
+            if (-not $needsRebuild) {
+                foreach ($paramSpec in $orderedParamSpecs) {
+                    if ($paramSpec.value -match '\s') {
+                        $doubleQuotedValue = '"' + $paramSpec.value + '"'
+                        $singleQuotedValue = "'$($paramSpec.value)'"
+                        if (-not ($rawCommandLine -match [regex]::Escape($doubleQuotedValue)) -and
+                            -not ($rawCommandLine -match [regex]::Escape($singleQuotedValue))) {
+                            $needsRebuild = $true
+                            break
+                        }
                     }
                 }
             }
@@ -775,18 +859,19 @@
             if ($needsRebuild) {
                 $parts = [System.Collections.Generic.List[string]]::new()
                 $parts.Add($rawFirstToken)
-                foreach ($positionalValue in $positional) {
-                    $quotedPositionalValue = if ($positionalValue -match '\s') { '"' + $positionalValue + '"' } else { $positionalValue }
-                    $parts.Add($quotedPositionalValue)
-                }
-                foreach ($namedParam in $namedParamSpecs) {
-                    $namedPart = if ($namedParam.value -match '\s') {
-                        '-{0} "{1}"' -f $namedParam.param_id, $namedParam.value
+
+                foreach ($orderedParamSpec in $orderedParamSpecs) {
+                    $argumentValueText = if (-not [string]::IsNullOrWhiteSpace("$($orderedParamSpec.raw_value)")) {
+                        "$($orderedParamSpec.raw_value)"
+                    } elseif ($orderedParamSpec.value -match '\s' -or $orderedParamSpec.value -match '^[-/]') {
+                        '"' + $orderedParamSpec.value + '"'
                     } else {
-                        '-{0} {1}' -f $namedParam.param_id, $namedParam.value
+                        "$($orderedParamSpec.value)"
                     }
-                    $parts.Add($namedPart)
+                    $argumentPart = '-{0} {1}' -f $orderedParamSpec.param_id, $argumentValueText
+                    $parts.Add($argumentPart)
                 }
+
                 foreach ($flag in $flags) {
                     $parts.Add("-$flag")
                 }
@@ -799,10 +884,18 @@
                 default { $timeoutSeconds }
             }
 
+            $apiParamSpecs = [System.Collections.Generic.List[hashtable]]::new()
+            foreach ($orderedParamSpec in $orderedParamSpecs) {
+                $apiParamSpecs.Add(@{
+                        param_id = $orderedParamSpec.param_id
+                        value    = $orderedParamSpec.value
+                    })
+            }
+
             $body = @{
                 session_id            = $sessionId
                 command_definition_id = $commandId
-                params                = @($params)
+                params                = @($apiParamSpecs)
                 flags                 = @($flags)
                 raw_command_line      = $rawCommandLine
                 current_directory     = $currentDirectory

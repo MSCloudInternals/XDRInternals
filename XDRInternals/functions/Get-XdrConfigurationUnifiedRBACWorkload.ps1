@@ -55,9 +55,7 @@
         }
 
         # Process the result to flatten workloads and add cloudScopingActivationStatus
-        $processedResult = @()
-
-        foreach ($property in $result.workloads.PSObject.Properties) {
+        $processedResult = foreach ($property in $result.workloads.PSObject.Properties) {
             $workloadName = $property.Name
             $workloadData = $property.Value
 
@@ -92,8 +90,7 @@
                 $processedWorkload | Add-Member -MemberType NoteProperty -Name 'IsExoEnabled' -Value $workloadData.isExoEnabled
             }
 
-            # Add to result array
-            $processedResult += $processedWorkload
+            $processedWorkload
         }
 
         # Add CloudScopingActivationStatus as its own workload entry
@@ -111,13 +108,9 @@
             UiTextKey                         = $null
             CloudScopingActivationStatus      = $result.cloudScopingActivationStatus
         }
-        $processedResult += $cloudScopingWorkload
+        $processedResult = @($processedResult) + $cloudScopingWorkload
 
         Set-XdrCache -CacheKey "XdrUnifiedRBACWorkloadConfiguration" -Value $processedResult -TTLMinutes 30
         return $processedResult
-    }
-
-    end {
-
     }
 }

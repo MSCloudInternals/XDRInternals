@@ -194,19 +194,19 @@
                 $body.titleSearchTerms = $TitleSearchTerms
             }
 
-            # Create cache key from parameters
-            $cacheKeyParams = @{
-                LookBackInDays          = $LookBackInDays
-                SortByField             = $SortByField
-                SortOrder               = $SortOrder
-                PageSize                = $PageSize
-                PageIndex               = $currentPageIndex
-                DefenderExpertsLicensed = $DefenderExpertsLicensed.IsPresent
-            }
+            # Create a stable cache key from the actual parameter values so repeated calls can reuse the cache.
+            $cacheKeyParts = @(
+                "LookBackInDays=$LookBackInDays"
+                "SortByField=$SortByField"
+                "SortOrder=$SortOrder"
+                "PageSize=$PageSize"
+                "PageIndex=$currentPageIndex"
+                "DefenderExpertsLicensed=$($DefenderExpertsLicensed.IsPresent)"
+            )
             if ($TitleSearchTerms) {
-                $cacheKeyParams.TitleSearchTerms = $TitleSearchTerms -join ","
+                $cacheKeyParts += "TitleSearchTerms=$($TitleSearchTerms -join ',')"
             }
-            $cacheKey = "XdrIncidents_$($cacheKeyParams.GetHashCode())"
+            $cacheKey = "XdrIncidents_{0}" -f ($cacheKeyParts -join ';')
 
             $currentCacheValue = Get-XdrCache -CacheKey $cacheKey -ErrorAction SilentlyContinue
             if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {

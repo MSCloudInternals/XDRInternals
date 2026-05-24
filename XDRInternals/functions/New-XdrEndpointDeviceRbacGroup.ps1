@@ -8,7 +8,8 @@
         This function includes caching support with a 30-minute TTL to reduce API calls.
 
     .PARAMETER GroupObject
-        The GroupObject to send. If not provided, uses a default structure.
+        The group object to add to the existing RBAC group collection.
+        This cmdlet does not build a default group object when the parameter is omitted.
 
     .PARAMETER WhatIf
         Shows what would happen if the command runs. The command is not run.
@@ -17,16 +18,8 @@
         Prompts for confirmation before making changes.
 
     .EXAMPLE
-        New-XdrEndpointDeviceRbacGroup
-        Creates a device group in Defender for Endpoint used for RBAC and policies.
-
-    .EXAMPLE
-        New-XdrEndpointDeviceRbacGroup -Body $customBody
+        New-XdrEndpointDeviceRbacGroup -GroupObject $customBody
         Creates a device group in Defender for Endpoint used for RBAC and policies with a custom request body.
-
-    .EXAMPLE
-        New-XdrEndpointDeviceRbacGroup -Force
-        Forces a fresh retrieval, bypassing the cache.
 
     .OUTPUTS
         Object
@@ -35,6 +28,7 @@
     [CmdletBinding(SupportsShouldProcess = $true)]
     param (
         [Parameter()]
+        [ValidateNotNull()]
         [object]$GroupObject
     )
 
@@ -44,12 +38,23 @@
 
     process {
         Write-Verbose "Retrieving New-XdrEndpointDeviceRbacGroup data"
-        $existingGroups = Get-XdrEndpointDeviceRbacGroup -Force
-        if ($existingGroups.count -eq 1) {
-            $GroupObject.Priority = 0
-        } else {
-            $GroupObject.Priority = $existingGroups.Priority[-2] + 1
+        if ($null -eq $GroupObject) {
+            throw "GroupObject is required. This cmdlet does not generate a default group object."
         }
+
+        $existingGroups = @(Get-XdrEndpointDeviceRbacGroup -Force | Where-Object { $null -ne $_ })
+        $groupPriority = if ($existingGroups.Count -le 1) {
+            0
+        } else {
+            $existingGroups.Priority[-2] + 1
+        }
+
+        if ($GroupObject.PSObject.Properties['Priority']) {
+            $GroupObject.Priority = $groupPriority
+        } else {
+            $GroupObject | Add-Member -MemberType NoteProperty -Name Priority -Value $groupPriority -Force
+        }
+
         [array]$newGroups = $existingGroups
         $newGroups += $GroupObject
         if ($PSCmdlet.ShouldProcess("DeviceRbacGroups", "Create")) {

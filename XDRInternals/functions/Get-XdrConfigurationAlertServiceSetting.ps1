@@ -20,9 +20,10 @@
         Forces a fresh retrieval of the alert service settings, bypassing the cache.
 
     .OUTPUTS
-        Object
+        Object[]
         Returns the alert service settings for each workload with translated names and normalized reasons.
     #>
+    [OutputType([object[]])]
     [CmdletBinding()]
     param (
         [Parameter()]
@@ -55,9 +56,7 @@
         }
 
         # Process the result to translate names and normalize reasons
-        $processedResult = @()
-
-        foreach ($property in $result.PSObject.Properties) {
+        $processedResult = foreach ($property in $result.PSObject.Properties) {
             $workloadName = $property.Name
             $workloadData = $property.Value
 
@@ -86,23 +85,17 @@
             }
 
             # Create processed workload object with Service as a property
-            $processedWorkload = [PSCustomObject]@{
+            [PSCustomObject]@{
                 Service         = $translatedName
                 AlertSetting    = $alertSetting
                 Feedback        = $workloadData.feedback
                 DisabledTime    = $workloadData.disabledTime
                 DisablementType = $workloadData.disablementType
             }
-
-            # Add to result array
-            $processedResult += $processedWorkload
         }
 
+        $processedResult = @($processedResult)
         Set-XdrCache -CacheKey "XdrAlertServiceSettings" -Value $processedResult -TTLMinutes 30
         return $processedResult
-    }
-
-    end {
-
     }
 }

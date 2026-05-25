@@ -9,8 +9,8 @@
         when MDI performs automatic remediation actions on identified threats.
 
     .PARAMETER UseLocalSystem
-        Switch parameter to enable the use of Local System account for remediation actions.
-        If not specified, the configuration is set to use a dedicated remediation account.
+        Boolean parameter that controls whether remediation actions use the Local System account.
+        Defaults to $true. Use -UseLocalSystem:$false to configure a dedicated remediation account.
 
     .PARAMETER Confirm
         Prompts for confirmation before creating each rule.
@@ -23,7 +23,7 @@
         Configures MDI to use the Local System account for remediation actions.
 
     .EXAMPLE
-        Set-XdrIdentityConfigurationRemediationActionAccount
+        Set-XdrIdentityConfigurationRemediationActionAccount -UseLocalSystem:$false
         Configures MDI to use a dedicated account for remediation actions.
 
     .OUTPUTS

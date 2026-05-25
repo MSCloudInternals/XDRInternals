@@ -19,7 +19,7 @@
         Shows what would happen if the cmdlet runs. The cmdlet is not run.
 
     .EXAMPLE
-        Set-XdrIdentityConfigurationRemediationActionAccount -UseLocalSystem
+        Set-XdrIdentityConfigurationRemediationActionAccount -UseLocalSystem:$true
         Configures MDI to use the Local System account for remediation actions.
 
     .EXAMPLE

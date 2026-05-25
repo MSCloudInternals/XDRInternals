@@ -28,9 +28,17 @@ Describe 'Set-XdrIdentityConfigurationRemediationActionAccount' -Tag 'Functions'
         }
     }
 
-    It 'documents the dedicated-account example with an explicit false value' {
+    It 'does not call the API when WhatIf is specified' {
+        Set-XdrIdentityConfigurationRemediationActionAccount -WhatIf | Out-Null
+
+        Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 0 -Exactly
+        Should -Invoke Clear-XdrCache -ModuleName XDRInternals -Times 0 -Exactly
+    }
+
+    It 'documents both examples with explicit boolean values' {
         $help = Get-Help Set-XdrIdentityConfigurationRemediationActionAccount
-        $exampleCode = ($help.Examples.Example[1].Code -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })[0].Trim()
+        $exampleOneCode = ($help.Examples.Example[0].Code -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })[0].Trim()
+        $exampleTwoCode = ($help.Examples.Example[1].Code -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })[0].Trim()
 
         $help.Parameters.Parameter |
             Where-Object Name -eq 'UseLocalSystem' |
@@ -38,6 +46,7 @@ Describe 'Set-XdrIdentityConfigurationRemediationActionAccount' -Tag 'Functions'
             Select-Object -ExpandProperty Text |
             Should -Match 'Defaults to \$true'
 
-        $exampleCode | Should -Be 'Set-XdrIdentityConfigurationRemediationActionAccount -UseLocalSystem:$false'
+        $exampleOneCode | Should -Be 'Set-XdrIdentityConfigurationRemediationActionAccount -UseLocalSystem:$true'
+        $exampleTwoCode | Should -Be 'Set-XdrIdentityConfigurationRemediationActionAccount -UseLocalSystem:$false'
     }
 }

@@ -28,7 +28,6 @@
     [CmdletBinding(SupportsShouldProcess = $true)]
     param (
         [Parameter()]
-        [ValidateNotNull()]
         [object]$GroupObject
     )
 

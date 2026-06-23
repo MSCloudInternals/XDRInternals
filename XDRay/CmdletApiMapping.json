@@ -676,6 +676,7 @@
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SaveAdvancedFeaturesSetting",
     "Parameters": {
+      "LowFidelityEnrichmentEnabled": "body.LowFidelityEnrichmentEnabled",
       "PreviewFeatures": "body.IsOptIn"
     }
   },

@@ -1,4 +1,4 @@
-$helperPath = Join-Path $PSScriptRoot '..\helpers\Xdr.TestHelpers.ps1'
+﻿$helperPath = Join-Path $PSScriptRoot '..\helpers\Xdr.TestHelpers.ps1'
 . $helperPath
 
 Describe 'PR 111 cmdlet behavior' -Tag 'Functions', 'PR111' {
@@ -114,6 +114,11 @@ filters:
   conditions: []
 '@ | Set-Content -Path $rulePath -Encoding UTF8
 
+        Mock Get-Command {
+            [pscustomobject]@{ Name = 'ConvertFrom-Yaml' }
+        } -ModuleName XDRInternals -ParameterFilter {
+            $Name -eq 'ConvertFrom-Yaml'
+        }
         Mock Get-XdrTenantContext {
             [pscustomobject]@{
                 AuthInfo = [pscustomobject]@{
@@ -122,6 +127,21 @@ filters:
             }
         } -ModuleName XDRInternals
         Mock Get-XdrEndpointConfigurationCustomCollectionRule { @() } -ModuleName XDRInternals
+        Mock ConvertFrom-Yaml {
+            [ordered]@{
+                name        = 'Pester Smoke Rule'
+                description = 'Validation rule'
+                platform    = 'Windows'
+                scope       = 'Organization'
+                table       = 'DeviceEvents'
+                actionType  = 'RegistryValueSet'
+                filters     = [ordered]@{
+                    conditionType   = 'Operational'
+                    logicalOperator = 'AND'
+                    conditions      = @()
+                }
+            }
+        } -ModuleName XDRInternals
         Mock ConvertTo-ApiFilterFormat { @{ parsed = $true } } -ModuleName XDRInternals
         Mock Invoke-RestMethod {
             [pscustomobject]@{

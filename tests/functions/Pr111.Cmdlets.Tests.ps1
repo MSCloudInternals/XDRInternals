@@ -1,7 +1,7 @@
 ﻿$helperPath = Join-Path $PSScriptRoot '..\helpers\Xdr.TestHelpers.ps1'
 . $helperPath
 
-Describe 'PR 111 cmdlet behavior' -Tag 'Functions', 'PR111' {
+Describe 'PR 111 cmdlet behavior' -Tag 'Functions', 'PR111', 'ReviewRegression' {
     BeforeEach {
         Mock Update-XdrConnectionSettings {} -ModuleName XDRInternals
 
@@ -114,11 +114,6 @@ filters:
   conditions: []
 '@ | Set-Content -Path $rulePath -Encoding UTF8
 
-        Mock Get-Command {
-            [pscustomobject]@{ Name = 'ConvertFrom-Yaml' }
-        } -ModuleName XDRInternals -ParameterFilter {
-            $Name -eq 'ConvertFrom-Yaml'
-        }
         Mock Get-XdrTenantContext {
             [pscustomobject]@{
                 AuthInfo = [pscustomobject]@{
@@ -127,7 +122,18 @@ filters:
             }
         } -ModuleName XDRInternals
         Mock Get-XdrEndpointConfigurationCustomCollectionRule { @() } -ModuleName XDRInternals
-        Mock ConvertFrom-Yaml {
+        Mock ConvertTo-ApiFilterFormat { @{ parsed = $true } } -ModuleName XDRInternals
+        Mock Invoke-RestMethod {
+            [pscustomobject]@{
+                ruleId   = '11111111-1111-1111-1111-111111111111'
+                ruleName = 'Pester Smoke Rule'
+            }
+        } -ModuleName XDRInternals
+        Mock Clear-XdrCache {} -ModuleName XDRInternals
+
+        function global:ConvertFrom-Yaml {
+            param([string]$Yaml)
+
             [ordered]@{
                 name        = 'Pester Smoke Rule'
                 description = 'Validation rule'
@@ -141,17 +147,13 @@ filters:
                     conditions      = @()
                 }
             }
-        } -ModuleName XDRInternals
-        Mock ConvertTo-ApiFilterFormat { @{ parsed = $true } } -ModuleName XDRInternals
-        Mock Invoke-RestMethod {
-            [pscustomobject]@{
-                ruleId   = '11111111-1111-1111-1111-111111111111'
-                ruleName = 'Pester Smoke Rule'
-            }
-        } -ModuleName XDRInternals
-        Mock Clear-XdrCache {} -ModuleName XDRInternals
+        }
 
-        $result = New-XdrEndpointConfigurationCustomCollectionRule -FilePath $rulePath -Enabled:$true -Confirm:$false
+        try {
+            $result = New-XdrEndpointConfigurationCustomCollectionRule -FilePath $rulePath -Enabled:$true -Confirm:$false
+        } finally {
+            Remove-Item Function:\ConvertFrom-Yaml -ErrorAction SilentlyContinue
+        }
 
         $result.ruleId | Should -Be '11111111-1111-1111-1111-111111111111'
         Should -Invoke Clear-XdrCache -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {

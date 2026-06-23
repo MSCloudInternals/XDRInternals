@@ -1,7 +1,7 @@
 ﻿$helperPath = Join-Path $PSScriptRoot '..\helpers\Xdr.TestHelpers.ps1'
 . $helperPath
 
-Describe 'PR 111 cmdlet behavior' -Tag 'Functions', 'PR111', 'ReviewRegression' {
+Describe 'Cmdlet output and caching behavior' -Tag 'Functions', 'Output', 'Caching', 'ReviewRegression' {
     BeforeEach {
         Mock Update-XdrConnectionSettings {} -ModuleName XDRInternals
 

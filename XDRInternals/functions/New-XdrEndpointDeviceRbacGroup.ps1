@@ -5,10 +5,10 @@
 
     .DESCRIPTION
         Creates a device group in Defender for Endpoint used for RBAC and policies.
-        This function includes caching support with a 30-minute TTL to reduce API calls.
+        After a successful create, this cmdlet refreshes the device-group cache for 30 minutes.
 
     .PARAMETER GroupObject
-        The group object to add to the existing RBAC group collection.
+        Required. The group object to add to the existing RBAC group collection.
         This cmdlet does not build a default group object when the parameter is omitted.
 
     .PARAMETER WhatIf
@@ -22,9 +22,10 @@
         Creates a device group in Defender for Endpoint used for RBAC and policies with a custom request body.
 
     .OUTPUTS
-        Object
-        Returns the API response.
+        Object[]
+        Returns the updated device group collection from the API.
     #>
+    [OutputType([object[]])]
     [CmdletBinding(SupportsShouldProcess = $true)]
     param (
         [Parameter()]
@@ -59,16 +60,14 @@
         if ($PSCmdlet.ShouldProcess("DeviceRbacGroups", "Create")) {
             try {
                 $result = Set-XdrEndpointDeviceRbacGroup -GroupObject $newGroups
+                if ($null -ne $result) {
+                    Set-XdrCache -CacheKey "GetXdrEndpointDeviceRbacGroup" -Value $result -TTLMinutes 30
+                }
             } catch {
                 Write-Error "Failed to update DeviceRbacGroups: $_"
             }
         }
 
-        Set-XdrCache -CacheKey "NewXdrEndpointDeviceRbacGroup" -Value $result -TTLMinutes 30
         return $result
-    }
-
-    end {
-
     }
 }

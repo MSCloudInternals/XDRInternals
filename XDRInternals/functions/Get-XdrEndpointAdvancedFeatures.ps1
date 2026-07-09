@@ -196,6 +196,12 @@
                 ConfigurableInPortal = $true
             }
             [PSCustomObject]@{
+                Name        = "LowFidelityEnrichmentEnabled"
+                Value       = $BasicAdvancedFeatures.LowFidelityEnrichmentEnabled
+                Description = "When turned on, high-fidelity devices that have been enriched with data from low-fidelity sources will display those sources in the device details pane. Low-fidelity source data is soft-merged using hostname-based correlation and is not guaranteed to be a strong identifier."
+                ConfigurableInPortal = $false
+            }
+            [PSCustomObject]@{
                 Name        = "IsolationExclusionRules"
                 Value       = $BasicAdvancedFeatures.IsolationExclusionOptIn
                 Description = "Define specific IP addresses, process paths, or services that remain accessible when a device is isolated, enabling uninterrupted investigations while maintaining device protection."

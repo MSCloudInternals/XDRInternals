@@ -70,6 +70,9 @@
     .PARAMETER AggregatedReporting
         Enable aggregated reporting.
 
+    .PARAMETER LowFidelityEnrichmentEnabled
+        Low fidelity enrichment enabled.
+
     .PARAMETER IsolationExclusionRules
         Enable isolation exclusion rules.
 
@@ -192,6 +195,9 @@
         [bool]$AggregatedReporting,
 
         [Parameter(ValueFromPipelineByPropertyName)]
+        [bool]$LowFidelityEnrichmentEnabled,
+
+        [Parameter(ValueFromPipelineByPropertyName)]
         [bool]$IsolationExclusionRules,
 
         [Parameter(ValueFromPipelineByPropertyName)]
@@ -240,7 +246,7 @@
             'MicrosoftDefenderForCloudApps', 'AzureInformationProtection', 'TamperProtection',
             'CustomNetworkIndicators', 'WebContentFiltering', 'MicrosoftEndpointDLP',
             'DownloadQuarantinedFiles', 'RestrictCorrelationToWithinScopedDeviceGroups', 'ExcludeDevices',
-            'ActiveIncidentResponse', 'AggregatedReporting', 'IsolationExclusionRules',
+            'ActiveIncidentResponse', 'AggregatedReporting', 'LowFidelityEnrichmentEnabled', 'IsolationExclusionRules',
             'DefaultToStreamlinedConnectivityWhenOnboardingDevicesInDefenderPortal',
             'ApplyStreamlinedConnectivitySettingsToDevicesManagedByIntuneAndDefenderForCloud'
         )
@@ -326,6 +332,9 @@
             }
             if ($PSBoundParameters.ContainsKey('AggregatedReporting')) {
                 $currentConfig.EnableAggregatedReporting = $AggregatedReporting
+            }
+            if ($PSBoundParameters.ContainsKey('LowFidelityEnrichmentEnabled')) {
+                $currentConfig.LowFidelityEnrichmentEnabled = $LowFidelityEnrichmentEnabled
             }
             if ($PSBoundParameters.ContainsKey('IsolationExclusionRules')) {
                 $currentConfig.IsolationExclusionOptIn = $IsolationExclusionRules

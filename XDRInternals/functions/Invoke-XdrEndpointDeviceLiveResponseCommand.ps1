@@ -805,7 +805,7 @@
                 }
             }
 
-            if ($cmdDef -and $cmdDef.params -and $encounteredParamSpecs.Count -gt 0) {
+            if ($mappedPositionalSpecs.Count -gt 0 -and $cmdDef -and $cmdDef.params -and $encounteredParamSpecs.Count -gt 0) {
                 $remainingEncounteredParamSpecs = [System.Collections.Generic.List[hashtable]]::new()
                 foreach ($encounteredParamSpec in $encounteredParamSpecs) {
                     $remainingEncounteredParamSpecs.Add($encounteredParamSpec)

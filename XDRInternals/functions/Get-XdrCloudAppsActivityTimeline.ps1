@@ -1,21 +1,4 @@
-﻿function ConvertFrom-XdrCloudAppsActivityJson {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Json
-    )
-
-    if ((Get-Command ConvertFrom-Json -ErrorAction Stop).Parameters.ContainsKey('AsHashtable')) {
-        return $Json | ConvertFrom-Json -AsHashtable -ErrorAction Stop
-    }
-
-    Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
-    $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
-    $serializer.MaxJsonLength = [int]::MaxValue
-    return $serializer.DeserializeObject($Json)
-}
-
-function Read-XdrCloudAppsActivityChunkFile {
+﻿function Read-XdrCloudAppsActivityChunkFile {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -26,7 +9,15 @@ function Read-XdrCloudAppsActivityChunkFile {
     )
 
     try {
-        return ConvertFrom-XdrCloudAppsActivityJson -Json (Get-Content -Path $File.FullName -Raw -ErrorAction Stop)
+        $json = Get-Content -Path $File.FullName -Raw -ErrorAction Stop
+        if ((Get-Command ConvertFrom-Json -ErrorAction Stop).Parameters.ContainsKey('AsHashtable')) {
+            return $json | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+        }
+
+        Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
+        $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+        $serializer.MaxJsonLength = [int]::MaxValue
+        return $serializer.DeserializeObject($json)
     }
     catch {
         if ($AllowPartial) {
@@ -568,11 +559,17 @@ function Get-XdrCloudAppsActivityTimeline {
                         }
                     }
                     $responseData = if ($response -is [System.Collections.IDictionary]) { $response['data'] } else { $response.data }
-                    foreach ($item in @($responseData)) {
-                        if (-not $first) { $writer.Write(',') }
-                        $writer.Write(($item | ConvertTo-Json -Depth 20 -Compress))
-                        $first = $false
-                        $eventCount++
+                    if ($null -ne $responseData) {
+                        foreach ($item in @($responseData)) {
+                            if ($null -eq $item) {
+                                continue
+                            }
+
+                            if (-not $first) { $writer.Write(',') }
+                            $writer.Write(($item | ConvertTo-Json -Depth 20 -Compress))
+                            $first = $false
+                            $eventCount++
+                        }
                     }
                     $pagesRetrieved++
                     Set-Content -Path $progressPath -Value $pagesRetrieved -Encoding UTF8

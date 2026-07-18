@@ -2,14 +2,16 @@
 	$TestGeneral = $true,
 	
 	$TestFunctions = $true,
+
+	[string[]]$ExcludeTag = @(),
 	
 	[ValidateSet('None', 'Normal', 'Detailed', 'Diagnostic')]
 	[Alias('Show')]
 	$Output = "None",
 	
-	$Include = "*",
+	[string[]]$Include = @("*"),
 	
-	$Exclude = ""
+	[string[]]$Exclude = @()
 )
 
 Write-Host "Starting Tests"
@@ -35,6 +37,9 @@ $totalRun = 0
 $testresults = @()
 $config = [PesterConfiguration]::Default
 $config.TestResult.Enabled = $true
+if (@($ExcludeTag).Count -gt 0) {
+	$config.Filter.ExcludeTag = @($ExcludeTag)
+}
 
 #region Run General Tests
 if ($TestGeneral)
@@ -47,15 +52,15 @@ if ($TestGeneral)
 
 		foreach ($file in (Get-ChildItem $testPath -File | Where-Object Name -like "*.Tests.ps1"))
 		{
-			if ($file.Name -notlike $Include) { continue }
-			if ($file.Name -like $Exclude) { continue }
+			if (-not (@($Include) | Where-Object { $file.Name -like $_ })) { continue }
+			if (@($Exclude) | Where-Object { $file.Name -like $_ }) { continue }
 
 			Write-Host  "  Executing $($file.Name)"
 			$config.TestResult.OutputPath = Join-Path "$PSScriptRoot\..\TestResults" "TEST-$($file.BaseName).xml"
 			$config.Run.Path = $file.FullName
 			$config.Run.PassThru = $true
 			$config.Output.Verbosity = $Output
-    		$results = Invoke-Pester -Configuration $config
+			$results = Invoke-Pester -Configuration $config
 			foreach ($result in $results)
 			{
 				$totalRun += $result.TotalCount
@@ -82,8 +87,8 @@ if ($TestFunctions)
 	Write-Host "Proceeding with individual tests"
 	foreach ($file in (Get-ChildItem "$PSScriptRoot\functions" -Recurse -File | Where-Object Name -like "*Tests.ps1"))
 	{
-		if ($file.Name -notlike $Include) { continue }
-		if ($file.Name -like $Exclude) { continue }
+		if (-not (@($Include) | Where-Object { $file.Name -like $_ })) { continue }
+		if (@($Exclude) | Where-Object { $file.Name -like $_ }) { continue }
 		
 		Write-Host "  Executing $($file.Name)"
 		$config.TestResult.OutputPath = Join-Path "$PSScriptRoot\..\TestResults" "TEST-$($file.BaseName).xml"

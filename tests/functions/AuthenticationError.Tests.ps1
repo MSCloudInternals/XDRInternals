@@ -47,6 +47,24 @@
             $failure.RecommendedAction | Should -Match '(?i)blocked IP'
         }
 
+        It 'calls out a compliant-device Conditional Access requirement' {
+            $failure = Get-XdrAuthenticationFailure -AuthState ([pscustomobject]@{ sErrorCode = 'AADSTS53000' })
+
+            $failure.Code | Should -Be 'ConditionalAccess'
+            $failure.ConditionalAccessScenario | Should -Be 'DeviceNotCompliant'
+            $failure.Message | Should -Match '(?i)requires a compliant device'
+            $failure.RecommendedAction | Should -Match '(?i)device marked compliant'
+            $failure.RecommendedAction | Should -Match '(?i)sign-in logs'
+        }
+
+        It 'keeps generic Conditional Access remediation for policy blocks without an exact scenario' {
+            $failure = Get-XdrAuthenticationFailure -AuthState ([pscustomobject]@{ sErrorCode = 'AADSTS53003' })
+
+            $failure.ConditionalAccessScenario | Should -Be 'PolicyBlocked'
+            $failure.Message | Should -Be 'A Conditional Access policy blocked this sign-in.'
+            $failure.RecommendedAction | Should -Match '(?i)reported Conditional Access requirements'
+        }
+
         It 'maps OAuth errors from query and fragment redirects' -ForEach @(
             @{ Uri = 'https://localhost/callback?error=interaction_required&error_description=do-not-retain'; Code = 'MfaRequired' }
             @{ Uri = 'https://localhost/callback#error=user_denied&code=secret-code'; Code = 'MfaDenied' }

@@ -289,6 +289,13 @@
         $null
     }
 
+    $message = $definition[0]
+    $recommendedAction = $definition[1]
+    if ($conditionalAccessScenario -eq 'DeviceNotCompliant') {
+        $message = 'A Conditional Access policy requires a compliant device, and the sign-in device did not meet that requirement.'
+        $recommendedAction = 'Retry from a device marked compliant in Entra ID, or ask a tenant administrator to review the device-compliance grant control in the sign-in logs.'
+    }
+
     return [pscustomobject][ordered]@{
         Code                      = $code
         ProviderCode              = $providerCode
@@ -301,8 +308,8 @@
         RequestId                 = $safeRequestId
         ConditionalAccessScenario = $conditionalAccessScenario
         SafeEvidence              = $evidence
-        Message                   = $definition[0]
-        RecommendedAction         = $definition[1]
+        Message                   = $message
+        RecommendedAction         = $recommendedAction
         ErrorCategory             = [System.Management.Automation.ErrorCategory]::$($definition[2])
     }
 }

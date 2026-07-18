@@ -59,3 +59,5 @@
     end {
     }
 }
+
+Set-Alias -Name Get-XdrEndpointConfigurationOptionalFeatures -Value Get-XdrEndpointConfigurationAdvancedFeatures

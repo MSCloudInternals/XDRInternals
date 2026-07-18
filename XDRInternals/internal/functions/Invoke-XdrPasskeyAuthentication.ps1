@@ -158,77 +158,10 @@ function Get-XdrKeyVaultAccessToken {
         [string]$KeyVaultClientId
     )
 
-    $resource = "https://vault.azure.net"
-    $modeDescription = if ($KeyVaultClientId) { "user-assigned managed identity (client_id: $KeyVaultClientId)" } else { "system-assigned managed identity" }
-
-    # 1. Try Az module (Az.Accounts)
-    if (Get-Command Get-AzAccessToken -ErrorAction SilentlyContinue) {
-        Write-Verbose "Az.Accounts module detected, attempting Get-AzAccessToken..."
-        try {
-            $azParams = @{ ResourceUrl = $resource }
-            if ($KeyVaultTenantId) { $azParams.TenantId = $KeyVaultTenantId }
-            $azToken = Get-AzAccessToken @azParams -ErrorAction Stop
-            $tokenValue = if ($azToken.Token -is [System.Security.SecureString]) {
-                [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR(
-                    [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($azToken.Token)
-                )
-            } else {
-                $azToken.Token
-            }
-            Write-Verbose "Successfully obtained Key Vault token via Az module"
-            return $tokenValue
-        } catch {
-            Write-Verbose "Az module token failed (not logged in or expired): $($_.Exception.Message)"
-        }
-    } else {
-        Write-Verbose "Az.Accounts module not loaded, skipping"
-    }
-
-    # 2. Try Azure CLI
-    if (Get-Command az -ErrorAction SilentlyContinue) {
-        Write-Verbose "Azure CLI detected, attempting az account get-access-token..."
-        try {
-            $azCliArgs = @("account", "get-access-token", "--resource", $resource, "--output", "json")
-            if ($KeyVaultTenantId) { $azCliArgs += @("--tenant", $KeyVaultTenantId) }
-            $azCliOutput = & az @azCliArgs 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                $azCliToken = ($azCliOutput | Out-String) | ConvertFrom-Json
-                Write-Verbose "Successfully obtained Key Vault token via Azure CLI"
-                return $azCliToken.accessToken
-            } else {
-                Write-Verbose "Azure CLI token failed (not logged in): $azCliOutput"
-            }
-        } catch {
-            Write-Verbose "Azure CLI token attempt failed: $($_.Exception.Message)"
-        }
-    } else {
-        Write-Verbose "Azure CLI (az) not found on PATH, skipping"
-    }
-
-    # 3. Try IMDS (managed identity)
-    # Not providing -KeyVaultClientId uses system-assigned MI.
-    # Providing -KeyVaultClientId uses user-assigned MI with that client ID.
-    Write-Verbose "Attempting IMDS managed identity ($modeDescription)..."
-    try {
-        $imdsUrl = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=$([uri]::EscapeDataString($resource))"
-        if ($KeyVaultClientId) {
-            $imdsUrl += "&client_id=$([uri]::EscapeDataString($KeyVaultClientId))"
-        }
-        $imdsResponse = Invoke-RestMethod -Uri $imdsUrl -Headers @{ Metadata = "true" } -TimeoutSec 3 -ErrorAction Stop
-        Write-Verbose "Successfully obtained Key Vault token via IMDS ($modeDescription)"
-        return $imdsResponse.access_token
-    } catch {
-        Write-Verbose "IMDS token failed (not running in Azure or no managed identity): $($_.Exception.Message)"
-    }
-
-    # All methods failed
-    throw @"
-Could not obtain an Azure Key Vault access token. Ensure one of the following:
-  * Run Connect-AzAccount (Az.Accounts module) before calling this cmdlet
-  * Sign in with Azure CLI: az login
-  * Run this cmdlet from an Azure resource with a managed identity assigned
-  * Provide -KeyVaultClientId for a user-assigned managed identity
-"@
+    Get-XdrAzureAccessToken -Resource "https://vault.azure.net" `
+        -TenantId $KeyVaultTenantId `
+        -ManagedIdentityClientId $KeyVaultClientId `
+        -ResourceDisplayName 'Azure Key Vault'
 }
 
 #endregion

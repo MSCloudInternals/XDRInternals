@@ -179,6 +179,44 @@
         $result.PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsPolicyShadowIT'
     }
 
+    It 'skips null entries when typing policy arrays returned by the API' {
+        Mock Get-XdrCache { $null } -ModuleName XDRInternals
+        Mock Set-XdrCache {} -ModuleName XDRInternals
+        Mock Invoke-RestMethod {
+            [pscustomobject]@{
+                data = @(
+                    $null,
+                    [pscustomobject]@{ name = 'Shadow IT policy' }
+                )
+            }
+        } -ModuleName XDRInternals
+
+        $result = @(Get-XdrCloudAppsPolicy -Type ShadowIT -Force)
+
+        $result | Should -HaveCount 1
+        $result[0].name | Should -Be 'Shadow IT policy'
+        $result[0].PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsPolicyShadowIT'
+    }
+
+    It 'skips null entries when returning cached typed policy arrays' {
+        $cachedPolicy = [pscustomobject]@{ name = 'Shadow IT policy' }
+        Mock Get-XdrCache {
+            [pscustomobject]@{
+                NotValidAfter = (Get-Date).AddMinutes(5)
+                Value         = @(
+                    $null,
+                    $cachedPolicy
+                )
+            }
+        } -ModuleName XDRInternals
+
+        $result = @(Get-XdrCloudAppsPolicy -Type ShadowIT)
+
+        $result | Should -HaveCount 1
+        $result[0].name | Should -Be 'Shadow IT policy'
+        $result[0].PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsPolicyShadowIT'
+    }
+
     It 'splits mixed recent and archived count-only timeline requests' {
         $from = [datetime]::UtcNow.AddDays(-35)
         $to = [datetime]::UtcNow.AddDays(-1)
@@ -190,6 +228,102 @@
         }
         Should -Invoke Invoke-XdrCloudAppsRequest -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
             $Path -eq '/mcas/cas/api/v1/activities/count/'
+        }
+    }
+
+    It 'skips null activity payload items when writing chunk files' {
+        $eventTime = [datetime]::UtcNow.AddMinutes(-5)
+        $eventTimestamp = [long](($eventTime - [datetime]'1970-01-01').TotalMilliseconds)
+
+        Mock Invoke-RestMethod {
+            [pscustomobject]@{
+                data    = @(
+                    $null,
+                    [pscustomobject]@{
+                        _id       = 'activity-1'
+                        timestamp = $eventTimestamp
+                        date      = $eventTime.ToString('o')
+                        appName   = 'Microsoft 365'
+                    },
+                    $null
+                )
+                hasNext = $false
+            }
+        } -ModuleName XDRInternals
+
+        InModuleScope -ModuleName XDRInternals -Parameters @{ TempPath = $TestDrive; EventTime = $eventTime } {
+            param($TempPath, $EventTime)
+
+            $script:session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            $script:headers = @{}
+            $hadScriptVersionTable = Test-Path -Path variable:script:PSVersionTable
+            $originalVersionTable = if ($hadScriptVersionTable) { (Get-Item -Path variable:script:PSVersionTable).Value } else { $null }
+
+            try {
+                $script:PSVersionTable = @{ PSVersion = [version]'5.1.0' }
+
+                $result = @(Get-XdrCloudAppsActivityTimeline -FromDate $EventTime.AddHours(-1) -ToDate $EventTime.AddHours(1) -OutputPath $TempPath -KeepTempFiles)
+
+                $result | Should -HaveCount 1
+                $result[0]._id | Should -Be 'activity-1'
+
+                $chunkPath = Get-ChildItem -Path $TempPath -Recurse -Filter 'chunk_*.json' | Select-Object -First 1 -ExpandProperty FullName
+                $chunkContent = Get-Content -Path $chunkPath -Raw
+
+                $chunkContent | Should -Not -Match 'null'
+            }
+            finally {
+                if ($hadScriptVersionTable) {
+                    $script:PSVersionTable = $originalVersionTable
+                }
+                else {
+                    Remove-Item -Path variable:script:PSVersionTable -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+
+    It 'parses string activity payload responses when writing chunk files' {
+        $eventTime = [datetime]::UtcNow.AddMinutes(-5)
+        $eventTimestamp = [long](($eventTime - [datetime]'1970-01-01').TotalMilliseconds)
+        Mock Invoke-RestMethod {
+            @{
+                data = @(
+                    @{
+                        _id       = 'activity-string-1'
+                        timestamp = $eventTimestamp
+                        date      = $eventTime.ToString('o')
+                        appName   = 'Microsoft 365'
+                    }
+                )
+                hasNext = $false
+            } | ConvertTo-Json -Depth 10 -Compress
+        } -ModuleName XDRInternals
+
+        InModuleScope -ModuleName XDRInternals -Parameters @{ TempPath = $TestDrive; EventTime = $eventTime } {
+            param($TempPath, $EventTime)
+
+            $script:session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            $script:headers = @{}
+            $hadScriptVersionTable = Test-Path -Path variable:script:PSVersionTable
+            $originalVersionTable = if ($hadScriptVersionTable) { (Get-Item -Path variable:script:PSVersionTable).Value } else { $null }
+
+            try {
+                $script:PSVersionTable = @{ PSVersion = [version]'5.1.0' }
+
+                $result = @(Get-XdrCloudAppsActivityTimeline -FromDate $EventTime.AddHours(-1) -ToDate $EventTime.AddHours(1) -OutputPath $TempPath -KeepTempFiles)
+
+                $result | Should -HaveCount 1
+                $result[0]._id | Should -Be 'activity-string-1'
+            }
+            finally {
+                if ($hadScriptVersionTable) {
+                    $script:PSVersionTable = $originalVersionTable
+                }
+                else {
+                    Remove-Item -Path variable:script:PSVersionTable -ErrorAction SilentlyContinue
+                }
+            }
         }
     }
 
@@ -267,6 +401,31 @@ Describe 'Invoke-XdrCloudAppsRequest' {
 
             $result.name | Should -Be 'Item1'
             $result.PSObject.TypeNames[0] | Should -Be 'XdrCloudAppsTest'
+        }
+    }
+
+    It 'skips null items without duplicating an existing Cloud Apps type name' {
+        Mock Invoke-RestMethod {
+            $typedItem = [pscustomobject]@{ name = 'Item1' }
+            $typedItem.PSObject.TypeNames.Insert(0, 'XdrCloudAppsTest')
+
+            [pscustomobject]@{
+                data = @(
+                    $null,
+                    $typedItem,
+                    [pscustomobject]@{ name = 'Item2' }
+                )
+            }
+        } -ModuleName XDRInternals
+
+        InModuleScope XDRInternals {
+            $result = @(Invoke-XdrCloudAppsRequest -Path '/mcas/test' -TypeName 'XdrCloudAppsTest')
+
+            $result | Should -HaveCount 2
+            $result[0].name | Should -Be 'Item1'
+            ($result[0].PSObject.TypeNames | Where-Object { $_ -eq 'XdrCloudAppsTest' }).Count | Should -Be 1
+            $result[1].name | Should -Be 'Item2'
+            ($result[1].PSObject.TypeNames | Where-Object { $_ -eq 'XdrCloudAppsTest' }).Count | Should -Be 1
         }
     }
 

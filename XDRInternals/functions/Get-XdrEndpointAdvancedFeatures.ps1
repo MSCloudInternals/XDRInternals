@@ -199,7 +199,7 @@
                 Name        = "CustomASRRulesAdvancedProcessTermination"
                 Value       = $BasicAdvancedFeatures.EnableCustomAsrAdvancedProcessTermination
                 Description = "Enable or disable the ability to kill parent processes."
-                ConfigurableInPortal = $true
+                ConfigurableInPortal = $false
             }
             [PSCustomObject]@{
                 Name        = "AllowRestrictedSecurityOperationsDuringOnboarding"

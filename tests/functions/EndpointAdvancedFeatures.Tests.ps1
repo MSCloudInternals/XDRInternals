@@ -27,7 +27,7 @@ Describe 'Endpoint advanced features' -Tag 'Functions', 'Endpoint', 'ReviewRegre
 
         $customAsr.Value | Should -BeTrue
         $customAsr.Description | Should -Be 'Enable or disable the ability to kill parent processes.'
-        $customAsr.ConfigurableInPortal | Should -BeTrue
+        $customAsr.ConfigurableInPortal | Should -BeFalse
         $restrictedOnboarding.Value | Should -BeFalse
         $restrictedOnboarding.Description | Should -Match '^Provides the option to restrict security operations'
         $restrictedOnboarding.ConfigurableInPortal | Should -BeTrue

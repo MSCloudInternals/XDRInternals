@@ -285,6 +285,67 @@
             }
         }
 
+        It 'fails closed when automatic discovery is incomplete' {
+            Mock Get-XdrAzureDataExplorerCluster {
+                @(
+                    [pscustomobject]@{
+                        ClusterName       = 'MyFreeCluster'
+                        ClusterUri        = 'https://free.kusto.windows.net'
+                        IngestionUri      = 'https://ingest-free.kusto.windows.net'
+                        ProvisioningState = 'Running'
+                        State             = 'Running'
+                        Databases         = @([pscustomobject]@{ DatabaseName = 'MyDatabase'; Kind = 'ReadWrite' })
+                        DiscoveryStatus   = [pscustomobject]@{
+                            IsComplete = $false
+                            Failures   = @([pscustomobject]@{
+                                    Provider = 'AzureResourceManager'
+                                    Scope    = 'Subscription discovery'
+                                    Message  = 'ARM unavailable'
+                                })
+                        }
+                    }
+                )
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                {
+                    Set-XdrAzureDataExplorerConnection -NonInteractive
+                } | Should -Throw '*connection discovery was incomplete*ARM unavailable*AllowPartialDiscovery*'
+            }
+        }
+
+        It 'allows explicit opt-in to select from partial discovery results' {
+            Mock Get-XdrAzureDataExplorerCluster {
+                @(
+                    [pscustomobject]@{
+                        ClusterName       = 'MyFreeCluster'
+                        ClusterUri        = 'https://free.kusto.windows.net'
+                        IngestionUri      = 'https://ingest-free.kusto.windows.net'
+                        TenantId          = 'tenant-free'
+                        ProvisioningState = 'Running'
+                        State             = 'Running'
+                        Databases         = @([pscustomobject]@{ DatabaseName = 'MyDatabase'; Kind = 'ReadWrite' })
+                        DiscoveryStatus   = [pscustomobject]@{
+                            IsComplete = $false
+                            Failures   = @([pscustomobject]@{
+                                    Provider = 'AzureResourceManager'
+                                    Scope    = 'Subscription discovery'
+                                    Message  = 'ARM unavailable'
+                                })
+                        }
+                    }
+                )
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                Set-XdrAzureDataExplorerConnection -NonInteractive -AllowPartialDiscovery
+
+                $connection = Get-XdrAzureDataExplorerConnection
+                $connection.ClusterUri.AbsoluteUri | Should -Be 'https://free.kusto.windows.net/'
+                $connection.Database | Should -Be 'MyDatabase'
+            }
+        }
+
         It 'does not perform discovery when WhatIf is used in discover mode' {
             Mock Resolve-XdrAzureDataExplorerDiscoveredConnection {
                 throw 'Discovery should not run under WhatIf'
@@ -354,7 +415,7 @@
             } -ModuleName XDRInternals
 
             InModuleScope XDRInternals {
-                $result = @(Get-XdrAzureDataExplorerCluster -IncludeDatabases -RequestTimeout 123)
+                $result = @(Get-XdrAzureDataExplorerCluster -IncludeDatabases -RequestTimeout 123 -WarningVariable discoveryWarnings)
 
                 $result.Count | Should -Be 1
                 $result[0].ClusterName | Should -Be 'labcluster'
@@ -487,6 +548,8 @@
                 $result[0].SubscriptionId | Should -Be 'sub-2'
                 $result[0].ClusterName | Should -Be 'appcluster'
                 $result[0].TenantId | Should -Be 'tenant-2'
+                $result[0].DiscoveryStatus.IsComplete | Should -BeTrue
+                $result[0].DiscoveryStatus.Failures | Should -BeNullOrEmpty
             }
 
             Should -Invoke Get-XdrAzureResourceManagerCollection -ModuleName XDRInternals -Times 0 -Exactly -ParameterFilter {
@@ -501,6 +564,10 @@
             Should -Invoke Get-XdrAzureAccessToken -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
                 $Resource -eq 'https://management.azure.com/' -and
                 $TenantId -eq 'tenant-2'
+            }
+
+            Should -Invoke Get-XdrAzureAccessToken -ModuleName XDRInternals -Times 0 -Exactly -ParameterFilter {
+                $Resource -eq 'https://help.kusto.windows.net'
             }
         }
 
@@ -626,7 +693,7 @@
             } -ModuleName XDRInternals
 
             InModuleScope XDRInternals {
-                $result = @(Get-XdrAzureDataExplorerCluster -IncludeDatabases -RequestTimeout 123)
+                $result = @(Get-XdrAzureDataExplorerCluster -IncludeDatabases -RequestTimeout 123 -WarningVariable discoveryWarnings)
 
                 $result.Count | Should -Be 1
                 $result[0].ClusterName | Should -Be 'MyFreeCluster'
@@ -637,6 +704,11 @@
                 @($result[0].Databases).Count | Should -Be 1
                 $result[0].Databases[0].DatabaseName | Should -Be 'MyDatabase'
                 $result[0].Databases[0].Kind | Should -Be 'ReadWrite'
+                $result[0].DiscoveryStatus.IsComplete | Should -BeFalse
+                $result[0].DiscoveryStatus.Failures | Should -HaveCount 1
+                $result[0].DiscoveryStatus.Failures[0].Provider | Should -Be 'AzureResourceManager'
+                @($discoveryWarnings) | Should -HaveCount 1
+                @($discoveryWarnings)[0].Message | Should -BeLike '*discovery returned partial results*ARM auth unavailable*'
             }
 
             Should -Invoke Get-XdrAzureAccessToken -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
@@ -756,7 +828,7 @@
             } -ModuleName XDRInternals
 
             InModuleScope XDRInternals {
-                $result = @(Get-XdrAzureDataExplorerCluster -IncludeDatabases)
+                $result = @(Get-XdrAzureDataExplorerCluster -IncludeDatabases -WarningVariable discoveryWarnings)
 
                 $result.Count | Should -Be 2
                 $result[0].ClusterName | Should -Be 'nm-test-cluster'
@@ -764,6 +836,13 @@
                 $result[1].ClusterName | Should -Be 'MyFreeCluster'
                 @($result[1].Databases).Count | Should -Be 1
                 $result[1].Databases[0].DatabaseName | Should -Be 'MyDatabase'
+                $result[0].DiscoveryStatus.IsComplete | Should -BeFalse
+                $result[0].DiscoveryStatus.Failures | Should -HaveCount 1
+                $result[0].DiscoveryStatus.Failures[0].Provider | Should -Be 'AzureResourceManager'
+                $result[0].DiscoveryStatus.Failures[0].Scope | Should -Be 'Cluster nm-test-cluster database enumeration'
+                [object]::ReferenceEquals($result[1].DiscoveryStatus, $result[0].DiscoveryStatus) | Should -BeTrue
+                @($discoveryWarnings) | Should -HaveCount 1
+                @($discoveryWarnings)[0].Message | Should -BeLike '*discovery returned partial results*Cannot fetch databases*'
             }
         }
     }
@@ -912,6 +991,169 @@
 
             InModuleScope XDRInternals {
                 (Test-XdrAzureDataExplorerTable -ClusterUri 'https://contoso.westeurope.kusto.windows.net' -Database 'Investigations' -TableName 'DeviceTimeline' -Token 'token') | Should -BeFalse
+            }
+        }
+    }
+
+    Describe 'Initialize-XdrAzureDataExplorerTable' {
+        BeforeEach {
+            Mock Invoke-XdrAzureDataExplorerManagementCommand {} -ModuleName XDRInternals
+        }
+
+        It 'creates a missing table and module-owned mapping with convergent commands' {
+            Mock Get-XdrAzureDataExplorerTableSchema { $null } -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerMapping { $null } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                Initialize-XdrAzureDataExplorerTable `
+                    -ClusterUri 'https://contoso.westeurope.kusto.windows.net' `
+                    -Database 'Investigations' `
+                    -TableName 'DeviceTimeline' `
+                    -MappingName 'DeviceTimeline_EventMapping' `
+                    -Token 'token'
+            }
+
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Command -eq '.create-merge tables DeviceTimeline (Event:dynamic)'
+            }
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Command.StartsWith(".create-or-alter table DeviceTimeline ingestion json mapping 'DeviceTimeline_EventMapping' '[")
+            }
+        }
+
+        It 'does not mutate a current table or mapping' {
+            Mock Get-XdrAzureDataExplorerTableSchema { @{ Event = 'dynamic' } } -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerMapping {
+                [pscustomobject]@{
+                    Name    = 'DeviceTimeline_EventMapping'
+                    Mapping = '[{"column":"Event","Properties":{"path":"$"}}]'
+                }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                Initialize-XdrAzureDataExplorerTable `
+                    -ClusterUri 'https://contoso.westeurope.kusto.windows.net' `
+                    -Database 'Investigations' `
+                    -TableName 'DeviceTimeline' `
+                    -MappingName 'DeviceTimeline_EventMapping' `
+                    -Token 'token'
+            }
+
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'adds missing typed columns and replaces a stale module-owned mapping' {
+            Mock Get-XdrAzureDataExplorerTableSchema { @{ ActionTime = 'datetime' } } -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerMapping {
+                [pscustomobject]@{
+                    Name    = 'XDRTest_EventMapping'
+                    Mapping = '[{"column":"ActionTime","Properties":{"path":"$.OldTime"}}]'
+                }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $profile = @{
+                    Columns        = @(
+                        @{ Name = 'ActionTime'; Type = 'datetime' },
+                        @{ Name = 'Event'; Type = 'dynamic' }
+                    )
+                    ColumnMappings = @(
+                        @{ Column = 'ActionTime'; Properties = @{ Path = '$.ActionTime' } },
+                        @{ Column = 'Event'; Properties = @{ Path = '$' } }
+                    )
+                }
+
+                Initialize-XdrAzureDataExplorerTable `
+                    -ClusterUri 'https://contoso.westeurope.kusto.windows.net' `
+                    -Database 'Investigations' `
+                    -TableName 'XDRTest' `
+                    -MappingName 'XDRTest_EventMapping' `
+                    -Token 'token' `
+                    -TableProfile $profile
+            }
+
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Command -eq '.create-merge tables XDRTest (ActionTime:datetime, Event:dynamic)'
+            }
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Command -like ".create-or-alter table XDRTest ingestion json mapping 'XDRTest_EventMapping' *"
+            }
+        }
+
+        It 'fails before mutation when a typed column is incompatible' {
+            Mock Get-XdrAzureDataExplorerTableSchema { @{ ActionTime = 'string'; Event = 'dynamic' } } -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerMapping {
+                [pscustomobject]@{ Name = 'XDRTest_EventMapping'; Mapping = '[]' }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $profile = @{
+                    Columns        = @(
+                        @{ Name = 'ActionTime'; Type = 'datetime' },
+                        @{ Name = 'Event'; Type = 'dynamic' }
+                    )
+                    ColumnMappings = @(
+                        @{ Column = 'ActionTime'; Properties = @{ Path = '$.ActionTime' } },
+                        @{ Column = 'Event'; Properties = @{ Path = '$' } }
+                    )
+                }
+
+                {
+                    Initialize-XdrAzureDataExplorerTable `
+                        -ClusterUri 'https://contoso.westeurope.kusto.windows.net' `
+                        -Database 'Investigations' `
+                        -TableName 'XDRTest' `
+                        -MappingName 'XDRTest_EventMapping' `
+                        -Token 'token' `
+                        -TableProfile $profile
+                } | Should -Throw '*ActionTime (expected datetime, found string)*No schema or mapping changes were applied*'
+            }
+
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'preserves an existing explicitly named manual mapping' {
+            Mock Get-XdrAzureDataExplorerTableSchema { @{ Event = 'dynamic' } } -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerMapping {
+                [pscustomobject]@{
+                    Name    = 'CallerMapping'
+                    Mapping = '[{"column":"CustomColumn","Properties":{"path":"$.Custom"}}]'
+                }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                Initialize-XdrAzureDataExplorerTable `
+                    -ClusterUri 'https://contoso.westeurope.kusto.windows.net' `
+                    -Database 'Investigations' `
+                    -TableName 'DeviceTimeline' `
+                    -MappingName 'CallerMapping' `
+                    -Token 'token' `
+                    -PreserveExistingMapping
+            }
+
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'uses idempotent management commands when initializers race on a missing table' {
+            Mock Get-XdrAzureDataExplorerTableSchema { $null } -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerMapping { $null } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                1..2 | ForEach-Object {
+                    Initialize-XdrAzureDataExplorerTable `
+                        -ClusterUri 'https://contoso.westeurope.kusto.windows.net' `
+                        -Database 'Investigations' `
+                        -TableName 'ConcurrentTable' `
+                        -MappingName 'ConcurrentTable_EventMapping' `
+                        -Token 'token'
+                }
+            }
+
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 2 -Exactly -ParameterFilter {
+                $Command -eq '.create-merge tables ConcurrentTable (Event:dynamic)'
+            }
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 2 -Exactly -ParameterFilter {
+                $Command -like ".create-or-alter table ConcurrentTable ingestion json mapping 'ConcurrentTable_EventMapping' *"
             }
         }
     }
@@ -1350,6 +1592,144 @@
 
             Should -Invoke Get-XdrAzureDataExplorerIngestionConfiguration -ModuleName XDRInternals -Times 2 -Exactly
         }
+
+        It 'retains SkipBootstrap behavior' {
+            $null = [pscustomobject]@{ DeviceId = 'device-1' } |
+                Export-XdrAzureDataExplorer -TableName 'ExistingTable' -TempPath $TestDrive -SkipBootstrap
+
+            Should -Invoke Initialize-XdrAzureDataExplorerTable -ModuleName XDRInternals -Times 0 -Exactly
+            Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 1 -Exactly
+        }
+
+        It 'removes staging data when runtime configuration fails during begin' {
+            Mock Get-XdrAzureDataExplorerIngestionConfiguration { throw 'configuration failed' } -ModuleName XDRInternals
+            $stagingRoot = Join-Path $TestDrive 'configuration-failure'
+
+            { [pscustomobject]@{ DeviceId = 'device-1' } |
+                    Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $stagingRoot } |
+                Should -Throw '*configuration failed*'
+
+            @(Get-ChildItem -LiteralPath $stagingRoot -Force -ErrorAction SilentlyContinue) | Should -HaveCount 0
+            Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'removes staging data when bootstrap fails' {
+            Mock Initialize-XdrAzureDataExplorerTable { throw 'bootstrap failed' } -ModuleName XDRInternals
+            $stagingRoot = Join-Path $TestDrive 'bootstrap-failure'
+
+            { [pscustomobject]@{ DeviceId = 'device-1' } |
+                    Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $stagingRoot } |
+                Should -Throw '*bootstrap failed*'
+
+            @(Get-ChildItem -LiteralPath $stagingRoot -Force -ErrorAction SilentlyContinue) | Should -HaveCount 0
+            Should -Invoke Send-XdrAzureDataExplorerBlobUpload -ModuleName XDRInternals -Times 0 -Exactly
+            Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'closes writers and removes staging data when serialization fails' {
+            $script:serializationCount = 0
+            $stagingRoot = Join-Path $TestDrive 'serialization-failure'
+            Mock ConvertTo-Json {
+                $script:serializationCount++
+                if ($script:serializationCount -eq 2) {
+                    throw 'serialization failed'
+                }
+
+                '{"DeviceId":"device-1"}'
+            } -ModuleName XDRInternals
+
+            $records = @(
+                [pscustomobject]@{ DeviceId = 'device-1' },
+                [pscustomobject]@{ DeviceId = 'device-2' }
+            )
+
+            { $records | Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $stagingRoot } |
+                Should -Throw '*serialization failed*'
+
+            @(Get-ChildItem -LiteralPath $stagingRoot -Force -ErrorAction SilentlyContinue) | Should -HaveCount 0
+            Should -Invoke Send-XdrAzureDataExplorerBlobUpload -ModuleName XDRInternals -Times 0 -Exactly
+            Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'removes staging data when upload fails' {
+            Mock Send-XdrAzureDataExplorerBlobUpload { throw 'upload failed' } -ModuleName XDRInternals
+            $stagingRoot = Join-Path $TestDrive 'upload-failure'
+
+            { [pscustomobject]@{ DeviceId = 'device-1' } |
+                    Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $stagingRoot } |
+                Should -Throw '*upload failed*'
+
+            @(Get-ChildItem -LiteralPath $stagingRoot -Force -ErrorAction SilentlyContinue) | Should -HaveCount 0
+            Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'removes staging data when ingestion waiting fails after submission' {
+            Mock Wait-XdrAzureDataExplorerQueuedIngestion { throw 'wait failed' } -ModuleName XDRInternals
+            $stagingRoot = Join-Path $TestDrive 'wait-failure'
+
+            { [pscustomobject]@{ DeviceId = 'device-1' } |
+                    Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $stagingRoot -WaitForIngestion } |
+                Should -Throw '*wait failed*'
+
+            @(Get-ChildItem -LiteralPath $stagingRoot -Force -ErrorAction SilentlyContinue) | Should -HaveCount 0
+            Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 1 -Exactly
+        }
+
+        It 'removes staging data when queued ingestion submission fails' {
+            Mock Send-XdrAzureDataExplorerQueuedIngestion { throw 'submission failed' } -ModuleName XDRInternals
+            $stagingRoot = Join-Path $TestDrive 'submission-failure'
+
+            { [pscustomobject]@{ DeviceId = 'device-1' } |
+                    Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $stagingRoot } |
+                Should -Throw '*submission failed*'
+
+            @(Get-ChildItem -LiteralPath $stagingRoot -Force -ErrorAction SilentlyContinue) | Should -HaveCount 0
+            Should -Invoke Send-XdrAzureDataExplorerBlobUpload -ModuleName XDRInternals -Times 1 -Exactly
+        }
+
+        It 'keeps staging files after a failure when requested' {
+            Mock Send-XdrAzureDataExplorerBlobUpload { throw 'upload failed' } -ModuleName XDRInternals
+            $stagingRoot = Join-Path $TestDrive 'kept-upload-failure'
+
+            { [pscustomobject]@{ DeviceId = 'device-1' } |
+                    Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $stagingRoot -KeepTempFiles } |
+                Should -Throw '*upload failed*'
+
+            @(Get-ChildItem -LiteralPath $stagingRoot -Recurse -File) | Should -Not -BeNullOrEmpty
+            Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'does not upload or submit buffered data after downstream pipeline cancellation' {
+            $records = 1..3 | ForEach-Object { [pscustomobject]@{ Sequence = $_ } }
+            $stagingRoot = Join-Path $TestDrive 'pipeline-cancellation'
+
+            $result = @($records |
+                    Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $stagingRoot -PassThru |
+                    Select-Object -First 1)
+
+            $result | Should -HaveCount 1
+            @(Get-ChildItem -LiteralPath $stagingRoot -Force -ErrorAction SilentlyContinue) | Should -HaveCount 0
+            Should -Invoke Send-XdrAzureDataExplorerBlobUpload -ModuleName XDRInternals -Times 0 -Exactly
+            Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'keeps closed staging files after downstream cancellation when requested' {
+            $records = 1..3 | ForEach-Object { [pscustomobject]@{ Sequence = $_ } }
+            $stagingRoot = Join-Path $TestDrive 'kept-pipeline-cancellation'
+
+            $null = @($records |
+                    Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -TempPath $stagingRoot -PassThru -KeepTempFiles |
+                    Select-Object -First 1)
+
+            $stagedJsonPath = Get-ChildItem -LiteralPath $stagingRoot -Recurse -Filter '*.json' |
+                Select-Object -First 1 -ExpandProperty FullName
+            $stagedJsonPath | Should -Not -BeNullOrEmpty
+            $exclusiveHandle = [System.IO.File]::Open($stagedJsonPath, 'Open', 'ReadWrite', 'None')
+            $exclusiveHandle.Dispose()
+            Should -Invoke Send-XdrAzureDataExplorerBlobUpload -ModuleName XDRInternals -Times 0 -Exactly
+            Should -Invoke Send-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
     }
 
     Describe 'Get-XdrAzureDataExplorerIngestionStatus' {

@@ -18,6 +18,10 @@
         Use -TrackIngestion together with Get-XdrAzureDataExplorerIngestionStatus, or use
         -WaitForIngestion when you want the cmdlet to wait for queued ingestion to finish.
 
+        If a later batch or pipeline stage fails, queued batches that were already submitted cannot
+        be rolled back. Pipeline cancellation closes local writers and removes staging files without
+        uploading or submitting the buffered, unclosed batch.
+
         Requires Set-XdrAzureDataExplorerConnection to be called first.
 
     .NOTES
@@ -159,6 +163,10 @@
     )
 
     begin {
+        $sessionStagingPath = $null
+        $tableStates = @{}
+        $cleanupCompleted = $false
+
         $connection = Get-XdrAzureDataExplorerConnection
         $isSourceMode = $PSCmdlet.ParameterSetName -eq 'TypedSource'
 
@@ -181,7 +189,6 @@
         $null = New-Item -ItemType Directory -Path $sessionStagingPath -Force
 
         $utf8 = [System.Text.UTF8Encoding]::new($false)
-        $tableStates = @{}
         $runtimeState = @{
             Configuration           = $null
             ContainerPath           = $null
@@ -341,7 +348,14 @@
             $tableStates[$TableName] = & $newTableState $TableName $resolvedMappingName $null
 
             if (-not $SkipBootstrap) {
-                Initialize-XdrAzureDataExplorerTable -ClusterUri $connection.ClusterUri -Database $connection.Database -TableName $TableName -MappingName $resolvedMappingName -Token $token
+                $preserveExistingMapping = $PSBoundParameters.ContainsKey('MappingName')
+                Initialize-XdrAzureDataExplorerTable `
+                    -ClusterUri $connection.ClusterUri `
+                    -Database $connection.Database `
+                    -TableName $TableName `
+                    -MappingName $resolvedMappingName `
+                    -Token $token `
+                    -PreserveExistingMapping:$preserveExistingMapping
                 $tableStates[$TableName].initialized = $true
             }
         }
@@ -427,97 +441,92 @@
     }
 
     end {
-        try {
-            foreach ($ts in $tableStates.Values) {
-                & $closeStagedBlob $ts
+        foreach ($ts in $tableStates.Values) {
+            & $closeStagedBlob $ts
+        }
+
+        foreach ($ts in $tableStates.Values) {
+            & $submitPendingBlobBatch $ts
+        }
+
+        $totalRecords = ($tableStates.Values | Measure-Object -Property recordCount -Sum).Sum
+        foreach ($ts in $tableStates.Values) {
+            if ($ts.recordCount -le 0) {
+                continue
             }
 
-            foreach ($ts in $tableStates.Values) {
-                & $submitPendingBlobBatch $ts
+            if ($isSourceMode) {
+                Write-Verbose "Queued $($ts.recordCount) record(s) for table '$($ts.tableName)'"
+            }
+            else {
+                Write-Verbose "Queued $($ts.recordCount) record(s) for Azure Data Explorer table '$($ts.tableName)'."
             }
 
-            $totalRecords = ($tableStates.Values | Measure-Object -Property recordCount -Sum).Sum
+            if ($shouldTrackIngestion -and $ts.queuedOperationIds.Count -gt 0) {
+                Write-Verbose "Queued ingestion operation IDs for '$($ts.tableName)': $($ts.queuedOperationIds -join ', ')"
+            }
+        }
+
+        if ($totalRecords -gt 0 -and -not $WaitForIngestion) {
+            Write-Verbose "Azure Data Explorer queued ingestion is asynchronous, so the exported data may take a few minutes before it becomes queryable."
+        }
+
+        if ($WaitForIngestion) {
+            $allFailedStatuses = [System.Collections.Generic.List[pscustomobject]]::new()
+
             foreach ($ts in $tableStates.Values) {
-                if ($ts.recordCount -le 0) {
+                if ($ts.queuedOperationIds.Count -eq 0) {
                     continue
                 }
 
-                if ($isSourceMode) {
-                    Write-Verbose "Queued $($ts.recordCount) record(s) for table '$($ts.tableName)'"
-                }
-                else {
-                    Write-Verbose "Queued $($ts.recordCount) record(s) for Azure Data Explorer table '$($ts.tableName)'."
-                }
+                $statuses = Wait-XdrAzureDataExplorerQueuedIngestion -IngestionUri $connection.IngestionUri `
+                    -Database $connection.Database `
+                    -TableName $ts.tableName `
+                    -OperationId ($ts.queuedOperationIds.ToArray()) `
+                    -Token $token `
+                    -TimeoutMinutes $WaitTimeoutMinutes `
+                    -PollingIntervalSeconds $StatusPollingIntervalSeconds `
+                    -Details
 
-                if ($shouldTrackIngestion -and $ts.queuedOperationIds.Count -gt 0) {
-                    Write-Verbose "Queued ingestion operation IDs for '$($ts.tableName)': $($ts.queuedOperationIds -join ', ')"
+                $failedStatuses = @($statuses | Where-Object HasFailures)
+                foreach ($fs in $failedStatuses) {
+                    $allFailedStatuses.Add($fs) | Out-Null
                 }
             }
 
-            if ($totalRecords -gt 0 -and -not $WaitForIngestion) {
-                Write-Verbose "Azure Data Explorer queued ingestion is asynchronous, so the exported data may take a few minutes before it becomes queryable."
+            if ($allFailedStatuses.Count -gt 0) {
+                $failureSummary = $allFailedStatuses | ForEach-Object {
+                    $detailText = if ($_.Details) {
+                        @($_.Details | Where-Object { $_.Status -eq 'Failed' -or $_.Status -eq 'Canceled' } | ForEach-Object {
+                                if ($_.ErrorCode) { "$($_.ErrorCode): $($_.Details)" } else { $_.Details }
+                            }) -join ' | '
+                    }
+                    else {
+                        $null
+                    }
+
+                    if ([string]::IsNullOrWhiteSpace($detailText)) {
+                        "$($_.OperationId) ($($_.Status))"
+                    }
+                    else {
+                        "$($_.OperationId) ($($_.Status)): $detailText"
+                    }
+                }
+
+                throw "One or more Azure Data Explorer queued ingestion operations failed: $($failureSummary -join '; ')"
             }
 
-            if ($WaitForIngestion) {
-                $allFailedStatuses = [System.Collections.Generic.List[pscustomobject]]::new()
-
-                foreach ($ts in $tableStates.Values) {
-                    if ($ts.queuedOperationIds.Count -eq 0) {
-                        continue
-                    }
-
-                    $statuses = Wait-XdrAzureDataExplorerQueuedIngestion -IngestionUri $connection.IngestionUri `
-                        -Database $connection.Database `
-                        -TableName $ts.tableName `
-                        -OperationId ($ts.queuedOperationIds.ToArray()) `
-                        -Token $token `
-                        -TimeoutMinutes $WaitTimeoutMinutes `
-                        -PollingIntervalSeconds $StatusPollingIntervalSeconds `
-                        -Details
-
-                    $failedStatuses = @($statuses | Where-Object HasFailures)
-                    foreach ($fs in $failedStatuses) {
-                        $allFailedStatuses.Add($fs) | Out-Null
-                    }
-                }
-
-                if ($allFailedStatuses.Count -gt 0) {
-                    $failureSummary = $allFailedStatuses | ForEach-Object {
-                        $detailText = if ($_.Details) {
-                            @($_.Details | Where-Object { $_.Status -eq 'Failed' -or $_.Status -eq 'Canceled' } | ForEach-Object {
-                                    if ($_.ErrorCode) { "$($_.ErrorCode): $($_.Details)" } else { $_.Details }
-                                }) -join ' | '
-                        }
-                        else {
-                            $null
-                        }
-
-                        if ([string]::IsNullOrWhiteSpace($detailText)) {
-                            "$($_.OperationId) ($($_.Status))"
-                        }
-                        else {
-                            "$($_.OperationId) ($($_.Status)): $detailText"
-                        }
-                    }
-
-                    throw "One or more Azure Data Explorer queued ingestion operations failed: $($failureSummary -join '; ')"
-                }
-
-                if ($totalRecords -gt 0) {
-                    Write-Verbose "All Azure Data Explorer queued ingestion operations completed successfully."
-                }
+            if ($totalRecords -gt 0) {
+                Write-Verbose "All Azure Data Explorer queued ingestion operations completed successfully."
             }
         }
-        finally {
-            foreach ($ts in $tableStates.Values) {
-                if ($ts.writer) {
-                    $ts.writer.Dispose()
-                }
-            }
+    }
 
-            if (-not $KeepTempFiles -and $sessionStagingPath -and (Test-Path $sessionStagingPath)) {
-                Remove-Item -Path $sessionStagingPath -Recurse -Force -ErrorAction SilentlyContinue
-            }
-        }
+    clean {
+        Clear-XdrAzureDataExplorerExportState `
+            -TableStates $tableStates `
+            -SessionStagingPath $sessionStagingPath `
+            -KeepTempFiles:$KeepTempFiles `
+            -CleanupCompleted ([ref]$cleanupCompleted)
     }
 }

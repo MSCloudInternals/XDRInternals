@@ -13,6 +13,12 @@
         Authentication uses the module's standard Azure token flow: explicit token, Az.Accounts,
         Azure CLI, browser-derived ESTS bridge, or managed identity.
 
+        Each returned cluster includes DiscoveryStatus metadata. IsComplete is false when a provider
+        or requested database enumeration failed, and Failures identifies the provider, scope, and
+        error. Partial results are returned with a warning. Supplying -SubscriptionId intentionally
+        scopes discovery to Azure Resource Manager and does not count skipped free-cluster discovery
+        as a failure.
+
     .PARAMETER SubscriptionId
         Optional subscription IDs to query. When omitted, all accessible subscriptions are enumerated.
 
@@ -79,10 +85,35 @@
     begin {
         $databaseFilterRequested = -not [string]::IsNullOrWhiteSpace($DatabaseName)
         $includeDatabaseList = $IncludeDatabases -or $databaseFilterRequested
-        $armDiscoveryError = $null
         $subscriptions = @()
         $effectiveTenantId = $TenantId
         $armTokensByTenant = @{}
+        $discoveryFailures = [System.Collections.Generic.List[object]]::new()
+
+        $addDiscoveryFailure = {
+            param(
+                [Parameter(Mandatory)]
+                [string]$Provider,
+
+                [Parameter(Mandatory)]
+                [string]$Scope,
+
+                [Parameter(Mandatory)]
+                $ErrorRecord
+            )
+
+            $message = if ($ErrorRecord.Exception) {
+                [string]$ErrorRecord.Exception.Message
+            }
+            else {
+                [string]$ErrorRecord
+            }
+            $discoveryFailures.Add([pscustomobject]@{
+                    Provider = $Provider
+                    Scope    = $Scope
+                    Message  = $message
+                }) | Out-Null
+        }
 
         $getArmToken = {
             param(
@@ -135,6 +166,7 @@
                         }
                     }
                     catch {
+                        & $addDiscoveryFailure 'AzureResourceManager' "Subscription $currentSubscriptionId metadata" $_
                         Write-Verbose "Could not retrieve metadata for subscription '$currentSubscriptionId' before Azure Data Explorer discovery: $($_.Exception.Message)"
                         [pscustomobject]@{
                             subscriptionId = $currentSubscriptionId
@@ -150,18 +182,13 @@
             }
         }
         catch {
-            $armDiscoveryError = $_
+            & $addDiscoveryFailure 'AzureResourceManager' 'Subscription discovery' $_
             Write-Verbose "Azure Resource Manager discovery setup failed: $($_.Exception.Message)"
         }
     }
 
     process {
         $results = [System.Collections.Generic.List[object]]::new()
-        $discoveryErrors = [System.Collections.Generic.List[object]]::new()
-
-        if ($armDiscoveryError) {
-            $discoveryErrors.Add($armDiscoveryError) | Out-Null
-        }
 
         foreach ($subscription in @($subscriptions)) {
             $currentSubscriptionId = [string]$subscription.subscriptionId
@@ -180,7 +207,7 @@
                 $subscriptionToken = & $getArmToken $currentSubscriptionTenantId
             }
             catch {
-                $discoveryErrors.Add($_) | Out-Null
+                & $addDiscoveryFailure 'AzureResourceManager' "Subscription $currentSubscriptionId token acquisition" $_
                 Write-Verbose "Azure Resource Manager token acquisition failed for subscription '$currentSubscriptionId': $($_.Exception.Message)"
                 continue
             }
@@ -190,7 +217,7 @@
                 $clusters = Get-XdrAzureResourceManagerCollection -Path "/subscriptions/$currentSubscriptionId/providers/Microsoft.Kusto/clusters?api-version=2024-04-13" -Token $subscriptionToken -TimeoutSec $RequestTimeout
             }
             catch {
-                $discoveryErrors.Add($_) | Out-Null
+                & $addDiscoveryFailure 'AzureResourceManager' "Subscription $currentSubscriptionId cluster enumeration" $_
                 Write-Verbose "Azure Data Explorer cluster enumeration failed for subscription '$currentSubscriptionId': $($_.Exception.Message)"
                 continue
             }
@@ -227,7 +254,9 @@
                 if ($includeDatabaseList) {
                     $databaseEnumerationFailed = $false
                     if ([string]::IsNullOrWhiteSpace($resourceGroupName)) {
-                        Write-Warning "Skipping database enumeration for cluster '$($clusterRecord.ClusterName)' because the resource group could not be parsed from '$clusterResourceId'."
+                        $resourceIdError = "The resource group could not be parsed from '$clusterResourceId'."
+                        & $addDiscoveryFailure 'AzureResourceManager' "Cluster $($clusterRecord.ClusterName) database enumeration" $resourceIdError
+                        Write-Warning "Skipping database enumeration for cluster '$($clusterRecord.ClusterName)' because $resourceIdError"
                     }
                     else {
                         Write-Verbose "Enumerating Azure Data Explorer databases for cluster '$($clusterRecord.ClusterName)'"
@@ -263,6 +292,7 @@
                         }
                         catch {
                             $databaseEnumerationFailed = $true
+                            & $addDiscoveryFailure 'AzureResourceManager' "Cluster $($clusterRecord.ClusterName) database enumeration" $_
                             Write-Verbose "Azure Data Explorer database enumeration failed for cluster '$($clusterRecord.ClusterName)': $($_.Exception.Message)"
                         }
                     }
@@ -402,6 +432,7 @@
                         }
                         catch {
                             $databaseEnumerationFailed = $true
+                            & $addDiscoveryFailure 'FreeCluster' "Cluster $($clusterRecord.ClusterName) database enumeration" $_
                             Write-Verbose "Azure Data Explorer database enumeration failed for free cluster '$($clusterRecord.ClusterName)': $($_.Exception.Message)"
                         }
 
@@ -418,15 +449,15 @@
                 }
             }
             catch {
-                $discoveryErrors.Add($_) | Out-Null
+                & $addDiscoveryFailure 'FreeCluster' 'Cluster discovery' $_
                 Write-Verbose "Azure Data Explorer free-cluster discovery failed: $($_.Exception.Message)"
             }
         }
 
-        if ($results.Count -eq 0 -and $discoveryErrors.Count -gt 0) {
+        if ($results.Count -eq 0 -and $discoveryFailures.Count -gt 0) {
             $discoveryMessages = @(
-                $discoveryErrors |
-                    ForEach-Object { $_.Exception.Message } |
+                $discoveryFailures |
+                    ForEach-Object { $_.Message } |
                     Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
                     Select-Object -Unique
             )
@@ -438,7 +469,20 @@
             throw "Azure Data Explorer discovery failed. $($discoveryMessages -join ' | ')"
         }
 
+        $discoveryStatus = [pscustomobject]@{
+            IsComplete = $discoveryFailures.Count -eq 0
+            Failures   = @($discoveryFailures.ToArray())
+        }
+
+        if (-not $discoveryStatus.IsComplete) {
+            $failureSummary = $discoveryStatus.Failures | ForEach-Object {
+                "$($_.Provider) [$($_.Scope)]: $($_.Message)"
+            }
+            Write-Warning "Azure Data Explorer discovery returned partial results. $($failureSummary -join ' | ')"
+        }
+
         foreach ($clusterResult in $results) {
+            $clusterResult | Add-Member -NotePropertyName DiscoveryStatus -NotePropertyValue $discoveryStatus -Force
             $clusterResult
         }
     }

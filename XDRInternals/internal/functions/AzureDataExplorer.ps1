@@ -115,6 +115,8 @@ function Resolve-XdrAzureDataExplorerDiscoveredConnection {
 
         [switch]$NonInteractive,
 
+        [switch]$AllowPartialDiscovery,
+
         [ValidateRange(1, 600)]
         [int]$RequestTimeout = 60
     )
@@ -141,6 +143,22 @@ function Resolve-XdrAzureDataExplorerDiscoveredConnection {
     $clusters = @(Get-XdrAzureDataExplorerCluster @discoveryParams)
     if ($clusters.Count -eq 0) {
         throw 'No Azure Data Explorer clusters matched the requested discovery criteria.'
+    }
+
+    $partialDiscoveryFailures = @(
+        $clusters | ForEach-Object {
+            if ($null -ne $_.DiscoveryStatus -and -not $_.DiscoveryStatus.IsComplete) {
+                $_.DiscoveryStatus.Failures
+            }
+        }
+    )
+    if ($partialDiscoveryFailures.Count -gt 0 -and -not $AllowPartialDiscovery) {
+        $failureSummary = @(
+            $partialDiscoveryFailures | ForEach-Object {
+                "$($_.Provider) [$($_.Scope)]: $($_.Message)"
+            }
+        ) | Select-Object -Unique
+        throw "Azure Data Explorer connection discovery was incomplete and automatic selection was stopped. $($failureSummary -join ' | ') Re-run with -AllowPartialDiscovery to select from the partial results, or narrow discovery with -SubscriptionId."
     }
 
     $selectedCluster = Select-XdrAzureDataExplorerDiscoveredValue `
@@ -572,6 +590,90 @@ function Test-XdrAzureDataExplorerTable {
     return (@(ConvertFrom-XdrAzureDataExplorerResponseTable -Response $response).Count -gt 0)
 }
 
+function Get-XdrAzureDataExplorerTableSchema {
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [uri]$ClusterUri,
+
+        [Parameter(Mandatory)]
+        [string]$Database,
+
+        [Parameter(Mandatory)]
+        [string]$TableName,
+
+        [Parameter(Mandatory)]
+        [string]$Token
+    )
+
+    try {
+        $response = Invoke-XdrAzureDataExplorerManagementCommand `
+            -ClusterUri $ClusterUri `
+            -Database $Database `
+            -Command ".show table $TableName schema as json" `
+            -Token $Token
+        $schemaRow = @(ConvertFrom-XdrAzureDataExplorerResponseTable -Response $response) | Select-Object -First 1
+        if (-not $schemaRow -or [string]::IsNullOrWhiteSpace([string]$schemaRow.Schema)) {
+            return $null
+        }
+
+        $schema = [string]$schemaRow.Schema | ConvertFrom-Json -ErrorAction Stop
+        $columns = @{}
+        foreach ($column in @($schema.OrderedColumns)) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$column.Name)) {
+                $columns[[string]$column.Name] = [string]$column.CslType
+            }
+        }
+
+        return $columns
+    }
+    catch {
+        if (Test-XdrAzureDataExplorerNotFound -ErrorRecord $_) {
+            return $null
+        }
+
+        throw
+    }
+}
+
+function Get-XdrAzureDataExplorerMapping {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [uri]$ClusterUri,
+
+        [Parameter(Mandatory)]
+        [string]$Database,
+
+        [Parameter(Mandatory)]
+        [string]$TableName,
+
+        [Parameter(Mandatory)]
+        [string]$MappingName,
+
+        [Parameter(Mandatory)]
+        [string]$Token
+    )
+
+    try {
+        $escapedMappingName = $MappingName -replace "'", "''"
+        $response = Invoke-XdrAzureDataExplorerManagementCommand `
+            -ClusterUri $ClusterUri `
+            -Database $Database `
+            -Command ".show table $TableName ingestion json mappings | where Name == '$escapedMappingName'" `
+            -Token $Token
+        return @(ConvertFrom-XdrAzureDataExplorerResponseTable -Response $response) | Select-Object -First 1
+    }
+    catch {
+        if (Test-XdrAzureDataExplorerNotFound -ErrorRecord $_) {
+            return $null
+        }
+
+        throw
+    }
+}
+
 function Test-XdrAzureDataExplorerMapping {
     [CmdletBinding()]
     [OutputType([bool])]
@@ -592,17 +694,7 @@ function Test-XdrAzureDataExplorerMapping {
         [string]$Token
     )
 
-    try {
-        $response = Invoke-XdrAzureDataExplorerManagementCommand -ClusterUri $ClusterUri -Database $Database -Command ".show table $TableName ingestion json mappings | where Name == '$MappingName'" -Token $Token
-        return (@(ConvertFrom-XdrAzureDataExplorerResponseTable -Response $response).Count -gt 0)
-    }
-    catch {
-        if (Test-XdrAzureDataExplorerNotFound -ErrorRecord $_) {
-            return $false
-        }
-
-        throw
-    }
+    return $null -ne (Get-XdrAzureDataExplorerMapping -ClusterUri $ClusterUri -Database $Database -TableName $TableName -MappingName $MappingName -Token $Token)
 }
 
 function Initialize-XdrAzureDataExplorerTable {
@@ -623,34 +715,124 @@ function Initialize-XdrAzureDataExplorerTable {
         [Parameter(Mandatory)]
         [string]$Token,
 
-        [hashtable]$TableProfile
+        [hashtable]$TableProfile,
+
+        [switch]$PreserveExistingMapping
     )
 
-    if (-not (Test-XdrAzureDataExplorerTable -ClusterUri $ClusterUri -Database $Database -TableName $TableName -Token $Token)) {
-        if ($TableProfile) {
-            $columnSpec = ($TableProfile.Columns | ForEach-Object { "$($_.Name):$($_.Type)" }) -join ', '
-        }
-        else {
-            $columnSpec = 'Event:dynamic'
-        }
+    $desiredColumns = if ($TableProfile) {
+        @($TableProfile.Columns)
+    }
+    else {
+        @(@{ Name = 'Event'; Type = 'dynamic' })
+    }
+    $columnSpec = ($desiredColumns | ForEach-Object { "$($_.Name):$($_.Type)" }) -join ', '
+    $existingColumns = Get-XdrAzureDataExplorerTableSchema -ClusterUri $ClusterUri -Database $Database -TableName $TableName -Token $Token
+    $missingColumns = [System.Collections.Generic.List[string]]::new()
+    $incompatibleColumns = [System.Collections.Generic.List[string]]::new()
 
-        Write-Verbose "Creating Azure Data Explorer table '$TableName' in database '$Database' with columns ($columnSpec)"
-        $null = Invoke-XdrAzureDataExplorerManagementCommand -ClusterUri $ClusterUri -Database $Database -Command ".create table $TableName ($columnSpec)" -Token $Token
+    if ($null -ne $existingColumns) {
+        foreach ($column in $desiredColumns) {
+            if (-not $existingColumns.ContainsKey([string]$column.Name)) {
+                $missingColumns.Add([string]$column.Name) | Out-Null
+                continue
+            }
+
+            $actualType = [string]$existingColumns[[string]$column.Name]
+            if ($actualType -ine [string]$column.Type) {
+                $incompatibleColumns.Add("$($column.Name) (expected $($column.Type), found $actualType)") | Out-Null
+            }
+        }
     }
 
-    if (-not (Test-XdrAzureDataExplorerMapping -ClusterUri $ClusterUri -Database $Database -TableName $TableName -MappingName $MappingName -Token $Token)) {
-        if ($TableProfile) {
-            $mappingEntries = $TableProfile.ColumnMappings | ForEach-Object {
+    if ($incompatibleColumns.Count -gt 0) {
+        throw "Azure Data Explorer table '$TableName' has incompatible column types: $($incompatibleColumns -join '; '). No schema or mapping changes were applied."
+    }
+
+    if ($null -eq $existingColumns -or $missingColumns.Count -gt 0) {
+        $schemaAction = if ($null -eq $existingColumns) { 'Creating' } else { "Adding missing columns ($($missingColumns -join ', ')) to" }
+        Write-Verbose "$schemaAction Azure Data Explorer table '$TableName' in database '$Database' with schema ($columnSpec)"
+        $null = Invoke-XdrAzureDataExplorerManagementCommand -ClusterUri $ClusterUri -Database $Database -Command ".create-merge tables $TableName ($columnSpec)" -Token $Token
+    }
+
+    $mappingEntries = if ($TableProfile) {
+        @($TableProfile.ColumnMappings | ForEach-Object {
                 @{ column = $_.Column; Properties = @{ path = $_.Properties.Path } }
-            }
-            $mapping = ($mappingEntries | ConvertTo-Json -Depth 4 -Compress)
+            })
+    }
+    else {
+        @(@{ column = 'Event'; Properties = @{ path = '$' } })
+    }
+    $mapping = ConvertTo-Json -InputObject @($mappingEntries) -Depth 4 -Compress
+    $existingMapping = Get-XdrAzureDataExplorerMapping -ClusterUri $ClusterUri -Database $Database -TableName $TableName -MappingName $MappingName -Token $Token
+
+    if ($PreserveExistingMapping -and $existingMapping) {
+        Write-Verbose "Preserving existing caller-owned Azure Data Explorer JSON mapping '$MappingName' on table '$TableName'."
+        return
+    }
+
+    $mappingMatches = $false
+    if ($existingMapping -and -not [string]::IsNullOrWhiteSpace([string]$existingMapping.Mapping)) {
+        try {
+            $existingEntries = @([string]$existingMapping.Mapping | ConvertFrom-Json -ErrorAction Stop)
+            $existingSignature = @($existingEntries | ForEach-Object {
+                    "$([string]$_.Column)|$([string]$_.DataType)|$([string]$_.Properties.Path)|$([string]$_.Properties.ConstValue)|$([string]$_.Properties.Transform)"
+                }) -join "`n"
+            $desiredSignature = @($mappingEntries | ForEach-Object {
+                    "$([string]$_.column)||$([string]$_.Properties.path)||"
+                }) -join "`n"
+            $mappingMatches = $existingSignature -ceq $desiredSignature
         }
-        else {
-            $mapping = '[{"column":"Event","Properties":{"path":"$"}}]'
+        catch {
+            Write-Verbose "Existing Azure Data Explorer mapping '$MappingName' could not be normalized and will be replaced."
+        }
+    }
+
+    if (-not $mappingMatches) {
+        Write-Verbose "Converging Azure Data Explorer JSON mapping '$MappingName' on table '$TableName'"
+        $null = Invoke-XdrAzureDataExplorerManagementCommand -ClusterUri $ClusterUri -Database $Database -Command ".create-or-alter table $TableName ingestion json mapping '$MappingName' '$mapping'" -Token $Token
+    }
+}
+
+function Clear-XdrAzureDataExplorerExportState {
+    [CmdletBinding()]
+    param(
+        [hashtable]$TableStates,
+
+        [string]$SessionStagingPath,
+
+        [switch]$KeepTempFiles,
+
+        [Parameter(Mandatory)]
+        [ref]$CleanupCompleted
+    )
+
+    if ($CleanupCompleted.Value) {
+        return
+    }
+
+    $CleanupCompleted.Value = $true
+
+    foreach ($tableState in @($TableStates.Values)) {
+        if (-not $tableState.writer) {
+            continue
         }
 
-        Write-Verbose "Creating Azure Data Explorer JSON mapping '$MappingName' on table '$TableName'"
-        $null = Invoke-XdrAzureDataExplorerManagementCommand -ClusterUri $ClusterUri -Database $Database -Command ".create table $TableName ingestion json mapping '$MappingName' '$mapping'" -Token $Token
+        try {
+            $tableState.writer.Dispose()
+        }
+        catch {
+            Write-Warning "Could not close an Azure Data Explorer staging writer: $($_.Exception.Message)"
+        }
+        finally {
+            $tableState.writer = $null
+        }
+    }
+
+    if (-not $KeepTempFiles -and
+        -not [string]::IsNullOrWhiteSpace($SessionStagingPath) -and
+        (Test-Path -LiteralPath $SessionStagingPath)) {
+        Remove-Item -LiteralPath $SessionStagingPath -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 

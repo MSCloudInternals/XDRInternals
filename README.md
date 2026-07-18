@@ -421,6 +421,8 @@ Get-XdrAzureDataExplorerIngestionStatus -TableName 'DeviceTimeline' -OperationId
 ##### Notes
 
 - Uses queued ingestion -- uploads are asynchronous and data may take a few minutes to become queryable.
+- Batches already submitted to queued ingestion cannot be rolled back if a later batch or pipeline stage fails.
+- Pipeline cancellation closes local writers and removes unsubmitted staging files unless `-KeepTempFiles` is used.
 - Payload files are gzip-compressed before upload unless `-DisableCompression` is specified.
 - Long-running exports automatically refresh the queued-ingestion storage configuration before SAS expiry.
 - Prefer `-TrackIngestion` only when you need operation IDs for troubleshooting.

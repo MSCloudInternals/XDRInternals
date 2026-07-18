@@ -54,6 +54,11 @@
         ambiguous, the cmdlet throws and asks you to narrow the match or specify the connection
         explicitly.
 
+    .PARAMETER AllowPartialDiscovery
+        Allows automatic connection selection when one or more discovery providers or database
+        enumeration requests failed. By default, discovery fails closed rather than selecting
+        from an incomplete result set.
+
     .PARAMETER Confirm
         Prompts for confirmation before updating the module's Azure Data Explorer connection settings.
 
@@ -120,7 +125,10 @@
         [int]$RequestTimeout = 60,
 
         [Parameter(ParameterSetName = 'Discover')]
-        [switch]$NonInteractive
+        [switch]$NonInteractive,
+
+        [Parameter(ParameterSetName = 'Discover')]
+        [switch]$AllowPartialDiscovery
     )
 
     process {
@@ -151,6 +159,7 @@
                 -TenantId $TenantId `
                 -ManagedIdentityClientId $ManagedIdentityClientId `
                 -NonInteractive:$NonInteractive `
+                -AllowPartialDiscovery:$AllowPartialDiscovery `
                 -RequestTimeout $RequestTimeout
 
             $ClusterUri = $selection.ClusterUri

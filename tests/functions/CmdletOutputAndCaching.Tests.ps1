@@ -242,18 +242,30 @@ filters:
         $result | Should -HaveCount 3
         $result[0].SeverityName | Should -Be 'Medium'
         @($result[0].DetectionSourceNames) | Should -Contain 'Email'
-        Should -Invoke Get-XdrCache -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
-            $CacheKey -eq 'XdrIncidents_LookBackInDays=7;SortByField=CreatedDate;SortOrder=Ascending;PageSize=2;PageIndex=1;DefenderExpertsLicensed=False;TitleSearchTerms=malware,phishing'
+        Should -Invoke Get-XdrCache -ModuleName XDRInternals -Times 2 -Exactly -ParameterFilter {
+            $CacheKey -match '^XdrIncidents_[0-9a-f]{64}$'
         }
-        Should -Invoke Get-XdrCache -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
-            $CacheKey -eq 'XdrIncidents_LookBackInDays=7;SortByField=CreatedDate;SortOrder=Ascending;PageSize=2;PageIndex=2;DefenderExpertsLicensed=False;TitleSearchTerms=malware,phishing'
+        Should -Invoke Set-XdrCache -ModuleName XDRInternals -Times 2 -Exactly -ParameterFilter {
+            $CacheKey -match '^XdrIncidents_[0-9a-f]{64}$'
         }
-        Should -Invoke Set-XdrCache -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
-            $CacheKey -eq 'XdrIncidents_LookBackInDays=7;SortByField=CreatedDate;SortOrder=Ascending;PageSize=2;PageIndex=1;DefenderExpertsLicensed=False;TitleSearchTerms=malware,phishing'
-        }
-        Should -Invoke Set-XdrCache -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
-            $CacheKey -eq 'XdrIncidents_LookBackInDays=7;SortByField=CreatedDate;SortOrder=Ascending;PageSize=2;PageIndex=2;DefenderExpertsLicensed=False;TitleSearchTerms=malware,phishing'
-        }
+    }
+
+    It 'keeps ambiguous title search term arrays in separate cache entries' {
+        $observedCacheKeys = [System.Collections.Generic.List[string]]::new()
+        Mock Get-XdrCache { $null } -ModuleName XDRInternals
+        Mock Set-XdrCache {
+            $observedCacheKeys.Add($CacheKey)
+        } -ModuleName XDRInternals
+        Mock Invoke-RestMethod {
+            @([pscustomobject]@{ Severity = 64; DetectionSources = @() })
+        } -ModuleName XDRInternals
+
+        $null = Get-XdrIncident -TitleSearchTerms 'alpha,beta', 'gamma' -PageSize 1
+        $null = Get-XdrIncident -TitleSearchTerms 'alpha', 'beta,gamma' -PageSize 1
+
+        $observedCacheKeys | Should -HaveCount 2
+        $observedCacheKeys[0] | Should -Not -Be $observedCacheKeys[1]
+        $observedCacheKeys | ForEach-Object { $_ | Should -Match '^XdrIncidents_[0-9a-f]{64}$' }
     }
 
     It 'returns flattened unified RBAC workload settings plus cloud scoping status' {

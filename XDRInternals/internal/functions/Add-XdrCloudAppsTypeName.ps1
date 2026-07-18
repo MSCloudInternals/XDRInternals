@@ -28,24 +28,16 @@
     )
 
     process {
-        if ($null -eq $InputObject) {
-            return
-        }
-
-        if ($InputObject -is [System.Array]) {
-            foreach ($item in $InputObject) {
-                if ($null -ne $item -and $item.PSObject.TypeNames[0] -ne $TypeName) {
-                    $item.PSObject.TypeNames.Insert(0, $TypeName)
-                }
-                $item
+        foreach ($item in $InputObject) {
+            if ($null -eq $item) {
+                continue
             }
-            return
-        }
 
-        if ($InputObject.PSObject.TypeNames[0] -ne $TypeName) {
-            $InputObject.PSObject.TypeNames.Insert(0, $TypeName)
+            if ($item.PSObject.TypeNames[0] -ne $TypeName) {
+                $item.PSObject.TypeNames.Insert(0, $TypeName)
+            }
+
+            $item
         }
-        $InputObject
     }
 }
-

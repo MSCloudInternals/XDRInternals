@@ -60,7 +60,7 @@ if ($TestGeneral)
 			$config.Run.Path = $file.FullName
 			$config.Run.PassThru = $true
 			$config.Output.Verbosity = $Output
-    		$results = Invoke-Pester -Configuration $config
+			$results = Invoke-Pester -Configuration $config
 			foreach ($result in $results)
 			{
 				$totalRun += $result.TotalCount

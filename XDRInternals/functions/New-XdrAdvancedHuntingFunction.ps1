@@ -135,14 +135,10 @@
                 $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
 
                 Write-Verbose "Successfully created function with ID: $($result.Id)"
-                Write-Host $result
+                $result
             }
         } catch {
             Write-Error "Failed to create Advanced Hunting function '$Name': $($_.Exception.Message)"
         }
-    }
-
-    end {
-
     }
 }

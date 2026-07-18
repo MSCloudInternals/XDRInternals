@@ -325,6 +325,54 @@ Get-XdrCloudAppsGovernance
 Get-XdrCloudAppsPolicy -Type OAuth -Metadata
 ```
 
+#### Large endpoint timeline exports
+
+Use `Export-XdrEndpointDeviceTimeline` for long incident-response exports. It writes
+newline-delimited JSON (NDJSON) to disk instead of retaining the complete timeline in
+memory:
+
+```powershell
+$from = (Get-Date).ToUniversalTime().AddDays(-90)
+$to = (Get-Date).ToUniversalTime()
+
+Export-XdrEndpointDeviceTimeline `
+    -DeviceId $deviceId `
+    -FromDate $from `
+    -ToDate $to `
+    -Path '.\timeline-90d.ndjson' `
+    -IncludeSentinelEvents
+```
+
+The export is resumable. If the process, connection, or computer stops during the
+download, run the same command again with the same `Path`; completed parts are validated
+by length and SHA-256 and only incomplete windows are downloaded again. Use `-Force` only
+when intentionally discarding the resumable state.
+
+The cmdlet currently uses four-hour windows, four concurrent workers, and 1,000 records
+per API page. These are deliberately internal implementation choices; `ChunkHours` and
+`ThrottleLimit` are not public parameters. Benchmarking showed that smaller windows and
+more workers can be faster for some short ranges, but they also increased API retries,
+window restarts, or memory use during long exports. More time-range and tenant-specific
+research is needed before exposing tuning options.
+
+The cmdlet emits progress updates and a 30-second informational heartbeat containing
+time coverage, completed windows, event count, bytes written, active/queued work, elapsed
+time, and a rough ETA.
+
+The following physical-disk benchmarks used the same device and a 90-day range. Counts
+can vary slightly because the portal's historical response is not immutable between runs:
+
+| Configuration | Total time | Peak working set | Retries / window restarts |
+| --- | ---: | ---: | ---: |
+| 4-hour / 4 workers | 41m 49s | 1.75 GiB | 0 / 0 |
+| 2-hour / 4 workers | 44m 16s | 1.65 GiB | 20 / 8 |
+| 2-hour / 6 workers | 41m 08s | 2.17 GiB | 50 / 26 |
+
+The 4-hour/four-worker balance is therefore the initial release default: it completed the
+90-day export without retries or restarts while remaining competitive on elapsed time and
+memory. These defaults can be revisited as more devices, tenants, and time ranges are
+available for testing.
+
 #### Azure Data Explorer export
 
 Export XDR data directly to Azure Data Explorer for long-term investigation and custom analytics. The cmdlet supports two modes: **typed source routing** (recommended) which automatically creates well-structured tables, and **manual table** mode for custom schemas.

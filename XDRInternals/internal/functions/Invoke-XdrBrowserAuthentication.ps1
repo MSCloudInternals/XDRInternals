@@ -1091,6 +1091,8 @@ function Invoke-XdrBrowserAuthentication {
         $selectedXsrfToken = $null
         $firstEstsCookieObservedAt = $null
         $lastObservedTargetDescription = $null
+        $lastObservedTargetTitle = $null
+        $lastObservedTargetHost = $null
 
         do {
             Start-Sleep -Seconds 2
@@ -1098,12 +1100,11 @@ function Invoke-XdrBrowserAuthentication {
             if ($browserProcess) {
                 $browserProcess.Refresh()
                 if ($browserProcess.HasExited) {
-                    $message = 'The browser window was closed before the browser sign-in completed.'
-                    if ($lastObservedTargetDescription) {
-                        $message += " Last observed browser page: $lastObservedTargetDescription"
+                    $failure = Get-XdrAuthenticationFailure -AuthenticationMethod Browser -Stage BrowserSignIn -DefaultCode BrowserClosed -SafeEvidence @{
+                        PageTitle = $lastObservedTargetTitle
+                        Host = $lastObservedTargetHost
                     }
-
-                    throw $message
+                    throw (New-XdrAuthenticationErrorRecord -Failure $failure)
                 }
             }
 
@@ -1112,6 +1113,8 @@ function Invoke-XdrBrowserAuthentication {
                 $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url -Title $targetContext.Title
                 if ($currentTargetDescription -and $currentTargetDescription -ne $lastObservedTargetDescription) {
                     $lastObservedTargetDescription = $currentTargetDescription
+                    $lastObservedTargetTitle = [string]$targetContext.Title
+                    try { $lastObservedTargetHost = ([uri]$targetContext.Url).Host } catch { $lastObservedTargetHost = $null }
                     Write-Verbose "Observed browser page: $currentTargetDescription"
                 }
 
@@ -1136,12 +1139,11 @@ function Invoke-XdrBrowserAuthentication {
         } while ((Get-Date) -lt $deadline)
 
         if (-not $selectedSccAuth -and -not $selectedEstsCookie) {
-            $message = 'Browser sign-in did not produce Defender portal or ESTS authentication cookies before the timeout expired.'
-            if ($lastObservedTargetDescription) {
-                $message += " Last observed browser page: $lastObservedTargetDescription"
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod Browser -Stage BrowserSignIn -DefaultCode BrowserTimeout -SafeEvidence @{
+                PageTitle = $lastObservedTargetTitle
+                Host = $lastObservedTargetHost
             }
-
-            throw $message
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         if ($selectedSccAuth) {

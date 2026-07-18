@@ -55,6 +55,10 @@
         }
     }
 
+    if (-not $providerCode -and $ErrorRecord -and $ErrorRecord.Exception.Message -match '(?i)(?:AADSTS|error(?:\s+code)?[: (]+)(\d{5,8})') {
+        $providerCode = $Matches[1]
+    }
+
     $oauthError = $null
     if (-not [string]::IsNullOrWhiteSpace($RedirectUri)) {
         try {
@@ -142,6 +146,7 @@
     if (-not $code -and $ErrorRecord) {
         $legacyMessage = [string]$ErrorRecord.Exception.Message
         $code = switch -Regex ($legacyMessage) {
+            '(?i)no supported Chromium|browser (executable|application bundle).+(not found|does not contain)|DevTools endpoint.+waiting' { 'BrowserStartupFailed'; break }
             '(?i)browser.+(closed|exited)|websocket.+closed' { 'BrowserClosed'; break }
             '(?i)timed out|timeout expired' { 'BrowserTimeout'; break }
             '(?i)tenant.+(not found|did not return|could not validate)' { 'TenantSelectionFailed'; break }

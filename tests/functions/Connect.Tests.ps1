@@ -40,7 +40,7 @@
 
         {
             Connect-XdrByTemporaryAccessPass -Username 'user@contoso.com' -TemporaryAccessPass $tap -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
-        } | Should -Throw '*no ESTS cookie*'
+        } | Should -Throw '*without a usable session artifact*'
     }
 
     It 'resolves the tenant ID from the username when TenantId is omitted' {
@@ -89,7 +89,7 @@ Describe 'Connect-XdrByPhoneSignIn' {
 
         {
             Connect-XdrByPhoneSignIn -Username 'user@contoso.com'
-        } | Should -Throw '*no ESTS cookie*'
+        } | Should -Throw '*without a usable session artifact*'
     }
 }
 
@@ -152,7 +152,7 @@ Describe 'Connect-XdrByBrowser' {
     It 'rejects combining explicit profile and private session mode' {
         {
             Connect-XdrByBrowser -Username 'user@contoso.com' -ProfilePath 'C:\Temp\XdrBrowserProfile' -PrivateSession
-        } | Should -Throw '*Do not combine -PrivateSession with -ProfilePath*'
+        } | Should -Throw '*invalid request*'
     }
 
     It 'prefers ESTS cookie bootstrap when browser auth returns both ESTS and portal cookies' {
@@ -223,7 +223,7 @@ Describe 'Connect-XdrByBrowser' {
 
         {
             Connect-XdrByBrowser -Username 'user@contoso.com'
-        } | Should -Throw '*no authentication cookies*'
+        } | Should -Throw '*without a usable session artifact*'
     }
 }
 
@@ -344,7 +344,7 @@ Describe 'Connect-XdrBySSO' {
 
         {
             Connect-XdrBySSO
-        } | Should -Throw '*no authentication cookies*'
+        } | Should -Throw '*without a usable session artifact*'
     }
 }
 

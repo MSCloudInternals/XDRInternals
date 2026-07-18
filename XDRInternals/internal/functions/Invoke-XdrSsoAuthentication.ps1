@@ -357,6 +357,8 @@ function Invoke-XdrSsoAuthentication {
         $xsrfToken = $null
         $firstEstsCookieObservedAt = $null
         $lastObservedTargetDescription = $null
+        $lastObservedTargetTitle = $null
+        $lastObservedTargetHost = $null
 
         do {
             Start-Sleep -Seconds 2
@@ -364,21 +366,11 @@ function Invoke-XdrSsoAuthentication {
             if ($browserProcess) {
                 $browserProcess.Refresh()
                 if ($browserProcess.HasExited) {
-                    if ($Visible) {
-                        $message = 'The browser window closed before SSO authentication completed.'
-                        if ($lastObservedTargetDescription) {
-                            $message += " Last observed browser page: $lastObservedTargetDescription"
-                        }
-
-                        throw $message
+                    $failure = Get-XdrAuthenticationFailure -AuthenticationMethod SSO -Stage BrowserSignIn -DefaultCode BrowserClosed -SafeEvidence @{
+                        PageTitle = $lastObservedTargetTitle
+                        Host = $lastObservedTargetHost
                     }
-
-                    $message = 'The browser exited before SSO authentication completed. Retry with -Visible to observe the flow on this device.'
-                    if ($lastObservedTargetDescription) {
-                        $message += " Last observed browser page: $lastObservedTargetDescription"
-                    }
-
-                    throw $message
+                    throw (New-XdrAuthenticationErrorRecord -Failure $failure)
                 }
             }
 
@@ -387,6 +379,8 @@ function Invoke-XdrSsoAuthentication {
                 $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url -Title $targetContext.Title
                 if ($currentTargetDescription -and $currentTargetDescription -ne $lastObservedTargetDescription) {
                     $lastObservedTargetDescription = $currentTargetDescription
+                    $lastObservedTargetTitle = [string]$targetContext.Title
+                    try { $lastObservedTargetHost = ([uri]$targetContext.Url).Host } catch { $lastObservedTargetHost = $null }
                     Write-Verbose "Observed browser page: $currentTargetDescription"
                 }
 
@@ -413,12 +407,11 @@ function Invoke-XdrSsoAuthentication {
         } while ((Get-Date) -lt $deadline)
 
         if (-not $sccAuthCookieValue -and -not $estsAuthCookieValue) {
-            $message = 'SSO authentication did not produce Defender portal or ESTS cookies before the timeout expired.'
-            if ($lastObservedTargetDescription) {
-                $message += " Last observed browser page: $lastObservedTargetDescription"
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod SSO -Stage BrowserSignIn -DefaultCode BrowserTimeout -SafeEvidence @{
+                PageTitle = $lastObservedTargetTitle
+                Host = $lastObservedTargetHost
             }
-
-            throw $message
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         $selectedTenant = $null

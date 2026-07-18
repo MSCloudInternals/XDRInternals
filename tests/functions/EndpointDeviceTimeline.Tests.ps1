@@ -1,4 +1,6 @@
 ﻿BeforeAll {
+    $script:HasStartThreadJob = $null -ne (Get-Command Start-ThreadJob -ErrorAction SilentlyContinue)
+
     if (-not ('EndpointDeviceTimelineTestJob' -as [type])) {
         Add-Type -TypeDefinition @"
 using System.Management.Automation;
@@ -27,11 +29,13 @@ public sealed class EndpointDeviceTimelineTestJob : Job
 Describe 'Get-XdrEndpointDeviceTimeline' {
     BeforeEach {
         Mock Update-XdrConnectionSettings {} -ModuleName XDRInternals
-        Mock Start-ThreadJob {
-            [EndpointDeviceTimelineTestJob]::new()
-        } -ModuleName XDRInternals
-        Mock Receive-Job { $script:FakeTimelineResults } -ModuleName XDRInternals
-        Mock Remove-Job {} -ModuleName XDRInternals
+        if ($script:HasStartThreadJob) {
+            Mock Start-ThreadJob {
+                [EndpointDeviceTimelineTestJob]::new()
+            } -ModuleName XDRInternals
+            Mock Receive-Job { $script:FakeTimelineResults } -ModuleName XDRInternals
+            Mock Remove-Job {} -ModuleName XDRInternals
+        }
 
         InModuleScope XDRInternals {
             $script:session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
@@ -70,6 +74,10 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
     }
 
     It 'throws when a chunk fails and partial results are not allowed' {
+        if (-not $script:HasStartThreadJob) {
+            Set-ItResult -Skipped -Because 'Start-ThreadJob is unavailable in this session.'
+        }
+
         $goodFile = Join-Path $TestDrive 'device-timeline-good.json'
         Set-Content -Path $goodFile -Value '{"Events":[{"ActionType":"ProcessCreated"}],"EventCount":1}' -Encoding UTF8
 
@@ -103,6 +111,10 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
     }
 
     It 'returns events from successful chunks when partial results are allowed' {
+        if (-not $script:HasStartThreadJob) {
+            Set-ItResult -Skipped -Because 'Start-ThreadJob is unavailable in this session.'
+        }
+
         $goodFile = Join-Path $TestDrive 'device-timeline-partial-good.json'
         Set-Content -Path $goodFile -Value '{"Events":[{"ActionType":"ProcessCreated"}],"EventCount":1}' -Encoding UTF8
 
@@ -137,6 +149,10 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
     }
 
     It 'skips unreadable completed chunk files when partial results are allowed' {
+        if (-not $script:HasStartThreadJob) {
+            Set-ItResult -Skipped -Because 'Start-ThreadJob is unavailable in this session.'
+        }
+
         $goodFile = Join-Path $TestDrive 'device-timeline-readable.json'
         $badFile = Join-Path $TestDrive 'device-timeline-unreadable.json'
         Set-Content -Path $goodFile -Value '{"Events":[{"ActionType":"ProcessCreated"}],"EventCount":1}' -Encoding UTF8
@@ -354,6 +370,10 @@ Describe 'Get-XdrEndpointDeviceTimeline' {
     }
 
     It 'skips unreadable completed chunk files during export when partial results are allowed' {
+        if (-not $script:HasStartThreadJob) {
+            Set-ItResult -Skipped -Because 'Start-ThreadJob is unavailable in this session.'
+        }
+
         $goodFile = Join-Path $TestDrive 'device-timeline-export-readable.json'
         $badFile = Join-Path $TestDrive 'device-timeline-export-unreadable.json'
         $exportPath = Join-Path $TestDrive 'device-timeline-export.json'

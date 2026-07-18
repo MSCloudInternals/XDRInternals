@@ -22,6 +22,7 @@
         Object
         Returns the API response.
     #>
+    [Alias('Get-XdrEndpointConfigurationOptionalFeatures')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = 'Advanced Features is plural by design')]
     [CmdletBinding()]
     param (

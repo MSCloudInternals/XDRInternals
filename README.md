@@ -54,6 +54,7 @@ Get-XdrTenantContext -Force
 | Connect-XdrEndpointDeviceLiveResponse                           | Opens a Live Response session to an endpoint device in Microsoft Defender XDR. |
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encodes an Advanced Hunting query for use in Microsoft Defender XDR. |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
+| Export-XdrAzureDataExplorer                                     | Exports pipeline data to Azure Data Explorer using queued ingestion. |
 | Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |
 | Get-XdrActionsCenterHistory                                     | Retrieves historical actions from the Microsoft Defender XDR Action Center. |
 | Get-XdrActionsCenterPending                                     | Retrieves pending actions from the Microsoft Defender XDR Action Center. |
@@ -62,6 +63,8 @@ Get-XdrTenantContext -Force
 | Get-XdrAdvancedHuntingUnifiedDetectionRules                     | Retrieves the Unified Detection Rules from Advanced Hunting. |
 | Get-XdrAdvancedHuntingUserHistory                               | Retrieves Advanced Hunting user history from Microsoft Defender XDR. |
 | Get-XdrAlert                                                    | Retrieves alerts from Microsoft Defender XDR. |
+| Get-XdrAzureDataExplorerCluster                                 | Discovers accessible Azure Data Explorer clusters and databases. |
+| Get-XdrAzureDataExplorerIngestionStatus                         | Gets the status of queued Azure Data Explorer ingestion operations. |
 | Get-XdrCloudAppsActivityTimeline                                | Retrieves Microsoft Defender for Cloud Apps activity timeline data. |
 | Get-XdrCloudAppsApp                                             | Retrieves app-focused Microsoft Defender for Cloud Apps data. |
 | Get-XdrCloudAppsConfiguration                                   | Retrieves grouped Microsoft Defender for Cloud Apps configuration data. |
@@ -134,6 +137,7 @@ Get-XdrTenantContext -Force
 | Get-XdrXspmChokePoint                                           | Retrieves choke point data from Microsoft Defender XDR XSPM. |
 | Get-XdrXspmTopEntryPoint                                        | Retrieves top entry points from Microsoft Defender XDR XSPM attack paths. |
 | Get-XdrXspmTopTarget                                            | Retrieves top targets from Microsoft Defender XDR XSPM attack paths. |
+| Invoke-XdrAzureDataExplorerQuery                                | Executes a KQL query or management command against an Azure Data Explorer cluster. |
 | Invoke-XdrEndpointDeviceAction                                  | Invokes response actions on an endpoint device in Microsoft Defender XDR. |
 | Invoke-XdrEndpointDeviceAutomatedInvestigation                  | Starts an automated investigation on an endpoint device in Microsoft Defender XDR. |
 | Invoke-XdrEndpointDeviceLiveResponseCommand                     | Sends a command to an active Live Response session in Microsoft Defender XDR. |
@@ -155,6 +159,7 @@ Get-XdrTenantContext -Force
 | Remove-XdrEndpointDeviceLiveResponseLibraryFile                 | Deletes a file from the Live Response library. |
 | Remove-XdrIdentityConfigurationRemediationActionAccount         | Removes a remediation action account from Microsoft Defender for Identity. |
 | Set-XdrAdvancedHuntingFunction                                  | Updates an existing Advanced Hunting function in Microsoft Defender XDR. |
+| Set-XdrAzureDataExplorerConnection                              | Configures Azure Data Explorer connection settings for export cmdlets. |
 | Set-XdrCloudAppsDiscoveredApp                                   | Updates a discovered app note in Microsoft Defender for Cloud Apps. |
 | Set-XdrConfigurationCriticalAssetManagementClassification       | Updates critical asset management classification rule metadata in Microsoft Defender XDR. |
 | Set-XdrConfigurationPreviewFeatures                             | Sets the configuration for Defender XDR Preview features. |
@@ -319,6 +324,108 @@ Get-XdrCloudAppsGovernance
 Get-XdrCloudAppsPolicy -Type OAuth -Metadata
 ```
 
+#### Azure Data Explorer export
+
+Export XDR data directly to Azure Data Explorer for long-term investigation and custom analytics. The cmdlet supports two modes: **typed source routing** (recommended) which automatically creates well-structured tables, and **manual table** mode for custom schemas.
+
+##### Authentication
+
+`Export-XdrAzureDataExplorer` requires a separate Azure Data Explorer token -- this is independent of your XDR portal session. The token is acquired automatically using the following priority:
+
+| Method | When available |
+| --- | --- |
+| Explicit token | `-AccessToken` on `Set-XdrAzureDataExplorerConnection` |
+| ESTS CLI bridge | `Connect-XdrByCredential`, `Connect-XdrByBrowser`, `Connect-XdrBySoftwarePasskey`, `Connect-XdrByPhoneSignIn`, or `Connect-XdrByTemporaryAccessPass` (captures ESTS cookies) |
+| Az.Accounts | `Connect-AzAccount` is active |
+| Azure CLI | `az login` session exists |
+| Managed identity | Running on Azure with IMDS |
+
+> **Important:** `Connect-XdrBySSO` and `Set-XdrConnection` (with raw sccauth/xsrf tokens) do **not** capture ESTS cookies, so the module cannot self-bridge Azure tokens from that session alone. When using these methods, ensure you have an active `Connect-AzAccount` or `az login` session, use managed identity, or provide an explicit `-AccessToken`.
+
+##### Discover clusters and databases
+
+If your authenticated Azure context can access the target ADX resources, you can discover cluster and database details directly:
+
+```powershell
+# Enumerate all visible ADX clusters
+Get-XdrAzureDataExplorerCluster
+
+# Include databases to find a ready-to-use connection target
+Get-XdrAzureDataExplorerCluster -IncludeDatabases
+
+# In automation, fail instead of prompting if the discovery result is ambiguous
+Set-XdrAzureDataExplorerConnection -ClusterName 'nm-test-cluster' -DatabaseName 'Investigations' -NonInteractive
+
+# Use -AccessToken only when you are configuring an explicit cluster/database connection
+Set-XdrAzureDataExplorerConnection -ClusterUri 'https://mycluster.westeurope.kusto.windows.net' -Database 'Investigations' -AccessToken $token
+```
+
+##### Typed source routing
+
+Use `-Source` to automatically route events into purpose-built typed tables with promoted columns:
+
+```powershell
+# Configure the target ADX cluster once per session
+Set-XdrAzureDataExplorerConnection `
+    -ClusterUri 'https://mycluster.westeurope.kusto.windows.net' `
+    -Database 'Investigations'
+
+# Device timeline
+Get-XdrEndpointDeviceTimeline -DeviceId $deviceId -LastNDays 7 |
+    Export-XdrAzureDataExplorer -Source DeviceTimeline -WaitForIngestion -Verbose
+
+# Identity timeline
+Get-XdrIdentityUserTimeline -Upn 'user@contoso.com' -LastNDays 7 |
+    Export-XdrAzureDataExplorer -Source IdentityTimeline -Verbose
+
+# Cloud Apps activity timeline
+Get-XdrCloudAppsActivityTimeline -LastNDays 1 |
+    Export-XdrAzureDataExplorer -Source CloudAppsActivityTimeline -Verbose
+
+# Standalone sources
+Get-XdrAlert | Export-XdrAzureDataExplorer -Source Alert
+Get-XdrIncident | Export-XdrAzureDataExplorer -Source Incident
+Get-XdrEndpointDevice | Export-XdrAzureDataExplorer -Source Device
+```
+
+Typed tables created automatically:
+
+| Source | Tables |
+| --- | --- |
+| DeviceTimeline | `XDRDeviceTimelineProcessEvents`, `XDRDeviceTimelineFileEvents`, `XDRDeviceTimelineNetworkEvents`, `XDRDeviceTimelineRegistryEvents`, `XDRDeviceTimelineLogonEvents`, `XDRDeviceTimelineAlertEvents`, `XDRDeviceTimelineOtherEvents` |
+| IdentityTimeline | `XDRIdentityTimelineCloudAppEvents`, `XDRIdentityTimelineSignInEvents`, `XDRIdentityTimelineAlerts` |
+| CloudAppsActivityTimeline | `XDRCloudAppsActivityTimeline` |
+| Alert | `XDRAlerts` |
+| Incident | `XDRIncidents` |
+| Device | `XDRDevices` |
+| AdvancedHunting | `XDRAdvancedHuntingResults` |
+
+Every typed table includes an `Event` dynamic column containing the complete original event, so no data is lost even when specific columns aren't promoted.
+
+##### Manual table mode
+
+For custom schemas or ad-hoc exports, specify a table name directly:
+
+```powershell
+Get-XdrEndpointDeviceTimeline -DeviceId $deviceId -LastNDays 7 |
+    Export-XdrAzureDataExplorer -TableName 'DeviceTimeline'
+
+# Track ingestion and wait for completion
+Get-XdrEndpointDeviceTimeline -DeviceId $deviceId -LastNDays 7 |
+    Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -WaitForIngestion -Verbose
+
+# Check status of a tracked operation
+Get-XdrAzureDataExplorerIngestionStatus -TableName 'DeviceTimeline' -OperationId 'op-id' -Details
+```
+
+##### Notes
+
+- Uses queued ingestion -- uploads are asynchronous and data may take a few minutes to become queryable.
+- Batches already submitted to queued ingestion cannot be rolled back if a later batch or pipeline stage fails.
+- Pipeline cancellation closes local writers and removes unsubmitted staging files unless `-KeepTempFiles` is used.
+- Payload files are gzip-compressed before upload unless `-DisableCompression` is specified.
+- Long-running exports automatically refresh the queued-ingestion storage configuration before SAS expiry.
+- Prefer `-TrackIngestion` only when you need operation IDs for troubleshooting.
 #### Live Response
 
 ```powershell
@@ -348,7 +455,6 @@ Notes:
 - `Connect-XdrEndpointDeviceLiveResponse -NonInteractive` accepts pipeline input from `Get-XdrEndpointDevice` and supports `-NoStatusTable` when connecting to multiple devices.
 - `Invoke-XdrEndpointDeviceLiveResponseCommand` expands common table outputs such as `processes`, `services`, `drivers`, `connections`, `dir`, and `persistence` into typed row objects by default. Use `-RawCommandResult` to keep the original API response shape, or `-IncludeCommandResult` together with `-ExpandTableOutput` to emit both forms.
 - `Disconnect-XdrEndpointDeviceLiveResponse` accepts session objects or raw session IDs from the pipeline.
-
 ## License
 
 See LICENSE file for details.

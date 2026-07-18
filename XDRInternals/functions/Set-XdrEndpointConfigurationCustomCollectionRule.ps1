@@ -188,7 +188,7 @@
                             Clear-XdrCache -CacheKey "XdrEndpointConfigurationCustomCollectionRule" -ErrorAction SilentlyContinue
 
                             Write-Verbose "Successfully updated rule with ID: $($result.ruleId)"
-                            Write-Host $result
+                            $result
                         }
                     } catch {
                         Write-Error "Failed to update custom collection rule from file '$($resolvedPath.Path)': $($_.Exception.Message)"
@@ -255,15 +255,11 @@
                     Clear-XdrCache -CacheKey "XdrEndpointConfigurationCustomCollectionRule" -ErrorAction SilentlyContinue
 
                     Write-Verbose "Successfully updated rule with ID: $($result.ruleId)"
-                    Write-Host $result
+                    $result
                 }
             } catch {
                 Write-Error "Failed to update custom collection rule '$($InputObject.ruleName)': $($_.Exception.Message)"
             }
         }
-    }
-
-    end {
-
     }
 }

@@ -304,6 +304,265 @@
             $createCommandBodies[0].raw_command_line | Should -Be 'ls C:\Windows'
         }
 
+        It 'canonicalizes mixed positional and named arguments for run commands' {
+            $createCommandBodies = [System.Collections.Generic.List[object]]::new()
+
+            Mock Invoke-RestMethod {
+                if ($Uri -like '*create_command*') {
+                    $createCommandBodies.Add(($Body | ConvertFrom-Json -Depth 10)) | Out-Null
+                    return [PSCustomObject]@{ command_id = 'cmd-run-1' }
+                }
+
+                if ($Uri -like '*commands/cmd-run-1*') {
+                    return [PSCustomObject]@{
+                        command_id            = 'cmd-run-1'
+                        command_definition_id = 'run'
+                        raw_command_line      = 'run -id hello-world.ps1 -parameters "-List"'
+                        status                = 1
+                        completed_on          = '2026-05-23T06:20:56Z'
+                        outputs               = @()
+                        errors                = @()
+                    }
+                }
+
+                throw "Unexpected Uri: $Uri"
+            } -ModuleName XDRInternals
+
+            $runDefinitions = @(
+                [PSCustomObject]@{
+                    command_definition_id = 'run'
+                    aliases               = @('execute', 'PS', 'start', 'PowerShell')
+                    params                = @(
+                        [PSCustomObject]@{
+                            param_id = 'id'
+                            optional = $false
+                            isHidden = $false
+                        },
+                        [PSCustomObject]@{
+                            param_id = 'parameters'
+                            optional = $true
+                            isHidden = $false
+                        }
+                    )
+                    flags                 = @()
+                }
+            )
+
+            $result = @(Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId 'CLR1' -Command 'run hello-world.ps1 -parameters "-List"' -CommandDefinitions $runDefinitions -RawCommandResult -WarningAction SilentlyContinue)
+
+            $result.Count | Should -Be 1
+            $createCommandBodies.Count | Should -Be 1
+            $createCommandBodies[0].command_definition_id | Should -Be 'run'
+            $createCommandBodies[0].params.Count | Should -Be 2
+            $createCommandBodies[0].params[0].param_id | Should -Be 'id'
+            $createCommandBodies[0].params[0].value | Should -Be 'hello-world.ps1'
+            $createCommandBodies[0].params[1].param_id | Should -Be 'parameters'
+            $createCommandBodies[0].params[1].value | Should -Be '-List'
+            @($createCommandBodies[0].params[0].PSObject.Properties.Name) | Should -Not -Contain 'raw_value'
+            @($createCommandBodies[0].params[1].PSObject.Properties.Name) | Should -Not -Contain 'raw_value'
+            $createCommandBodies[0].raw_command_line | Should -Be 'run -id hello-world.ps1 -parameters "-List"'
+        }
+
+        It 'canonicalizes named-before-positional run arguments into command definition order' {
+            $createCommandBodies = [System.Collections.Generic.List[object]]::new()
+
+            Mock Invoke-RestMethod {
+                if ($Uri -like '*create_command*') {
+                    $createCommandBodies.Add(($Body | ConvertFrom-Json -Depth 10)) | Out-Null
+                    return [PSCustomObject]@{ command_id = 'cmd-run-2' }
+                }
+
+                if ($Uri -like '*commands/cmd-run-2*') {
+                    return [PSCustomObject]@{
+                        command_id            = 'cmd-run-2'
+                        command_definition_id = 'run'
+                        raw_command_line      = 'run -id hello-world.ps1 -parameters "-List"'
+                        status                = 1
+                        completed_on          = '2026-05-23T06:21:56Z'
+                        outputs               = @()
+                        errors                = @()
+                    }
+                }
+
+                throw "Unexpected Uri: $Uri"
+            } -ModuleName XDRInternals
+
+            $runDefinitions = @(
+                [PSCustomObject]@{
+                    command_definition_id = 'run'
+                    aliases               = @('execute', 'PS', 'start', 'PowerShell')
+                    params                = @(
+                        [PSCustomObject]@{
+                            param_id = 'id'
+                            optional = $false
+                            isHidden = $false
+                        },
+                        [PSCustomObject]@{
+                            param_id = 'parameters'
+                            optional = $true
+                            isHidden = $false
+                        }
+                    )
+                    flags                 = @()
+                }
+            )
+
+            $result = @(Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId 'CLR1' -Command 'run -parameters "-List" hello-world.ps1' -CommandDefinitions $runDefinitions -RawCommandResult -WarningAction SilentlyContinue)
+
+            $result.Count | Should -Be 1
+            $createCommandBodies.Count | Should -Be 1
+            $createCommandBodies[0].params.Count | Should -Be 2
+            $createCommandBodies[0].params[0].param_id | Should -Be 'id'
+            $createCommandBodies[0].params[0].value | Should -Be 'hello-world.ps1'
+            $createCommandBodies[0].params[1].param_id | Should -Be 'parameters'
+            $createCommandBodies[0].params[1].value | Should -Be '-List'
+            @($createCommandBodies[0].params[0].PSObject.Properties.Name) | Should -Not -Contain 'raw_value'
+            $createCommandBodies[0].raw_command_line | Should -Be 'run -id hello-world.ps1 -parameters "-List"'
+        }
+
+        It 'preserves encounter order for fully named run arguments' {
+            $createCommandBodies = [System.Collections.Generic.List[object]]::new()
+
+            Mock Invoke-RestMethod {
+                if ($Uri -like '*create_command*') {
+                    $createCommandBodies.Add(($Body | ConvertFrom-Json -Depth 10)) | Out-Null
+                    return [PSCustomObject]@{ command_id = 'cmd-run-named' }
+                }
+
+                if ($Uri -like '*commands/cmd-run-named*') {
+                    return [PSCustomObject]@{
+                        command_id            = 'cmd-run-named'
+                        command_definition_id = 'run'
+                        raw_command_line      = 'run -parameters "-List" -id hello-world.ps1'
+                        status                = 1
+                        completed_on          = '2026-07-18T04:00:00Z'
+                        outputs               = @()
+                        errors                = @()
+                    }
+                }
+
+                throw "Unexpected Uri: $Uri"
+            } -ModuleName XDRInternals
+
+            $runDefinitions = @(
+                [PSCustomObject]@{
+                    command_definition_id = 'run'
+                    aliases               = @('execute', 'PS', 'start', 'PowerShell')
+                    params                = @(
+                        [PSCustomObject]@{
+                            param_id = 'id'
+                            optional = $false
+                            isHidden = $false
+                        },
+                        [PSCustomObject]@{
+                            param_id = 'parameters'
+                            optional = $true
+                            isHidden = $false
+                        }
+                    )
+                    flags                 = @()
+                }
+            )
+
+            $result = @(Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId 'CLR1' -Command 'run -parameters "-List" -id hello-world.ps1' -CommandDefinitions $runDefinitions -RawCommandResult -WarningAction SilentlyContinue)
+
+            $result.Count | Should -Be 1
+            $createCommandBodies.Count | Should -Be 1
+            $createCommandBodies[0].params.Count | Should -Be 2
+            $createCommandBodies[0].params[0].param_id | Should -Be 'parameters'
+            $createCommandBodies[0].params[0].value | Should -Be '-List'
+            $createCommandBodies[0].params[1].param_id | Should -Be 'id'
+            $createCommandBodies[0].params[1].value | Should -Be 'hello-world.ps1'
+            @($createCommandBodies[0].params[0].PSObject.Properties.Name) | Should -Not -Contain 'raw_value'
+            @($createCommandBodies[0].params[1].PSObject.Properties.Name) | Should -Not -Contain 'raw_value'
+            $createCommandBodies[0].raw_command_line | Should -Be 'run -parameters "-List" -id hello-world.ps1'
+        }
+
+        It 'preserves original quoted named values when rebuilding mixed run arguments' {
+            $createCommandBodies = [System.Collections.Generic.List[object]]::new()
+
+            Mock Invoke-RestMethod {
+                if ($Uri -like '*create_command*') {
+                    $createCommandBodies.Add(($Body | ConvertFrom-Json -Depth 10)) | Out-Null
+                    return [PSCustomObject]@{ command_id = 'cmd-run-3' }
+                }
+
+                if ($Uri -like '*commands/cmd-run-3*') {
+                    return [PSCustomObject]@{
+                        command_id            = 'cmd-run-3'
+                        command_definition_id = 'run'
+                        raw_command_line      = 'run -id hello-world.ps1 -parameters ''Write-Host "hi there"'''
+                        status                = 1
+                        completed_on          = '2026-05-23T06:22:56Z'
+                        outputs               = @()
+                        errors                = @()
+                    }
+                }
+
+                throw "Unexpected Uri: $Uri"
+            } -ModuleName XDRInternals
+
+            $runDefinitions = @(
+                [PSCustomObject]@{
+                    command_definition_id = 'run'
+                    aliases               = @('execute', 'PS', 'start', 'PowerShell')
+                    params                = @(
+                        [PSCustomObject]@{
+                            param_id = 'id'
+                            optional = $false
+                            isHidden = $false
+                        },
+                        [PSCustomObject]@{
+                            param_id = 'parameters'
+                            optional = $true
+                            isHidden = $false
+                        }
+                    )
+                    flags                 = @()
+                }
+            )
+
+            $result = @(Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId 'CLR1' -Command 'run hello-world.ps1 -parameters ''Write-Host "hi there"''' -CommandDefinitions $runDefinitions -RawCommandResult -WarningAction SilentlyContinue)
+
+            $result.Count | Should -Be 1
+            $createCommandBodies.Count | Should -Be 1
+            $createCommandBodies[0].params[0].param_id | Should -Be 'id'
+            $createCommandBodies[0].params[1].param_id | Should -Be 'parameters'
+            $createCommandBodies[0].params[1].value | Should -Be 'Write-Host "hi there"'
+            @($createCommandBodies[0].params[1].PSObject.Properties.Name) | Should -Not -Contain 'raw_value'
+            $createCommandBodies[0].raw_command_line | Should -Be 'run -id hello-world.ps1 -parameters ''Write-Host "hi there"'''
+        }
+
+        It 'fails fast when rebuild would drop unmapped positional arguments' {
+            Mock Invoke-RestMethod {
+                throw "Invoke-RestMethod should not be called when unmapped positional arguments are present."
+            } -ModuleName XDRInternals
+
+            $runDefinitions = @(
+                [PSCustomObject]@{
+                    command_definition_id = 'run'
+                    aliases               = @('execute', 'PS', 'start', 'PowerShell')
+                    params                = @(
+                        [PSCustomObject]@{
+                            param_id = 'id'
+                            optional = $false
+                            isHidden = $false
+                        },
+                        [PSCustomObject]@{
+                            param_id = 'parameters'
+                            optional = $true
+                            isHidden = $false
+                        }
+                    )
+                    flags                 = @()
+                }
+            )
+
+            {
+                Invoke-XdrEndpointDeviceLiveResponseCommand -SessionId 'CLR1' -Command 'run hello-world.ps1 -parameters "-List" extra-arg' -CommandDefinitions $runDefinitions -RawCommandResult -ErrorAction Stop
+            } | Should -Throw '*unmapped positional arguments*extra-arg*'
+        }
+
         It 'normalizes nested command definitions before batching' {
             Mock Invoke-XdrRateLimitedBatch { @() } -ModuleName XDRInternals
 

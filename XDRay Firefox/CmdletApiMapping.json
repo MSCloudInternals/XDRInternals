@@ -648,35 +648,56 @@
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/update_properties",
     "Parameters": {
-      "PreviewFeatures": "body.IsOptIn"
+      "LiveResponse": "body.properties.AutomatedIrLiveResponse",
+      "LiveResponseForServers": "body.properties.LiveResponseForServers",
+      "LiveResponseUnsignedScriptExecution": "body.properties.AutomatedIrUnsignedScripts"
     }
   },
   {
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/deprovision",
     "Parameters": {
-      "PreviewFeatures": "body.IsOptIn"
+      "MicrosoftIntuneConnection": "fixed:false"
     }
   },
   {
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/provision",
     "Parameters": {
-      "PreviewFeatures": "body.IsOptIn"
+      "MicrosoftIntuneConnection": "fixed:true"
     }
   },
   {
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense",
-    "Parameters": {
-      "PreviewFeatures": "body.IsOptIn"
-    }
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense"
   },
   {
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SaveAdvancedFeaturesSetting",
     "Parameters": {
-      "PreviewFeatures": "body.IsOptIn"
+      "ActiveIncidentResponse": "body.DartDataCollection",
+      "AggregatedReporting": "body.EnableAggregatedReporting",
+      "AllowOrBlockFile": "body.BlockListEnabled",
+      "ApplyStreamlinedConnectivitySettingsToDevicesManagedByIntuneAndDefenderForCloud": "body.UseSimplifiedConnectivityViaApi",
+      "AutomaticallyResolveAlerts": "body.AutoResolveInvestigatedAlerts",
+      "AzureInformationProtection": "body.EnableAipIntegration",
+      "CustomNetworkIndicators": "body.AllowWdavNetworkBlock",
+      "DefaultToStreamlinedConnectivityWhenOnboardingDevicesInDefenderPortal": "body.UseSimplifiedConnectivity",
+      "DownloadQuarantinedFiles": "body.EnableQuarantinedFileDownload",
+      "EnableEDRInBlockMode": "body.EnableWdavPassiveModeRemediation",
+      "EnableMicrosoftDefenderAntivirusInAuditMode": "body.EnableWdavAuditMode",
+      "ExcludeDevices": "body.EnableExcludedDevices",
+      "HidePotentialDuplicateDeviceRecords": "body.HidePotentialDuplications",
+      "IsolationExclusionRules": "body.IsolationExclusionOptIn",
+      "LowFidelityEnrichmentEnabled": "body.LowFidelityEnrichmentEnabled",
+      "MicrosoftDefenderForCloudApps": "body.EnableMcasIntegration",
+      "MicrosoftDefenderForIdentityIntegration": "body.AatpIntegrationEnabled",
+      "MicrosoftEndpointDLP": "body.EnableEndpointDlp",
+      "RestrictCorrelationToWithinScopedDeviceGroups": "body.IsolateIncidentsWithDifferentDeviceGroups",
+      "ShowUserDetails": "body.ShowUserAadProfile",
+      "SkypeForBusinessIntegration": "body.SkypeIntegrationEnabled",
+      "TamperProtection": "body.EnableWdavAntiTampering",
+      "WebContentFiltering": "body.WebCategoriesEnabled"
     }
   },
   {
@@ -690,7 +711,7 @@
     "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/wdatpInternalApi/compliance/alertSharing/status/",
     "Parameters": {
-      "PreviewFeatures": "body.IsOptIn"
+      "PurviewSharing": "body"
     }
   },
   {

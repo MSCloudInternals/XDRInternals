@@ -72,6 +72,7 @@
         "Connect-XdrEndpointDeviceLiveResponse",
         "ConvertTo-XdrEncodedAdvancedHuntingQuery",
         "Disconnect-XdrEndpointDeviceLiveResponse",
+        "Export-XdrAzureDataExplorer",
         "Export-XdrToSentinel",
         "Get-XdrActionsCenterHistory",
         "Get-XdrActionsCenterPending",
@@ -80,6 +81,8 @@
         "Get-XdrAdvancedHuntingUnifiedDetectionRules",
         "Get-XdrAdvancedHuntingUserHistory",
         "Get-XdrAlert",
+        "Get-XdrAzureDataExplorerCluster",
+        "Get-XdrAzureDataExplorerIngestionStatus",
         "Get-XdrCloudAppsActivityTimeline",
         "Get-XdrCloudAppsApp",
         "Get-XdrCloudAppsConfiguration",
@@ -152,6 +155,7 @@
         "Get-XdrXspmChokePoint",
         "Get-XdrXspmTopEntryPoint",
         "Get-XdrXspmTopTarget",
+        "Invoke-XdrAzureDataExplorerQuery",
         "Invoke-XdrEndpointDeviceAction",
         "Invoke-XdrEndpointDeviceAutomatedInvestigation",
         "Invoke-XdrEndpointDeviceLiveResponseCommand",
@@ -173,6 +177,7 @@
         "Remove-XdrEndpointDeviceLiveResponseLibraryFile",
         "Remove-XdrIdentityConfigurationRemediationActionAccount",
         "Set-XdrAdvancedHuntingFunction",
+        "Set-XdrAzureDataExplorerConnection",
         "Set-XdrCloudAppsDiscoveredApp",
         "Set-XdrConfigurationCriticalAssetManagementClassification",
         "Set-XdrConfigurationPreviewFeatures",
@@ -248,5 +253,3 @@
     # DefaultCommandPrefix = ''
 
 }
-
-

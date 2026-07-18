@@ -194,19 +194,24 @@
                 $body.titleSearchTerms = $TitleSearchTerms
             }
 
-            # Create cache key from parameters
-            $cacheKeyParams = @{
+            # Preserve parameter types and array boundaries before hashing so distinct requests cannot share a cache key.
+            $cacheKeyPayload = [ordered]@{
                 LookBackInDays          = $LookBackInDays
                 SortByField             = $SortByField
                 SortOrder               = $SortOrder
                 PageSize                = $PageSize
                 PageIndex               = $currentPageIndex
                 DefenderExpertsLicensed = $DefenderExpertsLicensed.IsPresent
+                TitleSearchTerms        = @($TitleSearchTerms)
+            } | ConvertTo-Json -Compress
+            $sha256 = [System.Security.Cryptography.SHA256]::Create()
+            try {
+                $cacheKeyHash = ($sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($cacheKeyPayload)) |
+                    ForEach-Object { $_.ToString('x2') }) -join ''
+            } finally {
+                $sha256.Dispose()
             }
-            if ($TitleSearchTerms) {
-                $cacheKeyParams.TitleSearchTerms = $TitleSearchTerms -join ","
-            }
-            $cacheKey = "XdrIncidents_$($cacheKeyParams.GetHashCode())"
+            $cacheKey = "XdrIncidents_$cacheKeyHash"
 
             $currentCacheValue = Get-XdrCache -CacheKey $cacheKey -ErrorAction SilentlyContinue
             if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {

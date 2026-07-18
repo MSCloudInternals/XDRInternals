@@ -102,8 +102,13 @@
 
     It 'does not wrap an already-structured TAP error again' {
         Mock Invoke-XdrTemporaryAccessPassAuthentication {
-            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod TemporaryAccessPass -Stage PassSubmission -DefaultCode InvalidCredentials
-            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
+            $exception = [System.Security.Authentication.AuthenticationException]::new('The username or password was not accepted.')
+            $exception.Data['XdrAuthenticationFailure'] = [pscustomobject]@{
+                Code = 'InvalidCredentials'; AuthenticationMethod = 'TemporaryAccessPass'; Stage = 'PassSubmission'
+            }
+            $record = [System.Management.Automation.ErrorRecord]::new($exception, 'XdrAuthentication.InvalidCredentials', 'AuthenticationError', $null)
+            $record.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('The username or password was not accepted.')
+            throw $record
         } -ModuleName XDRInternals
         Mock Connect-XdrByEstsCookie { 'connected' } -ModuleName XDRInternals
 
@@ -117,19 +122,24 @@
     }
 
     It 'passes through structured Phone, Browser, and SSO failures' -ForEach @(
-        @{ Command = 'Connect-XdrByPhoneSignIn'; Helper = 'Invoke-XdrPhoneSignInAuthentication'; Arguments = @{ Username = 'user@contoso.com' }; Method = 'PhoneSignIn' }
-        @{ Command = 'Connect-XdrByBrowser'; Helper = 'Invoke-XdrBrowserAuthentication'; Arguments = @{}; Method = 'Browser' }
-        @{ Command = 'Connect-XdrBySSO'; Helper = 'Invoke-XdrSsoAuthentication'; Arguments = @{}; Method = 'SSO' }
+        @{ Command = 'Connect-XdrByPhoneSignIn'; Helper = 'Invoke-XdrPhoneSignInAuthentication'; Arguments = @{ Username = 'user@contoso.com' } }
+        @{ Command = 'Connect-XdrByBrowser'; Helper = 'Invoke-XdrBrowserAuthentication'; Arguments = @{} }
+        @{ Command = 'Connect-XdrBySSO'; Helper = 'Invoke-XdrSsoAuthentication'; Arguments = @{} }
     ) {
         Mock $Helper {
-            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod $Method -Stage BrowserSignIn -DefaultCode BrowserTimeout
-            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
+            $exception = [System.Security.Authentication.AuthenticationException]::new('Browser authentication did not complete before the timeout.')
+            $exception.Data['XdrAuthenticationFailure'] = [pscustomobject]@{
+                Code = 'BrowserTimeout'; AuthenticationMethod = 'StructuredMock'; Stage = 'BrowserSignIn'
+            }
+            $record = [System.Management.Automation.ErrorRecord]::new($exception, 'XdrAuthentication.BrowserTimeout', 'OperationTimeout', $null)
+            $record.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('Browser authentication did not complete before the timeout.')
+            throw $record
         } -ModuleName XDRInternals
 
         $caught = try { & $Command @Arguments } catch { $_ }
 
         $caught.FullyQualifiedErrorId | Should -BeLike 'XdrAuthentication.BrowserTimeout*'
-        $caught.Exception.Data['XdrAuthenticationFailure'].AuthenticationMethod | Should -Be $Method
+        $caught.Exception.Data['XdrAuthenticationFailure'].AuthenticationMethod | Should -Be 'StructuredMock'
         $caught.Exception.InnerException | Should -BeNullOrEmpty
     }
 }

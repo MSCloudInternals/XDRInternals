@@ -1,4 +1,48 @@
 ﻿function Get-XdrAuthenticationFailure {
+    <#
+    .SYNOPSIS
+        Classifies an authentication failure into the internal XDR authentication error contract.
+
+    .DESCRIPTION
+        Normalizes exact Entra error state, OAuth redirects, SAS results, HTTP responses, and
+        native PowerShell errors into a secret-safe authentication failure description.
+
+    .PARAMETER ErrorRecord
+        A native PowerShell error to inspect for structured response details and status.
+
+    .PARAMETER AuthState
+        Parsed Entra authentication state containing exact provider error fields.
+
+    .PARAMETER RedirectUri
+        An OAuth redirect URI whose error fields should be classified without retaining other values.
+
+    .PARAMETER SasResult
+        A Server Authentication State result to classify.
+
+    .PARAMETER Response
+        An HTTP response whose status and safe identifiers should be inspected.
+
+    .PARAMETER AuthenticationMethod
+        The Connect authentication method that encountered the failure.
+
+    .PARAMETER Stage
+        The authentication stage that encountered the failure.
+
+    .PARAMETER DefaultCode
+        The stable fallback classification to use when no stronger structured signal exists.
+
+    .PARAMETER SafeEvidence
+        A small dictionary of allowlisted diagnostic evidence. Unknown or sensitive fields are discarded.
+
+    .EXAMPLE
+        Get-XdrAuthenticationFailure -AuthState $authState -AuthenticationMethod Credential -Stage Password
+
+        Classifies exact Entra state returned after password submission.
+
+    .OUTPUTS
+        PSCustomObject containing the normalized authentication failure.
+    #>
+    [OutputType([pscustomobject])]
     [CmdletBinding()]
     param(
         [System.Management.Automation.ErrorRecord]$ErrorRecord,

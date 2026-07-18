@@ -216,6 +216,7 @@ Describe 'Browser authentication failure boundaries' {
             }
             Mock Format-XdrBrowserTargetDescription { 'Sign in to your account [login.microsoftonline.com]' }
             Mock Get-XdrBrowserCookieJar { @() }
+            Mock Get-XdrBrowserAuthenticationPageError { $null }
             Mock Get-XdrBestBrowserEstsCookie { $null }
             Mock Get-XdrBrowserCookieValue { $null }
 
@@ -226,6 +227,47 @@ Describe 'Browser authentication failure boundaries' {
             ($metadata.SafeEvidence | Where-Object Name -EQ Host).Value | Should -Be 'login.microsoftonline.com'
             ($metadata.SafeEvidence | Where-Object Name -EQ PageTitle).Value | Should -Be 'Sign in to your account'
             ($metadata | ConvertTo-Json -Depth 8) | Should -Not -Match 'secret-code|oauth2/authorize'
+        }
+
+        It 'uses exact page error state when browser polling reaches its timeout' {
+            Mock Start-XdrBrowserProcess {
+                $process = [pscustomobject]@{ HasExited = $false }
+                $process | Add-Member -MemberType ScriptMethod -Name Refresh -Value {}
+                return $process
+            }
+            Mock Get-XdrBrowserPreferredTargetContext {
+                [pscustomobject]@{
+                    Url = 'https://login.microsoftonline.com/common/login'
+                    Title = 'Sign in blocked'
+                    WebSocketUrl = 'ws://localhost/page'
+                }
+            }
+            Mock Format-XdrBrowserTargetDescription { 'Sign in blocked [login.microsoftonline.com]' }
+            Mock Get-Date {
+                if (-not $script:browserErrorDateCall) { $script:browserErrorDateCall = 0 }
+                $script:browserErrorDateCall++
+                if ($script:browserErrorDateCall -eq 1) { return [datetime]'2026-01-01T00:00:00Z' }
+                return [datetime]'2026-01-01T00:01:00Z'
+            }
+            Mock Get-XdrBrowserAuthenticationPageError {
+                [pscustomobject]@{
+                    sErrorCode = '53003'
+                    correlationId = '11111111-1111-1111-1111-111111111111'
+                    traceId = 'trace-123'
+                }
+            }
+            Mock Get-XdrBrowserCookieJar { @() }
+            Mock Get-XdrBestBrowserEstsCookie { $null }
+            Mock Get-XdrBrowserCookieValue { $null }
+
+            $caught = try { Invoke-XdrBrowserAuthentication -TimeoutSeconds 30 } catch { $_ }
+
+            $caught.FullyQualifiedErrorId | Should -BeLike 'XdrAuthentication.ConditionalAccess*'
+            $metadata = $caught.Exception.Data['XdrAuthenticationFailure']
+            $metadata.ProviderCode | Should -Be '53003'
+            $metadata.CorrelationId | Should -Be '11111111-1111-1111-1111-111111111111'
+            ($metadata.SafeEvidence | Where-Object Name -EQ Host).Value | Should -Be 'login.microsoftonline.com'
+            Should -Invoke Get-XdrBrowserCookieJar -Times 1 -Exactly
         }
     }
 }

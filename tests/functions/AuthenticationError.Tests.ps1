@@ -1,6 +1,7 @@
 ﻿Describe 'Authentication error classification' {
     InModuleScope XDRInternals {
         It 'maps documented Entra code <ProviderCode> to <Code>' -ForEach @(
+            @{ ProviderCode = '16000'; Code = 'AccountNotFound' }
             @{ ProviderCode = '50034'; Code = 'AccountNotFound' }
             @{ ProviderCode = '50053'; Code = 'SignInBlocked' }
             @{ ProviderCode = '50055'; Code = 'PasswordExpired' }

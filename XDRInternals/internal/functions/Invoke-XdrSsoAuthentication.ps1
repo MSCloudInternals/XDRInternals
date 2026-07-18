@@ -359,6 +359,7 @@ function Invoke-XdrSsoAuthentication {
         $lastObservedTargetDescription = $null
         $lastObservedTargetTitle = $null
         $lastObservedTargetHost = $null
+        $lastObservedPageErrorState = $null
 
         do {
             Start-Sleep -Seconds 2
@@ -383,10 +384,23 @@ function Invoke-XdrSsoAuthentication {
                     try { $lastObservedTargetHost = ([uri]$targetContext.Url).Host } catch { $lastObservedTargetHost = $null }
                     Write-Verbose "Observed browser page: $currentTargetDescription"
                 }
+            } catch {
+                Write-Verbose 'Browser target polling failed.'
+                continue
+            }
 
+            $pageErrorState = $null
+            try {
+                $pageErrorState = Get-XdrBrowserAuthenticationPageError -WebSocketUrl $targetContext.WebSocketUrl
+                $lastObservedPageErrorState = $pageErrorState
+            } catch {
+                Write-Verbose 'Browser page diagnostics were unavailable.'
+            }
+
+            try {
                 $cookies = @(Get-XdrBrowserCookieJar -WebSocketUrl $targetContext.WebSocketUrl)
             } catch {
-                Write-Verbose "Cookie polling failed: $($_.Exception.Message)"
+                Write-Verbose 'Browser cookie polling failed.'
                 continue
             }
 
@@ -407,10 +421,19 @@ function Invoke-XdrSsoAuthentication {
         } while ((Get-Date) -lt $deadline)
 
         if (-not $sccAuthCookieValue -and -not $estsAuthCookieValue) {
-            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod SSO -Stage BrowserSignIn -DefaultCode BrowserTimeout -SafeEvidence @{
-                PageTitle = $lastObservedTargetTitle
-                Host = $lastObservedTargetHost
+            $failureParams = @{
+                AuthenticationMethod = 'SSO'
+                Stage = 'BrowserSignIn'
+                DefaultCode = 'BrowserTimeout'
+                SafeEvidence = @{
+                    PageTitle = $lastObservedTargetTitle
+                    Host = $lastObservedTargetHost
+                }
             }
+            if ($lastObservedPageErrorState) {
+                $failureParams.AuthState = $lastObservedPageErrorState
+            }
+            $failure = Get-XdrAuthenticationFailure @failureParams
             throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 

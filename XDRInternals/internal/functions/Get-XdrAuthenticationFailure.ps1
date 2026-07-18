@@ -142,7 +142,7 @@
     }
 
     $entraMappings = @{
-        '50034' = 'AccountNotFound'; '50053' = 'SignInBlocked'; '50055' = 'PasswordExpired'; '50056' = 'PasswordMissing'
+        '16000' = 'AccountNotFound'; '50034' = 'AccountNotFound'; '50053' = 'SignInBlocked'; '50055' = 'PasswordExpired'; '50056' = 'PasswordMissing'
         '50057' = 'AccountDisabled'; '50126' = 'InvalidCredentials'; '50058' = 'SessionUnavailable'
         '50072' = 'MfaEnrollmentRequired'; '50079' = 'MfaEnrollmentRequired'; '50074' = 'MfaRequired'; '50076' = 'MfaRequired'
         '50078' = 'MfaTimeout'; '50087' = 'MfaTemporarilyUnavailable'; '50088' = 'MfaTemporarilyUnavailable'; '50089' = 'FlowExpired'

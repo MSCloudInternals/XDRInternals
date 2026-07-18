@@ -665,6 +665,50 @@ InModuleScope XDRInternals {
             $result | Should -Be 'Microsoft Defender [https://security.microsoft.com/]'
         }
 
+        It 'removes query and fragment values from browser target descriptions' {
+            $result = Format-XdrBrowserTargetDescription -Title 'Sign in' -Url 'https://login.microsoftonline.com/common/oauth2/authorize?login_hint=user%40contoso.com&nonce=secret-nonce#code=secret-code'
+
+            $result | Should -Be 'Sign in [https://login.microsoftonline.com/common/oauth2/authorize]'
+            $result | Should -Not -Match 'user|nonce|code|secret'
+        }
+
+        It 'reads only allowlisted authentication error fields through CDP' {
+            Mock Invoke-XdrBrowserCdpCommand {
+                [pscustomobject]@{
+                    result = [pscustomobject]@{
+                        value = '{"sErrorCode":"53003","correlationId":"11111111-1111-1111-1111-111111111111","traceId":"trace-123"}'
+                    }
+                }
+            } -ModuleName XDRInternals
+
+            $result = Get-XdrBrowserAuthenticationPageError -WebSocketUrl 'ws://login-target'
+
+            $result.sErrorCode | Should -Be '53003'
+            $result.correlationId | Should -Be '11111111-1111-1111-1111-111111111111'
+            $result.traceId | Should -Be 'trace-123'
+            Should -Invoke Invoke-XdrBrowserCdpCommand -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Method -eq 'Runtime.evaluate' -and
+                $Params.returnByValue -eq $true -and
+                $Params.expression -match '\$Config' -and
+                $Params.expression -notmatch '(?i)sFT|sCtx|canary|sessionId|innerHTML|document\.|outerHTML|textContent'
+            }
+        }
+
+        It 'ignores browser page state without an exact numeric provider error' -ForEach @(
+            @{ SerializedState = $null }
+            @{ SerializedState = '{}' }
+            @{ SerializedState = '{"sErrorCode":"0"}' }
+            @{ SerializedState = '{"sErrorCode":"access_denied"}' }
+            @{ SerializedState = 'not-json' }
+        ) {
+            $script:serializedBrowserState = $SerializedState
+            Mock Invoke-XdrBrowserCdpCommand {
+                [pscustomobject]@{ result = [pscustomobject]@{ value = $script:serializedBrowserState } }
+            } -ModuleName XDRInternals
+
+            Get-XdrBrowserAuthenticationPageError -WebSocketUrl 'ws://login-target' | Should -BeNullOrEmpty
+        }
+
         It 'returns the macOS SSO default profile path' {
             if (-not $IsMacOS) {
                 Set-ItResult -Skipped -Because 'macOS-specific path assertion.'

@@ -149,6 +149,7 @@
         '50105' = 'AppAssignmentRequired'; '65001' = 'ConsentRequired'; '90008' = 'ConsentRequired'; '90094' = 'ConsentRequired'; '90095' = 'ConsentRequired'
         '90002' = 'InvalidTenant'; '53000' = 'ConditionalAccess'; '53001' = 'ConditionalAccess'; '53002' = 'ConditionalAccess'
         '53003' = 'ConditionalAccess'; '53004' = 'ConditionalAccess'; '53009' = 'ConditionalAccess'
+        '130503' = 'InvalidCredentials'; '701013' = 'MfaTemporarilyUnavailable'
         '90006' = 'ProviderUnavailable'; '90024' = 'ProviderUnavailable'; '90033' = 'ProviderUnavailable'
     }
 
@@ -192,7 +193,12 @@
         $code = switch -Regex ($legacyMessage) {
             '(?i)no supported Chromium|browser (executable|application bundle).+(not found|does not contain)|DevTools endpoint.+waiting' { 'BrowserStartupFailed'; break }
             '(?i)browser.+(closed|exited)|websocket.+closed' { 'BrowserClosed'; break }
-            '(?i)timed out|timeout expired' { 'BrowserTimeout'; break }
+            '(?i)timed out|timeout expired' {
+                if ($AuthenticationMethod -eq 'PhoneSignIn') { 'MfaTimeout' }
+                elseif ($AuthenticationMethod -in @('Browser', 'SSO')) { 'BrowserTimeout' }
+                else { 'UnknownFailure' }
+                break
+            }
             '(?i)tenant.+(not found|did not return|could not validate)' { 'TenantSelectionFailed'; break }
             '(?i)credential file.+(not found|invalid|missing)|invalid JSON in credential' { 'CredentialFileInvalid'; break }
             '(?i)key vault.+(token|access|sign)' { 'KeyVaultAccessFailed'; break }
@@ -294,6 +300,9 @@
     if ($conditionalAccessScenario -eq 'DeviceNotCompliant') {
         $message = 'A Conditional Access policy requires a compliant device, and the sign-in device did not meet that requirement.'
         $recommendedAction = 'Retry from a device marked compliant in Entra ID, or ask a tenant administrator to review the device-compliance grant control in the sign-in logs.'
+    } elseif ($providerCode -eq '130503' -and $AuthenticationMethod -eq 'TemporaryAccessPass') {
+        $message = 'The Temporary Access Pass was not accepted.'
+        $recommendedAction = 'Ask an authentication administrator for a new Temporary Access Pass, then retry.'
     }
 
     return [pscustomobject][ordered]@{

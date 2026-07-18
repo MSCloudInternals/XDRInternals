@@ -32,6 +32,8 @@
             @{ ProviderCode = '90006'; Code = 'ProviderUnavailable' }
             @{ ProviderCode = '90024'; Code = 'ProviderUnavailable' }
             @{ ProviderCode = '90033'; Code = 'ProviderUnavailable' }
+            @{ ProviderCode = '130503'; Code = 'InvalidCredentials' }
+            @{ ProviderCode = '701013'; Code = 'MfaTemporarilyUnavailable' }
         ) {
             $failure = Get-XdrAuthenticationFailure -AuthState ([pscustomobject]@{ sErrorCode = $ProviderCode })
             $failure.Code | Should -Be $Code
@@ -45,6 +47,32 @@
             $failure.Message | Should -Not -Match '(?i)account is locked'
             $failure.RecommendedAction | Should -Match '(?i)sign-in logs'
             $failure.RecommendedAction | Should -Match '(?i)blocked IP'
+        }
+
+        It 'provides method-specific remediation for a rejected Temporary Access Pass' {
+            $failure = Get-XdrAuthenticationFailure -AuthState ([pscustomobject]@{ sErrorCode = '130503' }) -AuthenticationMethod TemporaryAccessPass -Stage PassSubmission
+
+            $failure.Code | Should -Be 'InvalidCredentials'
+            $failure.Message | Should -Match 'Temporary Access Pass'
+            $failure.Message | Should -Not -Match '(?i)password'
+            $failure.RecommendedAction | Should -Match '(?i)new Temporary Access Pass'
+            $failure.Retryable | Should -BeFalse
+        }
+
+        It 'uses authentication-method-specific timeout classifications' -ForEach @(
+            @{ Method = 'PhoneSignIn'; Code = 'MfaTimeout' }
+            @{ Method = 'Browser'; Code = 'BrowserTimeout' }
+            @{ Method = 'SSO'; Code = 'BrowserTimeout' }
+            @{ Method = 'TemporaryAccessPass'; Code = 'UnknownFailure' }
+        ) {
+            $record = [System.Management.Automation.ErrorRecord]::new(
+                [System.TimeoutException]::new('Authentication timed out.'),
+                'NativeTimeout',
+                'OperationTimeout',
+                $null
+            )
+
+            (Get-XdrAuthenticationFailure -ErrorRecord $record -AuthenticationMethod $Method).Code | Should -Be $Code
         }
 
         It 'calls out a compliant-device Conditional Access requirement' {

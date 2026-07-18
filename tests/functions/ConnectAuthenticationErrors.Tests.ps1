@@ -121,6 +121,40 @@
         $caught.Exception.Data['XdrAuthenticationFailure'].Stage | Should -Be 'PassSubmission'
     }
 
+    It 'reports an exact rejected-TAP response with TAP-specific remediation' {
+        Mock Invoke-XdrTemporaryAccessPassAuthentication {
+            $record = [System.Management.Automation.ErrorRecord]::new(
+                [System.Exception]::new('Authentication provider rejected the pass.'),
+                'NativeTapFailure',
+                'AuthenticationError',
+                $null
+            )
+            $record.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('{"sErrorCode":"130503","sFT":"secret-flow-state"}')
+            throw $record
+        } -ModuleName XDRInternals
+
+        $caught = try {
+            Connect-XdrByTemporaryAccessPass -Username 'user@contoso.com' -TemporaryAccessPass (New-AuthenticationTestSecureString) -TenantId 'tenant-id'
+        } catch { $_ }
+
+        $caught.FullyQualifiedErrorId | Should -BeLike 'XdrAuthentication.InvalidCredentials*'
+        $caught.ErrorDetails.Message | Should -Match 'Temporary Access Pass'
+        $caught.ErrorDetails.RecommendedAction | Should -Match 'new Temporary Access Pass'
+        $caught.Exception.Data['XdrAuthenticationFailure'].ProviderCode | Should -Be '130503'
+        (($caught.ErrorDetails | Out-String), ($caught.Exception.Data['XdrAuthenticationFailure'] | ConvertTo-Json -Depth 8)) -join "`n" | Should -Not -Match 'secret-flow-state'
+    }
+
+    It 'reports a native phone polling timeout as an MFA timeout' {
+        Mock Invoke-XdrPhoneSignInAuthentication { throw [System.TimeoutException]::new('Phone sign-in did not complete before the timeout expired.') } -ModuleName XDRInternals
+
+        $caught = try { Connect-XdrByPhoneSignIn -Username 'user@contoso.com' } catch { $_ }
+
+        $caught.FullyQualifiedErrorId | Should -BeLike 'XdrAuthentication.MfaTimeout*'
+        $caught.ErrorDetails.Message | Should -Match '(?i)multifactor authentication request.*timed out'
+        $caught.ErrorDetails.Message | Should -Not -Match '(?i)browser'
+        $caught.Exception.Data['XdrAuthenticationFailure'].AuthenticationMethod | Should -Be 'PhoneSignIn'
+    }
+
     It 'passes through structured Phone, Browser, and SSO failures' -ForEach @(
         @{ Command = 'Connect-XdrByPhoneSignIn'; Helper = 'Invoke-XdrPhoneSignInAuthentication'; Arguments = @{ Username = 'user@contoso.com' } }
         @{ Command = 'Connect-XdrByBrowser'; Helper = 'Invoke-XdrBrowserAuthentication'; Arguments = @{} }

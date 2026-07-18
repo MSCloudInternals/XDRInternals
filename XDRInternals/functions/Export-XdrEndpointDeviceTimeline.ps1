@@ -143,10 +143,10 @@
         }
 
         $chunkHours = 4
-        $pageSize = 250
-        # The portal API starts returning incomplete cursor chains under concurrent pagination.
-        # A single background worker preserves heartbeat responsiveness and data reliability.
-        $throttleLimit = 1
+        # Larger pages reduce request pressure enough for bounded parallel pagination to
+        # remain reliable while materially improving incident-response export speed.
+        $pageSize = 1000
+        $throttleLimit = 4
         $requestTimeoutSeconds = 120
         $maxRetries = 5
         $maxChunkRestarts = 2

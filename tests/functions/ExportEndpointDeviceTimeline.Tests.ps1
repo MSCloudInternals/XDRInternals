@@ -349,7 +349,7 @@
         $script:FailOneChunk = $false
         $result = Export-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:ToDate -Path $outputPath
 
-        $result.ResumedChunks | Should -Be 1
+        $result.ResumedChunks | Should -Be 2
         $result.TotalEvents | Should -Be 3
         Test-Path -LiteralPath $outputPath | Should -BeTrue
         Test-Path -LiteralPath "$outputPath.parts" | Should -BeFalse

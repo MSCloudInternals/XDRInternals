@@ -397,7 +397,8 @@ function Get-ScopedApiParameterMapping {
     param(
         [string]$CmdletName,
         [string]$Uri,
-        [hashtable]$DefaultParameters
+        [hashtable]$DefaultParameters,
+        [string[]]$AvailableParameters
     )
 
     $scopedParameters = @{}
@@ -410,6 +411,75 @@ function Get-ScopedApiParameterMapping {
     # deanonymization body parameters off the other discovery endpoints.
     if ($CmdletName -eq 'Get-XdrCloudAppsDiscovery' -and $Uri -notmatch '/deanonymize_entity_names/$') {
         return @{}
+    }
+
+    # Set-XdrEndpointAdvancedFeatures sends different parameters to seven APIs.
+    # The general extractor builds one map for the whole function, so scope this
+    # multi-endpoint cmdlet explicitly instead of applying PreviewFeatures to every URI.
+    if ($CmdletName -eq 'Set-XdrEndpointAdvancedFeatures') {
+        $endpointParameters = switch -Regex ($Uri) {
+            '/settings/SaveAdvancedFeaturesSetting$' {
+                @{
+                    ActiveIncidentResponse = 'body.DartDataCollection'
+                    AggregatedReporting = 'body.EnableAggregatedReporting'
+                    AllowOrBlockFile = 'body.BlockListEnabled'
+                    ApplyStreamlinedConnectivitySettingsToDevicesManagedByIntuneAndDefenderForCloud = 'body.UseSimplifiedConnectivityViaApi'
+                    AutomaticallyResolveAlerts = 'body.AutoResolveInvestigatedAlerts'
+                    AzureInformationProtection = 'body.EnableAipIntegration'
+                    CustomNetworkIndicators = 'body.AllowWdavNetworkBlock'
+                    DefaultToStreamlinedConnectivityWhenOnboardingDevicesInDefenderPortal = 'body.UseSimplifiedConnectivity'
+                    DownloadQuarantinedFiles = 'body.EnableQuarantinedFileDownload'
+                    EnableEDRInBlockMode = 'body.EnableWdavPassiveModeRemediation'
+                    EnableMicrosoftDefenderAntivirusInAuditMode = 'body.EnableWdavAuditMode'
+                    ExcludeDevices = 'body.EnableExcludedDevices'
+                    HidePotentialDuplicateDeviceRecords = 'body.HidePotentialDuplications'
+                    IsolationExclusionRules = 'body.IsolationExclusionOptIn'
+                    LowFidelityEnrichmentEnabled = 'body.LowFidelityEnrichmentEnabled'
+                    MicrosoftDefenderForCloudApps = 'body.EnableMcasIntegration'
+                    MicrosoftDefenderForIdentityIntegration = 'body.AatpIntegrationEnabled'
+                    MicrosoftEndpointDLP = 'body.EnableEndpointDlp'
+                    RestrictCorrelationToWithinScopedDeviceGroups = 'body.IsolateIncidentsWithDifferentDeviceGroups'
+                    ShowUserDetails = 'body.ShowUserAadProfile'
+                    SkypeForBusinessIntegration = 'body.SkypeIntegrationEnabled'
+                    TamperProtection = 'body.EnableWdavAntiTampering'
+                    WebContentFiltering = 'body.WebCategoriesEnabled'
+                }
+                break
+            }
+            '/liveResponseApi/update_properties$' {
+                @{
+                    LiveResponse = 'body.properties.AutomatedIrLiveResponse'
+                    LiveResponseForServers = 'body.properties.LiveResponseForServers'
+                    LiveResponseUnsignedScriptExecution = 'body.properties.AutomatedIrUnsignedScripts'
+                }
+                break
+            }
+            '/settings/SavePreviewExperienceSetting$' {
+                @{ PreviewFeatures = 'body.IsOptIn' }
+                break
+            }
+            '/wdatpInternalApi/compliance/alertSharing/status/$' {
+                @{ PurviewSharing = 'body' }
+                break
+            }
+            '/responseApiPortal/onboarding/intune/provision$' {
+                @{ MicrosoftIntuneConnection = 'fixed:true' }
+                break
+            }
+            '/responseApiPortal/onboarding/intune/deprovision$' {
+                @{ MicrosoftIntuneConnection = 'fixed:false' }
+                break
+            }
+            default { @{} }
+        }
+
+        $scopedParameters = @{}
+        foreach ($parameterName in $endpointParameters.Keys) {
+            if ($AvailableParameters -contains $parameterName) {
+                $scopedParameters[$parameterName] = $endpointParameters[$parameterName]
+            }
+        }
+        return $scopedParameters
     }
 
     return $scopedParameters
@@ -466,6 +536,7 @@ foreach ($file in $cmdletFiles) {
 
     $cmdletName = $functionAst.Name
     $parameters = Get-ApiParameterMapping -Content $content -ExpectedFunctionName $cmdletName
+    $availableParameters = @($functionAst.Body.ParamBlock.Parameters.Name.VariablePath.UserPath)
     
     # Extract synopsis
     $synopsis = ""
@@ -493,7 +564,7 @@ foreach ($file in $cmdletFiles) {
         }
         
         # Create mapping object
-        $mappingParameters = Get-ScopedApiParameterMapping -CmdletName $cmdletName -Uri $uri -DefaultParameters $parameters
+        $mappingParameters = Get-ScopedApiParameterMapping -CmdletName $cmdletName -Uri $uri -DefaultParameters $parameters -AvailableParameters $availableParameters
         $mapping = ConvertTo-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $mappingParameters
         
         # Only add unique URIs for this cmdlet
@@ -519,7 +590,7 @@ foreach ($file in $cmdletFiles) {
         }
         
         # Create mapping object
-        $mappingParameters = Get-ScopedApiParameterMapping -CmdletName $cmdletName -Uri $uri -DefaultParameters $parameters
+        $mappingParameters = Get-ScopedApiParameterMapping -CmdletName $cmdletName -Uri $uri -DefaultParameters $parameters -AvailableParameters $availableParameters
         $mapping = ConvertTo-ApiMapping -CmdletName $cmdletName -Uri $uri -Parameters $mappingParameters
         
         # Only add unique URIs for this cmdlet
@@ -699,7 +770,7 @@ Write-Verbose "First 5 cmdlets in sorted array: $($apiMappingArray[0..4].Cmdlet 
 Write-Verbose "API mappings: $($apiMappingArray.Count) total ($newCount new, $updatedCount updated, $deletedCount removed)"
 
 # Convert to JSON with proper formatting
-$jsonContent = $apiMappingArray | ConvertTo-Json -Depth 10
+$jsonContent = ($apiMappingArray | ConvertTo-Json -Depth 10) + [Environment]::NewLine
 
 # Update XDRay/CmdletApiMapping.json
 if ($PSCmdlet.ShouldProcess($jsonPath, "Update API mappings")) {

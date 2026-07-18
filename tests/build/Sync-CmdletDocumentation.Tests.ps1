@@ -194,4 +194,106 @@ function Get-NewWidget {
                 @($apiMappings | Where-Object Cmdlet -eq 'Get-NewWidget')[0].ApiUri | Should -Be 'https://security.microsoft.com/api/newWidgets/{WidgetId}'
                 @($firefoxApiMappings | Where-Object Cmdlet -eq 'Get-NewWidget')[0].ApiUri | Should -Be 'https://security.microsoft.com/api/newWidgets/{WidgetId}'
         }
+
+        It 'scopes endpoint advanced feature parameters to their API request' {
+                $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+                $sourceScriptPath = Join-Path $repoRoot 'build\Sync-CmdletDocumentation.ps1'
+                $fixtureRoot = Join-Path $TestDrive 'endpoint-advanced-features'
+                $fixtureBuildPath = Join-Path $fixtureRoot 'build'
+                $fixtureFunctionsPath = Join-Path $fixtureRoot 'XDRInternals\functions'
+                $fixtureManifestPath = Join-Path $fixtureRoot 'XDRInternals\XDRInternals.psd1'
+                $fixtureReadmePath = Join-Path $fixtureRoot 'README.md'
+                $fixtureJsonPath = Join-Path $fixtureRoot 'XDRay\CmdletApiMapping.json'
+                $fixtureFirefoxJsonPath = Join-Path $fixtureRoot 'XDRay Firefox\CmdletApiMapping.json'
+                $fixtureFunctionPath = Join-Path $fixtureFunctionsPath 'Set-XdrEndpointAdvancedFeatures.ps1'
+
+                $null = New-Item -Path $fixtureBuildPath -ItemType Directory -Force
+                $null = New-Item -Path $fixtureFunctionsPath -ItemType Directory -Force
+                $null = New-Item -Path (Split-Path -Parent $fixtureJsonPath) -ItemType Directory -Force
+                $null = New-Item -Path (Split-Path -Parent $fixtureFirefoxJsonPath) -ItemType Directory -Force
+
+                Copy-Item -Path $sourceScriptPath -Destination (Join-Path $fixtureBuildPath 'Sync-CmdletDocumentation.ps1')
+
+                Set-Content -Path $fixtureReadmePath -Value @'
+## Available Cmdlets
+
+| Cmdlet | Description |
+|--------|-------------|
+| Placeholder | Placeholder |
+
+## Next Section
+'@ -Encoding utf8
+
+                Set-Content -Path $fixtureManifestPath -Value @'
+@{
+        FunctionsToExport = @(
+                "Placeholder"
+        )
+}
+'@ -Encoding utf8
+
+                $staleMappings = @'
+[
+  {
+    "Cmdlet": "Set-XdrEndpointAdvancedFeatures",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/SaveAdvancedFeaturesSetting",
+    "Parameters": {
+      "LowFidelityEnrichmentEnabled": "body.LowFidelityEnrichmentEnabled",
+      "PreviewFeatures": "body.IsOptIn"
+    }
+  }
+]
+'@
+                Set-Content -Path $fixtureJsonPath -Value $staleMappings -Encoding utf8
+                Set-Content -Path $fixtureFirefoxJsonPath -Value $staleMappings -Encoding utf8
+
+                Set-Content -Path $fixtureFunctionPath -Value @'
+<#
+.SYNOPSIS
+Sets endpoint advanced features.
+#>
+function Set-XdrEndpointAdvancedFeatures {
+        [CmdletBinding()]
+        param(
+                [bool]$LowFidelityEnrichmentEnabled,
+                [bool]$LiveResponse,
+                [bool]$PreviewFeatures,
+                [bool]$PurviewSharing,
+                [bool]$MicrosoftIntuneConnection,
+                [bool]$AuthenticatedTelemetry
+        )
+
+        $uri = "https://security.microsoft.com/apiproxy/mtp/settings/SaveAdvancedFeaturesSetting"
+        $uri = "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/update_properties?useV2Api=true"
+        $uri = "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting?context=MdatpContext"
+        $uri = "https://security.microsoft.com/apiproxy/mtp/wdatpInternalApi/compliance/alertSharing/status/"
+        $uri = "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/provision"
+        $uri = "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/deprovision"
+        $uri = "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense"
+        $body = @{ IsOptIn = $PreviewFeatures }
+}
+'@ -Encoding utf8
+
+                & (Join-Path $fixtureBuildPath 'Sync-CmdletDocumentation.ps1')
+
+                $apiMappings = @(Get-Content -Path $fixtureJsonPath -Raw | ConvertFrom-Json)
+                $advanced = $apiMappings | Where-Object ApiUri -Like '*/SaveAdvancedFeaturesSetting'
+                $liveResponse = $apiMappings | Where-Object ApiUri -Like '*/liveResponseApi/update_properties'
+                $preview = $apiMappings | Where-Object ApiUri -Like '*/SavePreviewExperienceSetting'
+                $purview = $apiMappings | Where-Object ApiUri -Like '*/alertSharing/status/'
+                $intuneProvision = $apiMappings | Where-Object ApiUri -Like '*/intune/provision'
+                $intuneDeprovision = $apiMappings | Where-Object ApiUri -Like '*/intune/deprovision'
+                $authenticatedTelemetry = $apiMappings | Where-Object ApiUri -Like '*/senseauth/allownonauthsense'
+
+                @($advanced.Parameters.PSObject.Properties.Name) | Should -Be @('LowFidelityEnrichmentEnabled')
+                $advanced.Parameters.LowFidelityEnrichmentEnabled | Should -Be 'body.LowFidelityEnrichmentEnabled'
+                @($liveResponse.Parameters.PSObject.Properties.Name) | Should -Be @('LiveResponse')
+                $preview.Parameters.PreviewFeatures | Should -Be 'body.IsOptIn'
+                $purview.Parameters.PurviewSharing | Should -Be 'body'
+                $intuneProvision.Parameters.MicrosoftIntuneConnection | Should -Be 'fixed:true'
+                $intuneDeprovision.Parameters.MicrosoftIntuneConnection | Should -Be 'fixed:false'
+                $authenticatedTelemetry.Parameters | Should -BeNullOrEmpty
+                (Get-Content -Path $fixtureJsonPath -Raw).EndsWith([Environment]::NewLine) | Should -BeTrue
+                (Get-Content -Path $fixtureFirefoxJsonPath -Raw).EndsWith([Environment]::NewLine) | Should -BeTrue
+        }
 }

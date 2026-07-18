@@ -156,16 +156,12 @@
                         Clear-XdrCache -CacheKey "XdrEndpointConfigurationCustomCollectionRule" -ErrorAction SilentlyContinue
 
                         Write-Verbose "Successfully created rule with ID: $($result.ruleId)"
-                        Write-Host $result
+                        $result
                     }
                 } catch {
                     Write-Error "Failed to create custom collection rule from file '$($resolvedPath.Path)': $($_.Exception.Message)"
                 }
             }
         }
-    }
-
-    end {
-
     }
 }

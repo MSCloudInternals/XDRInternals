@@ -73,6 +73,7 @@
         "ConvertTo-XdrEncodedAdvancedHuntingQuery",
         "Disconnect-XdrEndpointDeviceLiveResponse",
         "Export-XdrAzureDataExplorer",
+        "Export-XdrEndpointDeviceTimeline",
         "Export-XdrToSentinel",
         "Get-XdrActionsCenterHistory",
         "Get-XdrActionsCenterPending",

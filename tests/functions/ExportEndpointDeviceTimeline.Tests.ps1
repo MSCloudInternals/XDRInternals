@@ -123,6 +123,31 @@
         }
     }
 
+    It 'forwards IncludeSentinelEvents to the initial timeline request' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:SentinelRequestUri = $null
+            Mock Invoke-RestMethod {
+                param($Uri)
+                $script:SentinelRequestUri = [string]$Uri
+                [PSCustomObject]@{
+                    Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:30:00Z'; Id = 1 })
+                    PartialResponseReasons = @()
+                    Prev = $null
+                    Next = $null
+                }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'sentinel.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $true; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeTrue
+            $script:SentinelRequestUri | Should -BeLike '*includeSentinelEvents=true*'
+        }
+    }
+
     It 'uses half-open intervals to prevent duplicate boundary events' {
         InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
             Mock Invoke-RestMethod {

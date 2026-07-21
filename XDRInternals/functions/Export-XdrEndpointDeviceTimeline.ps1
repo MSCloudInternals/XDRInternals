@@ -448,7 +448,9 @@
                 }
 
                 $now = [datetime]::UtcNow
-                if (($now - $lastProgressUpdate).TotalSeconds -ge 2) {
+                $progressIsDue = ($now - $lastProgressUpdate).TotalSeconds -ge 2
+                $heartbeatIsDue = ($now - $lastHeartbeat).TotalSeconds -ge 30
+                if ($progressIsDue -or $heartbeatIsDue) {
                     $completedTicks = $initialCompletedTicks + $completedDuringRunTicks
                     $completedCount = $initialCompletedCount + $completedDuringRunCount
                     $completedEvents = $initialCompletedEvents + $completedDuringRunEvents
@@ -456,27 +458,23 @@
                     $completedBytes = [long](($manifest.Chunks | Where-Object Status -eq 'Completed' | ForEach-Object { [long]$_.FileBytes } | Measure-Object -Sum).Sum)
                     $activeBytes = [long](($statusMap.Values | Measure-Object -Property Bytes -Sum).Sum)
                     $percentComplete = if ($totalDurationTicks -gt 0) { [math]::Min(100, [math]::Round(($completedTicks / $totalDurationTicks) * 100, 1)) } else { 100 }
-                    $status = "Completed $completedCount/$totalChunkCount windows; events $($completedEvents + $activeEvents); written $([math]::Round(($completedBytes + $activeBytes) / 1MB, 1)) MiB; active $($activeJobs.Count); queued $($chunkQueue.Count)"
-                    Write-Progress -Activity 'Exporting XDR endpoint device timeline' -Status $status -PercentComplete $percentComplete
-                    $lastProgressUpdate = $now
-                }
 
-                if (($now - $lastHeartbeat).TotalSeconds -ge 30) {
-                    $completedTicks = $initialCompletedTicks + $completedDuringRunTicks
-                    $completedCount = $initialCompletedCount + $completedDuringRunCount
-                    $completedEvents = $initialCompletedEvents + $completedDuringRunEvents
-                    $activeEvents = [long](($statusMap.Values | Measure-Object -Property Events -Sum).Sum)
-                    $completedBytes = [long](($manifest.Chunks | Where-Object Status -eq 'Completed' | ForEach-Object { [long]$_.FileBytes } | Measure-Object -Sum).Sum)
-                    $activeBytes = [long](($statusMap.Values | Measure-Object -Property Bytes -Sum).Sum)
-                    $percentComplete = if ($totalDurationTicks -gt 0) { [math]::Round(($completedTicks / $totalDurationTicks) * 100, 1) } else { 100 }
-                    $etaText = 'estimating'
-                    if ($completedDuringRunTicks -gt 0 -and $operationStopwatch.Elapsed.TotalSeconds -gt 0) {
-                        $ticksPerSecond = $completedDuringRunTicks / $operationStopwatch.Elapsed.TotalSeconds
-                        $remainingTicks = [math]::Max([long]0, $totalDurationTicks - $completedTicks)
-                        $etaText = [timespan]::FromSeconds($remainingTicks / $ticksPerSecond).ToString('c')
+                    if ($progressIsDue) {
+                        $status = "Completed $completedCount/$totalChunkCount windows; events $($completedEvents + $activeEvents); written $([math]::Round(($completedBytes + $activeBytes) / 1MB, 1)) MiB; active $($activeJobs.Count); queued $($chunkQueue.Count)"
+                        Write-Progress -Activity 'Exporting XDR endpoint device timeline' -Status $status -PercentComplete $percentComplete
+                        $lastProgressUpdate = $now
                     }
-                    Write-Information "Endpoint timeline heartbeat: $percentComplete% time coverage; windows $completedCount/$totalChunkCount; events $($completedEvents + $activeEvents); written $([math]::Round(($completedBytes + $activeBytes) / 1MB, 1)) MiB; active $($activeJobs.Count); queued $($chunkQueue.Count); elapsed $($operationStopwatch.Elapsed.ToString('c')); rough ETA $etaText." -InformationAction Continue
-                    $lastHeartbeat = $now
+
+                    if ($heartbeatIsDue) {
+                        $etaText = 'estimating'
+                        if ($completedDuringRunTicks -gt 0 -and $operationStopwatch.Elapsed.TotalSeconds -gt 0) {
+                            $ticksPerSecond = $completedDuringRunTicks / $operationStopwatch.Elapsed.TotalSeconds
+                            $remainingTicks = [math]::Max([long]0, $totalDurationTicks - $completedTicks)
+                            $etaText = [timespan]::FromSeconds($remainingTicks / $ticksPerSecond).ToString('c')
+                        }
+                        Write-Information "Endpoint timeline heartbeat: $percentComplete% time coverage; windows $completedCount/$totalChunkCount; events $($completedEvents + $activeEvents); written $([math]::Round(($completedBytes + $activeBytes) / 1MB, 1)) MiB; active $($activeJobs.Count); queued $($chunkQueue.Count); elapsed $($operationStopwatch.Elapsed.ToString('c')); rough ETA $etaText." -InformationAction Continue
+                        $lastHeartbeat = $now
+                    }
                 }
 
                 if ($completedJobs.Count -eq 0) {

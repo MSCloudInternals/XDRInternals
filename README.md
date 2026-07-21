@@ -359,6 +359,9 @@ The cmdlet emits progress updates and a 30-second informational heartbeat contai
 time coverage, completed windows, event count, bytes written, active/queued work, elapsed
 time, and a rough ETA.
 
+See [Timeline export functions](docs/export-functions.md) for the export lifecycle,
+correctness guarantees, resume behavior, and implementation rationale.
+
 The following physical-disk benchmarks used the same device and a 90-day range. Counts
 can vary slightly because the portal's historical response is not immutable between runs:
 

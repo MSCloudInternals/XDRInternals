@@ -473,23 +473,23 @@
                 @{ Name = 'Event';        Type = 'dynamic' }
             )
             ColumnMappings = @(
-                @{ Column = 'Date';         Properties = @{ Path = '$.date' } }
+                @{ Column = 'Date';         Properties = @{ Path = '$.timestamp'; Transform = 'DateTimeFromUnixMilliseconds' } }
                 @{ Column = 'Timestamp';    Properties = @{ Path = '$.timestamp' } }
                 @{ Column = 'ActivityId';   Properties = @{ Path = '$._id' } }
-                @{ Column = 'RecordId';     Properties = @{ Path = '$.recordId' } }
-                @{ Column = 'UserName';     Properties = @{ Path = '$.userName' } }
-                @{ Column = 'User';         Properties = @{ Path = '$.user' } }
-                @{ Column = 'Account';      Properties = @{ Path = '$.account' } }
-                @{ Column = 'AppName';      Properties = @{ Path = '$.appName' } }
-                @{ Column = 'App';          Properties = @{ Path = '$.app' } }
-                @{ Column = 'Service';      Properties = @{ Path = '$.service' } }
-                @{ Column = 'ActivityType'; Properties = @{ Path = '$.activityType' } }
-                @{ Column = 'EventType';    Properties = @{ Path = '$.eventType' } }
-                @{ Column = 'Action';       Properties = @{ Path = '$.action' } }
-                @{ Column = 'IpAddress';    Properties = @{ Path = '$.ipAddress' } }
-                @{ Column = 'Ip';           Properties = @{ Path = '$.ip' } }
-                @{ Column = 'Location';     Properties = @{ Path = '$.location' } }
-                @{ Column = 'Country';      Properties = @{ Path = '$.country' } }
+                @{ Column = 'RecordId';     Properties = @{ Path = '$.uid' } }
+                @{ Column = 'UserName';     Properties = @{ Path = '$.user.userName' } }
+                @{ Column = 'User';         Properties = @{ Path = '$.user.userName' } }
+                @{ Column = 'Account';      Properties = @{ Path = '$.resolvedActor.id' } }
+                @{ Column = 'AppName';      Properties = @{ Path = '$.rawDataJson.ApplicationName' } }
+                @{ Column = 'App';          Properties = @{ Path = '$.appId' } }
+                @{ Column = 'Service';      Properties = @{ Path = '$.rawDataJson.Workload' } }
+                @{ Column = 'ActivityType'; Properties = @{ Path = '$.mainInfo.prettyOperationName' } }
+                @{ Column = 'EventType';    Properties = @{ Path = '$.eventTypeName' } }
+                @{ Column = 'Action';       Properties = @{ Path = '$.mainInfo.rawOperationName' } }
+                @{ Column = 'IpAddress';    Properties = @{ Path = '$.device.clientIP' } }
+                @{ Column = 'Ip';           Properties = @{ Path = '$.rawDataJson.IpAddress' } }
+                @{ Column = 'Location';     Properties = @{ Path = '$.location.city' } }
+                @{ Column = 'Country';      Properties = @{ Path = '$.location.countryCode' } }
                 @{ Column = 'Event';        Properties = @{ Path = '$' } }
             )
         }
@@ -728,6 +728,10 @@ function ConvertTo-XdrAzureDataExplorerTypedRecord {
         foreach ($segment in $segments) {
             if ($null -eq $value) { break }
             $value = $value.$segment
+        }
+
+        if ($mapping.Properties.Transform -eq 'DateTimeFromUnixMilliseconds' -and $null -ne $value) {
+            $value = [DateTimeOffset]::FromUnixTimeMilliseconds([long]$value).UtcDateTime
         }
 
         $record[$mapping.Column] = $value

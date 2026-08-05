@@ -73,6 +73,7 @@
                     BaseUrl     = 'https://security.microsoft.com'
                     CookieData  = @()
                     HeadersData = @{}
+                    UserAgent   = 'XDRInternals-Test-Browser/1.0'
                 }
             } -ModuleName XDRInternals
         }
@@ -123,7 +124,8 @@
                 $Items.Count -eq 27 -and
                 $Items[0].DeviceName -eq 'device1' -and
                 $Items[0].LastSeen -eq '2026-03-25T12:34:56Z' -and
-                $Items[0].OsPlatform -eq 'Windows10'
+                $Items[0].OsPlatform -eq 'Windows10' -and
+                $SharedParameters.UserAgent -eq 'XDRInternals-Test-Browser/1.0'
             }
         }
 
@@ -247,6 +249,7 @@
                     BaseUrl     = 'https://security.microsoft.com'
                     CookieData  = @()
                     HeadersData = @{}
+                    UserAgent   = 'XDRInternals-Test-Browser/1.0'
                 }
             } -ModuleName XDRInternals
         }
@@ -601,7 +604,8 @@
                 $Items.Count -eq 2 -and
                 (@($Items | Where-Object { @($_.CommandDefinitions).Count -ne 1 }).Count -eq 0) -and
                 (@($Items | Where-Object { $_.CommandDefinitions[0] -is [System.Array] }).Count -eq 0) -and
-                (@($Items | Where-Object { $_.CommandDefinitions[0].command_definition_id -ne 'processes' }).Count -eq 0)
+                (@($Items | Where-Object { $_.CommandDefinitions[0].command_definition_id -ne 'processes' }).Count -eq 0) -and
+                $SharedParameters.UserAgent -eq 'XDRInternals-Test-Browser/1.0'
             }
         }
 

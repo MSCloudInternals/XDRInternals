@@ -1,8 +1,8 @@
-InModuleScope XDRInternals {
+﻿InModuleScope XDRInternals {
     Describe 'Defender request context preservation' {
         AfterEach {
-            Remove-Variable -Name session -Scope Script -ErrorAction SilentlyContinue
-            Remove-Variable -Name headers -Scope Script -ErrorAction SilentlyContinue
+            $script:session = $null
+            $script:headers = $null
         }
 
         It 'includes the authenticated browser user-agent in worker snapshots' {
@@ -30,6 +30,26 @@ InModuleScope XDRInternals {
             Set-XdrConnectionSettings -SccAuth 'cookie-value' -Xsrf 'xsrf-value' -TenantId 'tenant-id'
 
             $script:session.UserAgent | Should -Be (Get-XdrDefaultUserAgent)
+            $script:headers['X-XSRF-TOKEN'] | Should -Be 'xsrf-value'
+            $script:headers['x-tid'] | Should -Be 'tenant-id'
+            $script:headers['tenant-id'] | Should -Be 'tenant-id'
+        }
+
+        It 'preserves a custom user-agent when resetting the portal session' {
+            Mock Set-XdrCache {} -ModuleName XDRInternals
+            Mock Write-Host {} -ModuleName XDRInternals
+
+            $script:session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            $script:session.UserAgent = 'XDRInternals-Custom-Browser/1.0'
+            $script:session.Cookies.Add([System.Net.Cookie]::new('sccauth', 'cookie-value', '/', 'security.microsoft.com'))
+            $script:session.Cookies.Add([System.Net.Cookie]::new('XSRF-TOKEN', 'xsrf-value', '/', 'security.microsoft.com'))
+            $script:headers = @{
+                'x-tid' = 'tenant-id'
+            }
+
+            Set-XdrConnectionSettings -ResetWebSession
+
+            $script:session.UserAgent | Should -Be 'XDRInternals-Custom-Browser/1.0'
             $script:headers['X-XSRF-TOKEN'] | Should -Be 'xsrf-value'
             $script:headers['x-tid'] | Should -Be 'tenant-id'
             $script:headers['tenant-id'] | Should -Be 'tenant-id'

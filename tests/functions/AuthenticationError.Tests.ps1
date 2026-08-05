@@ -2,6 +2,7 @@
     InModuleScope XDRInternals {
         It 'maps documented Entra code <ProviderCode> to <Code>' -ForEach @(
             @{ ProviderCode = '16000'; Code = 'AccountNotFound' }
+            @{ ProviderCode = '50005'; Code = 'ConditionalAccess' }
             @{ ProviderCode = '50034'; Code = 'AccountNotFound' }
             @{ ProviderCode = '50053'; Code = 'SignInBlocked' }
             @{ ProviderCode = '50055'; Code = 'PasswordExpired' }
@@ -18,6 +19,8 @@
             @{ ProviderCode = '50088'; Code = 'MfaTemporarilyUnavailable' }
             @{ ProviderCode = '50089'; Code = 'FlowExpired' }
             @{ ProviderCode = '50105'; Code = 'AppAssignmentRequired' }
+            @{ ProviderCode = '50131'; Code = 'ConditionalAccess' }
+            @{ ProviderCode = '50142'; Code = 'PasswordExpired' }
             @{ ProviderCode = '65001'; Code = 'ConsentRequired' }
             @{ ProviderCode = '90008'; Code = 'ConsentRequired' }
             @{ ProviderCode = '90094'; Code = 'ConsentRequired' }
@@ -29,6 +32,10 @@
             @{ ProviderCode = '53003'; Code = 'ConditionalAccess' }
             @{ ProviderCode = '53004'; Code = 'ConditionalAccess' }
             @{ ProviderCode = '53009'; Code = 'ConditionalAccess' }
+            @{ ProviderCode = '53010'; Code = 'ConditionalAccess' }
+            @{ ProviderCode = '530035'; Code = 'SignInBlocked' }
+            @{ ProviderCode = '53011'; Code = 'SignInBlocked' }
+            @{ ProviderCode = '530034'; Code = 'SignInBlocked' }
             @{ ProviderCode = '90006'; Code = 'ProviderUnavailable' }
             @{ ProviderCode = '90024'; Code = 'ProviderUnavailable' }
             @{ ProviderCode = '90033'; Code = 'ProviderUnavailable' }
@@ -91,6 +98,39 @@
             $failure.ConditionalAccessScenario | Should -Be 'PolicyBlocked'
             $failure.Message | Should -Be 'A Conditional Access policy blocked this sign-in.'
             $failure.RecommendedAction | Should -Match '(?i)reported Conditional Access requirements'
+        }
+
+        It 'provides scenario-specific Conditional Access remediation for <ProviderCode>' -ForEach @(
+            @{ ProviderCode = '50005'; Scenario = 'UnsupportedDevicePlatform'; Message = 'does not support the device platform'; Action = 'device-platform condition' }
+            @{ ProviderCode = '50131'; Scenario = 'PolicyEvaluationFailed'; Message = 'Conditional Access evaluation failed'; Action = 'exact policy decision' }
+            @{ ProviderCode = '50142'; Scenario = 'PasswordChangeRequired'; Message = 'requires the account password to be changed'; Action = 'Change the password' }
+            @{ ProviderCode = '53001'; Scenario = 'DeviceNotDomainJoined'; Message = 'hybrid joined device'; Action = 'hybrid-join grant control' }
+            @{ ProviderCode = '53002'; Scenario = 'ApplicationBlocked'; Message = 'approved client application'; Action = 'approved-client-app grant control' }
+            @{ ProviderCode = '53004'; Scenario = 'ProofUpRequired'; Message = 'multifactor authentication registration'; Action = 'security-info registration' }
+            @{ ProviderCode = '53009'; Scenario = 'ApplicationRequiresProtectionPolicy'; Message = 'Intune app protection policy'; Action = 'app-protection grant control' }
+            @{ ProviderCode = '53010'; Scenario = 'SecurityInfoRegistrationRestricted'; Message = 'specific locations or devices'; Action = 'security-info registration policy' }
+            @{ ProviderCode = '530035'; Scenario = 'SecurityDefaultsBlocked'; Message = 'security defaults'; Action = 'modern authentication flow' }
+            @{ ProviderCode = '53011'; Scenario = 'HomeTenantRisk'; Message = 'risk detected in its home tenant'; Action = 'risky sign-in or risky user' }
+            @{ ProviderCode = '530034'; Scenario = 'DelegatedAdminRisk'; Message = 'delegated administrator'; Action = 'home tenant' }
+        ) {
+            $failure = Get-XdrAuthenticationFailure -AuthState ([pscustomobject]@{ sErrorCode = "AADSTS$ProviderCode" })
+
+            $failure.ConditionalAccessScenario | Should -Be $Scenario
+            $failure.Message | Should -Match ([regex]::Escape($Message))
+            $failure.RecommendedAction | Should -Match ([regex]::Escape($Action))
+            $failure.Retryable | Should -BeFalse
+        }
+
+        It 'identifies a Conditional Access App Control reverse-proxy redirect' {
+            $failure = Get-XdrAuthenticationFailure -DefaultCode ConditionalAccess -SafeEvidence @{ Host = 'contoso-com.access.mcas.ms' }
+
+            $failure.Code | Should -Be 'ConditionalAccess'
+            $failure.ConditionalAccessScenario | Should -Be 'AppControlProxy'
+            $failure.Message | Should -Match '(?i)Conditional Access App Control'
+            $failure.RecommendedAction | Should -Match '(?i)policy-supported browser session'
+            $failure.RecommendedAction | Should -Match '(?i)XDRInternals cannot continue'
+            $failure.RecommendedAction | Should -Match '(?i)reverse proxy'
+            ($failure.SafeEvidence | Where-Object Name -EQ Host).Value | Should -Be 'contoso-com.access.mcas.ms'
         }
 
         It 'maps OAuth errors from query and fragment redirects' -ForEach @(

@@ -65,6 +65,32 @@
         $exposed | Should -Not -Match 'secret-cookie-value|secret-flow-token|secret-context|unsafe provider text'
     }
 
+    It 'reports a Conditional Access App Control redirect instead of a generic provider rejection' {
+        Mock Clear-XdrCache {} -ModuleName XDRInternals
+        Mock Invoke-WebRequest {
+            if ($Uri -eq 'https://login.microsoftonline.com/error') {
+                return [pscustomobject]@{}
+            }
+
+            return [pscustomobject]@{
+                InputFields = @([pscustomobject]@{ name = 'id_token'; value = 'secret-identity-token' })
+                Content = '<script>window.location.replace("https://contoso-com.access.mcas.ms/path?code=secret-code")</script>'
+                StatusCode = 200
+            }
+        } -ModuleName XDRInternals
+
+        $caught = try { Connect-XdrByEstsCookie -EstsAuthCookieValue 'secret-cookie-value' } catch { $_ }
+
+        $caught.FullyQualifiedErrorId | Should -BeLike 'XdrAuthentication.ConditionalAccess*'
+        $metadata = $caught.Exception.Data['XdrAuthenticationFailure']
+        $metadata.ConditionalAccessScenario | Should -Be 'AppControlProxy'
+        ($metadata.SafeEvidence | Where-Object Name -EQ Host).Value | Should -Be 'contoso-com.access.mcas.ms'
+        $caught.ErrorDetails.Message | Should -Match '(?i)Conditional Access App Control'
+        $caught.ErrorDetails.RecommendedAction | Should -Match '(?i)policy-supported browser session'
+        $caught.ErrorDetails.RecommendedAction | Should -Match '(?i)XDRInternals cannot continue'
+        (($caught.ErrorDetails | Out-String), ($metadata | ConvertTo-Json -Depth 8)) -join "`n" | Should -Not -Match 'secret-cookie-value|secret-identity-token|secret-code'
+    }
+
     It 'keeps the successful ESTS-cookie bootstrap behavior unchanged' {
         Mock Clear-XdrCache {} -ModuleName XDRInternals
         Mock Set-XdrConnectionSettings { 'connected' } -ModuleName XDRInternals

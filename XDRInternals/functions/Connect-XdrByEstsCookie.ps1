@@ -105,7 +105,23 @@
 
         if ($SecurityPortal.InputFields.name -notcontains 'code') {
             $portalState = Get-XdrAuthStateFromResponse -Response $SecurityPortal
-            $failure = Get-XdrAuthenticationFailure -AuthState $portalState -Response $SecurityPortal -AuthenticationMethod EstsCookie -Stage PortalAuthorize -DefaultCode ProviderRejected
+            $appControlHost = $null
+            if ([string]$SecurityPortal.Content -match '(?i)https://(?<Host>(?:[a-z0-9-]+\.)*access\.mcas\.ms)(?=[/:?#"''\s]|$)') {
+                $appControlHost = $Matches.Host
+            }
+
+            $failureParams = @{
+                AuthState            = $portalState
+                Response             = $SecurityPortal
+                AuthenticationMethod = 'EstsCookie'
+                Stage                = 'PortalAuthorize'
+                DefaultCode          = if ($appControlHost) { 'ConditionalAccess' } else { 'ProviderRejected' }
+            }
+            if ($appControlHost) {
+                $failureParams.SafeEvidence = @{ Host = $appControlHost }
+            }
+
+            $failure = Get-XdrAuthenticationFailure @failureParams
             throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 

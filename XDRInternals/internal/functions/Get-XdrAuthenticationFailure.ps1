@@ -142,13 +142,15 @@
     }
 
     $entraMappings = @{
-        '16000' = 'AccountNotFound'; '50034' = 'AccountNotFound'; '50053' = 'SignInBlocked'; '50055' = 'PasswordExpired'; '50056' = 'PasswordMissing'
+        '16000' = 'AccountNotFound'; '50005' = 'ConditionalAccess'; '50034' = 'AccountNotFound'; '50053' = 'SignInBlocked'; '50055' = 'PasswordExpired'; '50056' = 'PasswordMissing'
         '50057' = 'AccountDisabled'; '50126' = 'InvalidCredentials'; '50058' = 'SessionUnavailable'
         '50072' = 'MfaEnrollmentRequired'; '50079' = 'MfaEnrollmentRequired'; '50074' = 'MfaRequired'; '50076' = 'MfaRequired'
         '50078' = 'MfaTimeout'; '50087' = 'MfaTemporarilyUnavailable'; '50088' = 'MfaTemporarilyUnavailable'; '50089' = 'FlowExpired'
-        '50105' = 'AppAssignmentRequired'; '65001' = 'ConsentRequired'; '90008' = 'ConsentRequired'; '90094' = 'ConsentRequired'; '90095' = 'ConsentRequired'
+        '50105' = 'AppAssignmentRequired'; '50131' = 'ConditionalAccess'; '50142' = 'PasswordExpired'
+        '65001' = 'ConsentRequired'; '90008' = 'ConsentRequired'; '90094' = 'ConsentRequired'; '90095' = 'ConsentRequired'
         '90002' = 'InvalidTenant'; '53000' = 'ConditionalAccess'; '53001' = 'ConditionalAccess'; '53002' = 'ConditionalAccess'
-        '53003' = 'ConditionalAccess'; '53004' = 'ConditionalAccess'; '53009' = 'ConditionalAccess'
+        '53003' = 'ConditionalAccess'; '53004' = 'ConditionalAccess'; '53009' = 'ConditionalAccess'; '53010' = 'ConditionalAccess'
+        '530035' = 'SignInBlocked'; '53011' = 'SignInBlocked'; '530034' = 'SignInBlocked'
         '130503' = 'InvalidCredentials'; '701013' = 'MfaTemporarilyUnavailable'
         '90006' = 'ProviderUnavailable'; '90024' = 'ProviderUnavailable'; '90033' = 'ProviderUnavailable'
     }
@@ -266,8 +268,11 @@
     }
 
     $conditionalAccessScenarios = @{
+        '50005' = 'UnsupportedDevicePlatform'; '50131' = 'PolicyEvaluationFailed'; '50142' = 'PasswordChangeRequired'
         '53000' = 'DeviceNotCompliant'; '53001' = 'DeviceNotDomainJoined'; '53002' = 'ApplicationBlocked'
         '53003' = 'PolicyBlocked'; '53004' = 'ProofUpRequired'; '53009' = 'ApplicationRequiresProtectionPolicy'
+        '53010' = 'SecurityInfoRegistrationRestricted'; '530035' = 'SecurityDefaultsBlocked'
+        '53011' = 'HomeTenantRisk'; '530034' = 'DelegatedAdminRisk'
     }
 
     $evidence = @()
@@ -291,6 +296,8 @@
     $safeRequestId = if ($null -ne $requestId) { & $safeIdentifier $requestId } else { $null }
     $conditionalAccessScenario = if ($providerCode -and $conditionalAccessScenarios.ContainsKey($providerCode)) {
         $conditionalAccessScenarios[$providerCode]
+    } elseif ($evidence | Where-Object { $_.Name -eq 'Host' -and $_.Value -match '(?i)(?:^|\.)access\.mcas\.ms$' } | Select-Object -First 1) {
+        'AppControlProxy'
     } else {
         $null
     }
@@ -300,6 +307,42 @@
     if ($conditionalAccessScenario -eq 'DeviceNotCompliant') {
         $message = 'A Conditional Access policy requires a compliant device, and the sign-in device did not meet that requirement.'
         $recommendedAction = 'Retry from a device marked compliant in Entra ID, or ask a tenant administrator to review the device-compliance grant control in the sign-in logs.'
+    } elseif ($conditionalAccessScenario -eq 'UnsupportedDevicePlatform') {
+        $message = 'A Conditional Access policy does not support the device platform used for this sign-in.'
+        $recommendedAction = 'Retry from an allowed device platform, or ask a tenant administrator to review the device-platform condition in the sign-in logs.'
+    } elseif ($conditionalAccessScenario -eq 'PolicyEvaluationFailed') {
+        $message = 'Conditional Access evaluation failed because of a device-state, risk, access-policy, or security-policy decision.'
+        $recommendedAction = 'Review the matching Entra sign-in event using the diagnostic identifiers to determine the exact policy decision before retrying.'
+    } elseif ($conditionalAccessScenario -eq 'PasswordChangeRequired') {
+        $message = 'A Conditional Access policy requires the account password to be changed.'
+        $recommendedAction = 'Change the password in a policy-supported interactive session, then start a new connection attempt.'
+    } elseif ($conditionalAccessScenario -eq 'DeviceNotDomainJoined') {
+        $message = 'A Conditional Access policy requires a Microsoft Entra hybrid joined device.'
+        $recommendedAction = 'Retry from a Microsoft Entra hybrid joined device, or ask a tenant administrator to review the hybrid-join grant control in the sign-in logs.'
+    } elseif ($conditionalAccessScenario -eq 'ApplicationBlocked') {
+        $message = 'A Conditional Access policy requires an approved client application, and this authentication client is not approved.'
+        $recommendedAction = 'Use an approved client application, or ask a tenant administrator to review the approved-client-app grant control in the sign-in logs.'
+    } elseif ($conditionalAccessScenario -eq 'ProofUpRequired') {
+        $message = 'Access is blocked until the account completes required multifactor authentication registration.'
+        $recommendedAction = 'Complete security-info registration in a policy-supported interactive session, then retry. Review the sign-in logs if registration is also blocked.'
+    } elseif ($conditionalAccessScenario -eq 'ApplicationRequiresProtectionPolicy') {
+        $message = 'The application requires an Intune app protection policy that this authentication client cannot enforce.'
+        $recommendedAction = 'Use an application protected by the required Intune policy, or ask a tenant administrator to review the app-protection grant control in the sign-in logs.'
+    } elseif ($conditionalAccessScenario -eq 'SecurityInfoRegistrationRestricted') {
+        $message = 'The organization permits security-info registration only from specific locations or devices.'
+        $recommendedAction = 'Register the required authentication method from an allowed location and device, or ask a tenant administrator to review the security-info registration policy.'
+    } elseif ($conditionalAccessScenario -eq 'SecurityDefaultsBlocked') {
+        $message = 'Microsoft Entra security defaults blocked this sign-in because the request was considered unsafe or used an unsupported legacy authentication pattern.'
+        $recommendedAction = 'Use a supported modern authentication flow and review the Entra sign-in logs. If the block is unexpected, ask a tenant administrator to review security defaults.'
+    } elseif ($conditionalAccessScenario -eq 'HomeTenantRisk') {
+        $message = 'The account was blocked because of risk detected in its home tenant.'
+        $recommendedAction = 'Ask an administrator in the account home tenant to review and remediate the risky sign-in or risky user event before retrying.'
+    } elseif ($conditionalAccessScenario -eq 'DelegatedAdminRisk') {
+        $message = 'The delegated administrator was blocked because of suspicious activity or account risk in the home tenant.'
+        $recommendedAction = 'Ask an administrator in the delegated account home tenant to review and remediate the risk event before retrying.'
+    } elseif ($conditionalAccessScenario -eq 'AppControlProxy') {
+        $message = 'A Conditional Access App Control policy redirected Defender XDR through the Defender for Cloud Apps reverse proxy.'
+        $recommendedAction = 'Open Defender XDR in a policy-supported browser session, or ask a tenant administrator to review the Conditional Access App Control session control for this account. XDRInternals cannot continue the Defender session through the reverse proxy.'
     } elseif ($providerCode -eq '130503' -and $AuthenticationMethod -eq 'TemporaryAccessPass') {
         $message = 'The Temporary Access Pass was not accepted.'
         $recommendedAction = 'Ask an authentication administrator for a new Temporary Access Pass, then retry.'

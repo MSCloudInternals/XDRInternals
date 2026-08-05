@@ -23,7 +23,8 @@
     $hasPortalCookies = -not [string]::IsNullOrWhiteSpace($SccAuthCookieValue)
 
     if (-not $hasEsts -and -not $hasPortalCookies) {
-        throw "$FailureLabel failed - no supported authentication cookies were returned."
+        $failure = Get-XdrAuthenticationFailure -AuthenticationMethod $FailureLabel -Stage ArtifactCapture -DefaultCode NoAuthenticationArtifact
+        throw (New-XdrAuthenticationErrorRecord -Failure $failure)
     }
 
     $estsConnectParams = $null
@@ -54,6 +55,8 @@
         @('Ests', 'Portal')
     }
 
+    $attemptFailures = [ordered]@{}
+    $lastError = $null
     foreach ($attempt in $attemptOrder) {
         switch ($attempt) {
             'Ests' {
@@ -64,14 +67,20 @@
                 try {
                     return Connect-XdrByEstsCookie @estsConnectParams
                 } catch {
+                    $lastError = $_
+                    $attemptFailure = Get-XdrAuthenticationFailure -ErrorRecord $_ -AuthenticationMethod $FailureLabel -Stage EstsBootstrap -DefaultCode BootstrapFailed
+                    $attemptFailures['ESTS'] = $attemptFailure.Code
+                    if ($attemptFailures.Count -ge 2) {
+                        continue
+                    }
                     if (-not $FallbackToPortalOnEstsBootstrapFailure -or -not $portalConnectParams) {
-                        throw
+                        throw (New-XdrAuthenticationErrorRecord -Failure $attemptFailure -ErrorRecord $_)
                     }
 
-                    if ($_.Exception.Message -match 'Session information is not sufficient for single-sign-on') {
+                    if ($attemptFailure.Code -eq 'SessionUnavailable') {
                         Write-Verbose 'ESTS bootstrap was not sufficient for Defender SSO. Falling back to the captured Defender portal session cookies.'
                     } else {
-                        Write-Verbose "ESTS bootstrap failed: $($_.Exception.Message). Falling back to the captured Defender portal session cookies."
+                        Write-Verbose "ESTS bootstrap failed with classification $($attemptFailure.Code). Falling back to the captured Defender portal session cookies."
                     }
 
                     continue
@@ -86,16 +95,24 @@
                 try {
                     return Set-XdrConnectionSettings @portalConnectParams
                 } catch {
+                    $lastError = $_
+                    $attemptFailure = Get-XdrAuthenticationFailure -ErrorRecord $_ -AuthenticationMethod $FailureLabel -Stage PortalBootstrap -DefaultCode BootstrapFailed
+                    $attemptFailures['Portal'] = $attemptFailure.Code
+                    if ($attemptFailures.Count -ge 2) {
+                        continue
+                    }
                     if (-not $estsConnectParams -or $ConnectionPreference -ne 'PreferPortal') {
-                        throw
+                        throw (New-XdrAuthenticationErrorRecord -Failure $attemptFailure -ErrorRecord $_)
                     }
 
-                    Write-Verbose "Defender portal bootstrap failed: $($_.Exception.Message). Falling back to ESTS cookie bootstrap."
+                    Write-Verbose "Defender portal bootstrap failed with classification $($attemptFailure.Code). Falling back to ESTS cookie bootstrap."
                     continue
                 }
             }
         }
     }
 
-    throw "$FailureLabel failed - no supported authentication cookies were returned."
+    $attemptSummary = @($attemptFailures.GetEnumerator() | ForEach-Object { "$($_.Key):$($_.Value)" }) -join '; '
+    $failure = Get-XdrAuthenticationFailure -AuthenticationMethod $FailureLabel -Stage Bootstrap -DefaultCode BootstrapFailed -SafeEvidence @{ Attempt = $attemptSummary }
+    throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $lastError)
 }

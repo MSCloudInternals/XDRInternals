@@ -96,23 +96,33 @@
             $SecurityPortalUri = "https://security.microsoft.com/"
         }
         Write-Verbose "Initiating authentication flow to $SecurityPortalUri"
-        $SecurityPortal = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Get -Uri $SecurityPortalUri -Verbose:$false
+        try {
+            $SecurityPortal = Invoke-WebRequest -UseBasicParsing -ErrorAction Stop -WebSession $session -Method Get -Uri $SecurityPortalUri -Verbose:$false
+        } catch {
+            $failure = Get-XdrAuthenticationFailure -ErrorRecord $_ -AuthenticationMethod EstsCookie -Stage PortalAuthorize -DefaultCode BootstrapFailed
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $_)
+        }
 
-        # Error handling for missing for edge cases
-        if ( $SecurityPortal.InputFields.name -notcontains "code" ) {
-            try {
-                $SecurityPortal.Content -match '{(.*)}' | Out-Null
-                $SessionInformation_SecurityPortal = $Matches[0] | ConvertFrom-Json
-            } catch {
-                throw "Failed to complete authentication flow. Please verify the ESTSAUTH cookie value."
+        if ($SecurityPortal.InputFields.name -notcontains 'code') {
+            $portalState = Get-XdrAuthStateFromResponse -Response $SecurityPortal
+            $appControlHost = $null
+            if ([string]$SecurityPortal.Content -match '(?i)https://(?<Host>(?:[a-z0-9-]+\.)*access\.mcas\.ms)(?=[/:?#"''\s]|$)') {
+                $appControlHost = $Matches.Host
             }
-            if ($SessionInformation_SecurityPortal.sErrorCode -eq "50058") {
-                throw "Session information is not sufficient for single-sign-on. Please use a incognito/private browsing session to obtain a new ESTSAUTH cookie value."
-            } elseif ($SessionInformation_SecurityPortal.sErrorCode) {
-                throw "Authentication flow failed with error code: $($SessionInformation_SecurityPortal.sErrorCode). Please verify the ESTSAUTH cookie value."
-            } else {
-                throw "Authentication flow failed. Please verify the ESTSAUTH cookie value."
+
+            $failureParams = @{
+                AuthState            = $portalState
+                Response             = $SecurityPortal
+                AuthenticationMethod = 'EstsCookie'
+                Stage                = 'PortalAuthorize'
+                DefaultCode          = if ($appControlHost) { 'ConditionalAccess' } else { 'ProviderRejected' }
             }
+            if ($appControlHost) {
+                $failureParams.SafeEvidence = @{ Host = $appControlHost }
+            }
+
+            $failure = Get-XdrAuthenticationFailure @failureParams
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         $requiredFields = @("code", "id_token", "state", "session_state", "correlation_id")
@@ -121,10 +131,8 @@
         # Check if all required fields are present in returned input fields
         foreach ($field in $requiredFields) {
             if (-not ($SecurityPortal.InputFields.name -contains $field)) {
-                $SecurityPortal.Content -match '{(.*)}' | Out-Null
-                $SessionInformation = $Matches[0] | ConvertFrom-Json
-                Write-Verbose "Session information received: $($SessionInformation | ConvertTo-Json -Depth 5)"
-                throw "Required field '$field' is missing from the response."
+                $failure = Get-XdrAuthenticationFailure -AuthenticationMethod EstsCookie -Stage PortalAuthorize -DefaultCode RequestInvalid -SafeEvidence @{ Field = $field }
+                throw (New-XdrAuthenticationErrorRecord -Failure $failure)
             }
         }
         $SessionCookies = $session.Cookies.GetCookies('https://security.microsoft.com') | Select-Object -ExpandProperty Name
@@ -140,8 +148,12 @@
             session_state  = $SecurityPortal.InputFields | Where-Object { $_.name -eq "session_state" } | Select-Object -ExpandProperty value
             correlation_id = $SecurityPortal.InputFields | Where-Object { $_.name -eq "correlation_id" } | Select-Object -ExpandProperty value
         }
-        Write-Verbose "POST Headers: $($Headers | Out-String)"
-        $null = Invoke-WebRequest -UseBasicParsing -ErrorAction SilentlyContinue -WebSession $session -Method Post -Uri $SecurityPortalUri -Body $Body -Verbose:$false
+        try {
+            $null = Invoke-WebRequest -UseBasicParsing -ErrorAction Stop -WebSession $session -Method Post -Uri $SecurityPortalUri -Body $Body -Verbose:$false
+        } catch {
+            $failure = Get-XdrAuthenticationFailure -ErrorRecord $_ -AuthenticationMethod EstsCookie -Stage PortalBootstrap -DefaultCode BootstrapFailed
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $_)
+        }
         $SessionCookies = $session.Cookies.GetCookies('https://security.microsoft.com') | Select-Object -ExpandProperty Name
         Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
         Write-Host "Successfully obtained XDR session cookies."

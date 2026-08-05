@@ -604,7 +604,8 @@ function Invoke-XdrCredentialAuthentication {
 
     if (-not $sessionInfo.urlPost) {
         if ($sessionInfo.sErrorCode) {
-            throw "Authentication failed with error $($sessionInfo.sErrorCode): $($sessionInfo.sErrTxt)"
+            $failure = Get-XdrAuthenticationFailure -AuthState $sessionInfo -AuthenticationMethod Credential -Stage Authorize
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
         throw "Unexpected response: no urlPost in login page configuration."
     }
@@ -652,18 +653,8 @@ function Invoke-XdrCredentialAuthentication {
 
     # Check for credential errors
     if ($authState.sErrorCode) {
-        $errorMessages = @{
-            '50126' = "Invalid username or password."
-            '50053' = "Account is locked. Too many failed sign-in attempts."
-            '50057' = "Account is disabled."
-            '50055' = "Password has expired."
-            '50056' = "Invalid or null password."
-            '53003' = "Blocked by Conditional Access policy."
-            '50034' = "User account not found."
-        }
-        $msg = $errorMessages[$authState.sErrorCode]
-        if (-not $msg) { $msg = $authState.sErrTxt }
-        throw "Authentication failed ($($authState.sErrorCode)): $msg"
+        $failure = Get-XdrAuthenticationFailure -AuthState $authState -AuthenticationMethod Credential -Stage Password
+        throw (New-XdrAuthenticationErrorRecord -Failure $failure)
     }
 
     Write-Verbose "Credential submission succeeded (pgid: $($authState.pgid))"
@@ -698,7 +689,7 @@ function Invoke-XdrCredentialAuthentication {
             'PhoneAppOTP' {
                 if ($TotpSecret) {
                     $verificationCode = Get-XdrTotpCode -Secret $TotpSecret
-                    Write-Verbose "Computed TOTP code: $verificationCode"
+                    Write-Verbose 'Computed a TOTP verification code.'
                 } else {
                     Write-Host "Enter the code from your authenticator app:"
                     $verificationCode = Read-Host "Code"
@@ -752,8 +743,8 @@ function Invoke-XdrCredentialAuthentication {
                 -WebSession $session -Verbose:$false
 
             if (-not (Test-XdrMfaAuthSucceeded -Response $endAuth)) {
-                $errDetail = if ($endAuth.Message) { $endAuth.Message } else { $endAuth.ResultValue }
-                throw "MFA verification failed: $errDetail"
+                $failure = Get-XdrAuthenticationFailure -SasResult $endAuth -AuthenticationMethod Credential -Stage Mfa -DefaultCode MfaDenied
+                throw (New-XdrAuthenticationErrorRecord -Failure $failure)
             }
 
             Write-Host "MFA verification succeeded."

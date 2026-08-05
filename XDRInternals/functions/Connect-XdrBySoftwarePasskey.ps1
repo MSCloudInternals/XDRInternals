@@ -96,7 +96,17 @@
         if ($KeyVaultTenantId) { $passkeyParams.KeyVaultTenantId = $KeyVaultTenantId }
         if ($KeyVaultClientId) { $passkeyParams.KeyVaultClientId = $KeyVaultClientId }
 
-        $estsAuth = Invoke-XdrPasskeyAuthentication @passkeyParams
+        try {
+            $estsAuth = Invoke-XdrPasskeyAuthentication @passkeyParams
+        } catch {
+            $failure = Get-XdrAuthenticationFailure -ErrorRecord $_ -AuthenticationMethod SoftwarePasskey -Stage SignIn
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $_)
+        }
+
+        if (-not $estsAuth) {
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod SoftwarePasskey -Stage ArtifactCapture -DefaultCode NoAuthenticationArtifact
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
+        }
 
         Connect-XdrAuthArtifactSet -EstsAuthCookieValue $estsAuth -TenantId $TenantId -UserAgent $UserAgent -FailureLabel 'Software passkey authentication'
     }

@@ -11,12 +11,11 @@ Current and planned coverage:
 | Workload | Export cmdlet | Status |
 | --- | --- | --- |
 | Defender for Endpoint device timeline | `Export-XdrEndpointDeviceTimeline` | Implemented |
-| Defender for Identity user timeline | To be determined | Planned |
+| Defender for Identity user timeline | `Export-XdrIdentityUserTimeline` | Implemented |
 | Defender for Cloud Apps activity timeline | To be determined | Planned |
 
-This document describes the common export model and the device implementation. The
-workload-specific sections can be expanded as the identity and Cloud Apps exporters are
-implemented.
+This document describes the common export model and the workload-specific device and
+identity implementations.
 
 ## Why `Export-` is separate from `Get-`
 
@@ -59,6 +58,57 @@ The implementation is split across four files:
 | `XDRInternals/internal/functions/New-XdrEndpointTimelineExportWorker.ps1` | Downloads and validates one window while streaming NDJSON |
 | `XDRInternals/internal/functions/Merge-XdrEndpointTimelineNdjsonPart.ps1` | Verifies and concatenates completed parts without parsing them again |
 
+The byte-stream merger is shared by both exporters. Request construction, pagination,
+timestamp validation, and recovery remain workload-specific.
+
+## Identity timeline export lifecycle
+
+`Export-XdrIdentityUserTimeline` resolves one user, fingerprints the canonical API
+identifiers, and divides the requested range into adjacent 24-hour windows. Up to eight
+windows run concurrently; pages within each window remain sequential.
+
+Some portal entities cannot be resolved through the UPN lookup even though their AadId
+and SID resolve correctly. The exporter fails that UPN selection instead of sending the
+raw UPN directly: live testing found that the timeline endpoint accepted such a raw UPN
+but returned an empty result for a range that returned events with resolved identifiers.
+Use the AadId or SID from the Defender user URL for those entities.
+
+The identity endpoint is not a continuation API. It accepts POST bodies containing
+`count` and `skip`, but live testing found that offset pages drift when many events
+share a timestamp: adjacent pages can repeat records while omitting different records.
+The exporter therefore sends `skip = 0` and pages by timestamp. It validates that:
+
+- `count` equals the number of returned records;
+- `errors` has no properties (the successful response is an empty object);
+- every `Timestamp` is parseable, descending, and inside the requested interval;
+- only representations differing in observed volatile fields share a duplicate key.
+
+The service treats its Unix-second bounds as exclusive. To implement a conventional
+half-open `[FromDate, ToDate)` interval, the worker sends
+`(ceil(FromDate)-1 second, ceil(ToDate))` and validates the returned timestamps again.
+This prevents an event exactly on an adjacent window boundary from being lost.
+
+For every full 1,000-row response, the worker withholds the complete oldest API-second
+group, commits only the newer prefix, and repeats `skip = 0` with that second included
+as the new exclusive upper bound. A partial response completes the window. If one
+second fills a complete page, the API cannot prove which additional records may exist
+in that second. The export fails with `UnpageableBoundary` and preserves completed
+parts; it never discards the second or publishes a partial final file.
+
+Identity events are written without removing or rewriting correlation properties.
+Live testing also found that `EventId` is reused across timestamps and that identical
+representations can recur with different `Id`, `RowNumber`, and `Description` values.
+The duplicate key therefore combines the timestamp, `EventId` when present, and a
+canonical payload hash excluding those three observed volatile fields. The first raw
+object is retained unchanged and later matching representations are counted. Stable
+payload differences remain separate events.
+
+The identity manifest also supports a recoverable `Publishing` state. The expected final
+length and SHA-256 are committed before the atomic move, allowing an interrupted rerun
+to validate either the final or partial output and complete publication without
+redownloading finished windows. During `-Force`, an existing final file remains readable
+until the replacement has passed validation.
+
 ## Files and atomic publication
 
 For an output path such as `timeline.ndjson`, an in-progress export can use:
@@ -95,16 +145,18 @@ been returned. Throughput therefore comes from concurrent independent windows.
 
 ## Streaming and memory behavior
 
-Each response page is serialized one record at a time to UTF-8 NDJSON. The writer also
-computes the part's SHA-256 hash as bytes are written. Once a page has been processed,
-the response reference is released.
+Each response page is serialized one record at a time to UTF-8 NDJSON. Once a page has
+been processed, the response reference is released. The endpoint worker hashes bytes as
+they are written. The identity worker stages at most one 1,000-row response while it
+decides whether the oldest timestamp group is complete, then hashes the completed part
+before publication.
 
 The complete timeline and completed parts are never parsed into one in-memory
 collection. Memory is primarily bounded by the active response pages, serialization
 overhead, runspaces, and the underlying PowerShell web stack. Finalization copies and
 hashes byte streams; it does not deserialize the NDJSON.
 
-The current internal settings are:
+The current endpoint settings are:
 
 - four-hour windows;
 - four concurrent workers;
@@ -115,24 +167,50 @@ windows or more workers improved some short runs but increased memory, retries, 
 window restarts in longer runs. `ChunkHours` and `ThrottleLimit` should remain private
 until an automatic policy or broadly validated settings can replace manual guessing.
 
+The identity exporter uses 24-hour windows, eight workers, and 1,000-row
+timestamp-keyset pages. Delayed fresh-context probes over a fixed 30-day range for a
+dense test identity produced the same 23,490-event logical set across 36 requests,
+including a page boundary
+with 723 events in one second. Raw bytes differed because the service regenerated
+`Id`, `RowNumber`, and `Description`; no stable payload field differed. The fallback key
+also remained stable for the three events without `EventId`.
+
+Repeated corrected-strategy benchmarks favored 24 hours/eight workers over 48
+hours/four workers: median elapsed time improved from 19.5 to 14.1 seconds over seven
+days and from 87.5 to 54.1 seconds over 30 days. Over 90 days, 24 hours/eight workers
+completed in 192.3 seconds versus 316.9 seconds for 24 hours/four workers. Directly
+comparable event sets were identical, candidate runs had no retries or restarts, and
+peak working set remained below 756 MiB. The settings remain private because these are
+tenant-specific measurements rather than a documented service guarantee.
+
+Independent streaming validation confirmed line count, range, global order, length,
+SHA-256, interruption/resume, and equality across adjacent-window splits. A fixed
+six-hour public-command check also produced identical 1,845-event stable sets from
+`Get-` and `Export-`. One 44-day-old event without an `EventId` appeared between delayed
+90-day snapshots, demonstrating that the service can backfill historical data. The
+manifest timestamps therefore describe a point-in-time collection, not an immutable
+history.
+
 ## Retries, restart, and resume
 
 Recovery occurs at two levels:
 
 - A worker retries transient transport failures, HTTP 408/429/5xx responses, and an
   initially partial response with bounded exponential backoff and jitter.
-- If a window's continuation context appears poisoned, the coordinator can restart the
-  entire window with a fresh correlation ID and request context.
+- If a window's request context appears poisoned, the coordinator can restart the
+  entire window with a fresh session. Device restarts also receive a new correlation ID.
 
 The entire window is restarted because an arbitrary page is not a durable checkpoint.
-Continuation URIs are service-owned and may expire, and appending a retried page to a
-partial file could introduce gaps or duplicates.
+Device continuation URIs are service-owned and may expire; identity page membership can
+drift between identical offset requests. Appending a retried page to a partial file could
+therefore introduce gaps or duplicates.
 
 After an interruption, running the same command with the same path validates each
 completed part by recorded byte length and SHA-256. Valid parts are reused; invalid,
 failed, and in-progress parts are downloaded again. The device ID, time range, Sentinel
-option, window size, and page size must match the manifest. `-Force` deliberately
-discards the output and resumable state.
+option, window size, and page size must match the device manifest. The identity
+fingerprint, range, window size, page size, and pagination strategy must match the identity
+manifest. `-Force` deliberately discards resumable state.
 
 ## Correctness and fail-closed behavior
 
@@ -209,3 +287,18 @@ does not remove the underlying states. A shared export engine may become worthwh
 the identity and Cloud Apps implementations reveal which behavior is genuinely common.
 Until then, keeping service-specific pagination and validation explicit avoids an
 abstraction that hides important differences between these undocumented portal APIs.
+
+## Deferred device exporter follow-ups
+
+The identity implementation exposed several improvements worth evaluating separately
+for the device exporter: recover a manifest interrupted after final publication, retain
+the previous final file throughout a forced replacement, reset all diagnostics when a
+completed part fails resume validation, and complete live `IncludeSentinelEvents`
+validation with a device that has Sentinel-backed timeline data. Identity testing also
+showed that identifiers and descriptive fields can be request-volatile, so any future
+device duplicate validation should first establish device-specific stable keys rather
+than reuse the identity key. Repeated fixed-range device probes should compare complete
+continuation-chain sets both immediately and after a delay, verify cross-page ordering,
+and test whether cache flags or a fresh request context change membership before those
+checks are tightened. The delayed probe matters because the identity service backfilled
+a 44-day-old event between otherwise fixed 90-day snapshots.

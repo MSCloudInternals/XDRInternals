@@ -56,6 +56,7 @@ Get-XdrTenantContext -Force
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
 | Export-XdrAzureDataExplorer                                     | Exports pipeline data to Azure Data Explorer using queued ingestion. |
 | Export-XdrEndpointDeviceTimeline                                | Exports a Microsoft Defender XDR device timeline to NDJSON. |
+| Export-XdrIdentityUserTimeline                                  | Exports a Microsoft Defender for Identity user timeline to resumable NDJSON. |
 | Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |
 | Get-XdrActionsCenterHistory                                     | Retrieves historical actions from the Microsoft Defender XDR Action Center. |
 | Get-XdrActionsCenterPending                                     | Retrieves pending actions from the Microsoft Defender XDR Action Center. |
@@ -375,6 +376,70 @@ The 4-hour/four-worker balance is therefore the initial release default: it comp
 90-day export without retries or restarts while remaining competitive on elapsed time and
 memory. These defaults can be revisited as more devices, tenants, and time ranges are
 available for testing.
+
+#### Large identity timeline exports
+
+Use `Export-XdrIdentityUserTimeline` for a full, disk-backed Defender for Identity user
+timeline. The identity API has different pagination and boundary rules from the device
+timeline, so this command uses a separate worker while preserving the same resumable
+NDJSON contract:
+
+```powershell
+$from = (Get-Date).ToUniversalTime().AddDays(-90)
+$to = (Get-Date).ToUniversalTime()
+
+Export-XdrIdentityUserTimeline `
+    -Upn 'user@contoso.com' `
+    -FromDate $from `
+    -ToDate $to `
+    -Path '.\identity-timeline-90d.ndjson'
+```
+
+The command accepts `-Upn`, `-AadId`, `-Sid`, or `-RadiusUserId`, exports one identity
+per invocation, and uses fixed internal 24-hour windows with eight workers. Completed
+parts are length- and SHA-256-validated before resume. An existing final file remains in
+place during a `-Force` replacement and is atomically replaced only after the new export
+has been fully validated.
+
+Identity Sentinel anomalies are not included in this initial exporter. The current
+identity Sentinel route is a separate API and requires additional completeness and
+pagination validation before it can be used for incident-response export. A live entity
+resolved by AadId and SID exposed an `armId`; its ARM timeline accepted 7-, 30-, and
+31-day requests but rejected 60-, 89-, and 90-day requests with HTTP 400. Values above
+six for `numberOfBucket` were also rejected. The successful responses contained no
+anomalies, so result limits and pagination under load remain unvalidated.
+
+Live validation found that offset pages are not stable enough for high-fidelity export.
+On a dense six-hour range, adjacent offset pages repeated 13 EventIds while page
+membership and `Description` values changed between identical requests. Deduplicating
+those pages yielded fewer logical events than timestamp-keyset retrieval.
+
+The exporter therefore always requests `skip = 0`. After a full page, it withholds the
+oldest timestamp group and repeats the request with that second as the new upper bound.
+Two delayed, fresh-context 30-day probes for a dense test identity each produced the
+same 23,490-event logical set across 36 requests; the largest tied boundary contained
+723 events in one second. Two probes for a lower-volume identity likewise produced the
+same logical set. Duplicate
+representations are counted, the first raw object is retained unchanged, and the export
+fails if one second fills all 1,000 rows because completeness cannot then be proven.
+
+Repeated corrected-strategy benchmarks favored the 24-hour/eight-worker default. On a
+fixed 7-day range its median was 14.1 seconds versus 19.5 seconds for 48 hours/four
+workers; on a fixed 30-day range it was 54.1 seconds versus 87.5 seconds. A 90-day run
+completed in 192.3 seconds versus 316.9 seconds for 24 hours/four workers. Event sets
+were identical for directly comparable runs, no candidate run retried or restarted, and
+peak process working set remained below 756 MiB. The settings remain private because
+this is tenant-specific evidence, not a service guarantee.
+
+Independent validation also confirmed line count, half-open range, global ordering,
+byte length, SHA-256, interruption/resume, and adjacent-window set equality. On a fixed
+six-hour range, the public `Get-` and `Export-` commands returned identical 1,845-event
+stable sets. Repeated raw-file hashes are not expected to match: the service changed
+only `Id`, `RowNumber`, and `Description` on otherwise identical logical events during
+the delayed 30-day comparison. The service also added one 44-day-old event without an
+`EventId` between delayed 90-day snapshots. Treat an export as a point-in-time service
+snapshot and preserve its manifest timestamps; rerun important historical ranges when
+late backend enrichment matters.
 
 #### Azure Data Explorer export
 

@@ -74,6 +74,7 @@
         "Disconnect-XdrEndpointDeviceLiveResponse",
         "Export-XdrAzureDataExplorer",
         "Export-XdrEndpointDeviceTimeline",
+        "Export-XdrIdentityUserTimeline",
         "Export-XdrToSentinel",
         "Get-XdrActionsCenterHistory",
         "Get-XdrActionsCenterPending",

@@ -56,7 +56,7 @@ Get-XdrTenantContext -Force
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
 | Export-XdrAzureDataExplorer                                     | Exports pipeline data to Azure Data Explorer using queued ingestion. |
 | Export-XdrEndpointDeviceTimeline                                | Exports a Microsoft Defender XDR device timeline to NDJSON. |
-| Export-XdrIdentityUserTimeline                                  | Exports a Microsoft Defender for Identity user timeline to resumable NDJSON. |
+| Export-XdrIdentityUserTimeline                                  | Exports a Microsoft Defender for Identity user timeline to NDJSON. |
 | Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |
 | Get-XdrActionsCenterHistory                                     | Retrieves historical actions from the Microsoft Defender XDR Action Center. |
 | Get-XdrActionsCenterPending                                     | Retrieves pending actions from the Microsoft Defender XDR Action Center. |

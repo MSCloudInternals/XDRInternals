@@ -923,6 +923,24 @@
             Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 2 -Exactly
             Should -Invoke Start-Sleep -ModuleName XDRInternals -Times 1 -Exactly
         }
+
+        It 'omits the Authorization header when no token is supplied' {
+            Mock Invoke-RestMethod {
+                [pscustomobject]@{ ok = $true }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $result = Invoke-XdrAzureDataExplorerRestRequest `
+                    -BaseUri 'http://localhost:8080' `
+                    -Path '/v1/rest/mgmt'
+
+                $result.ok | Should -BeTrue
+            }
+
+            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                -not $Headers.ContainsKey('Authorization')
+            }
+        }
     }
 
     Describe 'Invoke-XdrAzureResourceManagerRequest' {
@@ -950,6 +968,88 @@
 
             Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 2 -Exactly
             Should -Invoke Start-Sleep -ModuleName XDRInternals -Times 1 -Exactly
+        }
+    }
+
+    Describe 'Send-XdrKustainerStreamingIngestion' {
+        BeforeEach {
+            $global:kustainerStreamingTestFile = Join-Path $TestDrive 'streaming.json'
+            Set-Content -LiteralPath $global:kustainerStreamingTestFile -Value '{"Value":1}' -NoNewline -Encoding utf8NoBOM
+        }
+
+        AfterEach {
+            $global:kustainerStreamingTestFile = $null
+        }
+
+        It 'waits for streaming schema propagation and sends the file without authentication' {
+            $script:streamingAttempts = 0
+            Mock Start-Sleep {} -ModuleName XDRInternals
+            Mock Invoke-RestMethod {
+                $script:streamingAttempts++
+                if ($script:streamingAttempts -eq 1) {
+                    $exception = [System.Exception]::new('streaming schema not ready')
+                    $errorRecord = [System.Management.Automation.ErrorRecord]::new(
+                        $exception,
+                        'BadRequest_EntityNotFound',
+                        [System.Management.Automation.ErrorCategory]::ObjectNotFound,
+                        $null
+                    )
+                    $errorRecord.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('BadRequest_EntityNotFound')
+                    throw $errorRecord
+                }
+
+                [pscustomobject]@{ ok = $true }
+            } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $result = Send-XdrKustainerStreamingIngestion `
+                    -ClusterUri 'http://localhost:8080' `
+                    -Database 'NetDefaultDB' `
+                    -TableName 'StreamingEvents' `
+                    -MappingName 'StreamingEvents_EventMapping' `
+                    -FilePath $global:kustainerStreamingTestFile `
+                    -SchemaPropagationTimeoutSeconds 30
+
+                $result.ok | Should -BeTrue
+            }
+
+            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 2 -Exactly -ParameterFilter {
+                $Uri.AbsoluteUri -eq 'http://localhost:8080/v1/rest/ingest/NetDefaultDB/StreamingEvents?streamFormat=MultiJSON&mappingName=StreamingEvents_EventMapping' -and
+                $InFile -eq $global:kustainerStreamingTestFile -and
+                -not $Headers.ContainsKey('Authorization')
+            }
+            Should -Invoke Start-Sleep -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Seconds -eq 5
+            }
+        }
+    }
+
+    Describe 'Send-XdrKustainerInlineIngestion' {
+        BeforeEach {
+            $global:kustainerInlineTestFile = Join-Path $TestDrive 'inline.json'
+            Set-Content -LiteralPath $global:kustainerInlineTestFile -Value '{"Value":1}' -NoNewline -Encoding utf8NoBOM
+        }
+
+        AfterEach {
+            $global:kustainerInlineTestFile = $null
+        }
+
+        It 'uses one request attempt and forwards the bulk request timeout' {
+            Mock Invoke-XdrAzureDataExplorerManagementCommand {} -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                Send-XdrKustainerInlineIngestion `
+                    -ClusterUri 'http://localhost:8080' `
+                    -Database 'NetDefaultDB' `
+                    -TableName 'BulkEvents' `
+                    -MappingName 'BulkEvents_EventMapping' `
+                    -FilePath $global:kustainerInlineTestFile `
+                    -RequestTimeout 1200
+            }
+
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $TimeoutSec -eq 1200 -and $RetryCount -eq 1
+            }
         }
     }
 
@@ -1077,6 +1177,37 @@
             }
             Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
                 $Command -like ".create-or-alter table XDRTest ingestion json mapping 'XDRTest_EventMapping' *"
+            }
+        }
+
+        It 'preserves ingestion transformations from typed table profiles' {
+            Mock Get-XdrAzureDataExplorerTableSchema { $null } -ModuleName XDRInternals
+            Mock Get-XdrAzureDataExplorerMapping { $null } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                $profile = @{
+                    Columns        = @(
+                        @{ Name = 'Date'; Type = 'datetime' },
+                        @{ Name = 'Event'; Type = 'dynamic' }
+                    )
+                    ColumnMappings = @(
+                        @{ Column = 'Date'; Properties = @{ Path = '$.timestamp'; Transform = 'DateTimeFromUnixMilliseconds' } },
+                        @{ Column = 'Event'; Properties = @{ Path = '$' } }
+                    )
+                }
+
+                Initialize-XdrAzureDataExplorerTable `
+                    -ClusterUri 'https://contoso.westeurope.kusto.windows.net' `
+                    -Database 'Investigations' `
+                    -TableName 'XDRTest' `
+                    -MappingName 'XDRTest_EventMapping' `
+                    -Token 'token' `
+                    -TableProfile $profile
+            }
+
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Command -like '*"path":"$.timestamp"*' -and
+                $Command -like '*"transform":"DateTimeFromUnixMilliseconds"*'
             }
         }
 
@@ -2143,27 +2274,39 @@
                 $profile = $profiles['XDRCloudAppsActivityTimeline']
 
                 $event = [pscustomobject]@{
-                    date         = '2026-04-28T12:00:00Z'
                     timestamp    = 1777377600000
                     _id          = 'activity-1'
-                    recordId     = 'record-1'
-                    userName     = 'user@contoso.com'
-                    appName      = 'Microsoft 365'
-                    activityType = 'Login'
-                    ipAddress    = '203.0.113.10'
-                    location     = 'Anchorage'
-                    country      = 'US'
+                    uid          = 'record-1'
+                    appId        = 12345
+                    user         = @{ userName = 'user@contoso.com' }
+                    resolvedActor = @{ id = 'actor-1' }
+                    mainInfo     = @{
+                        prettyOperationName = 'User logged in'
+                        rawOperationName    = 'UserLoggedIn'
+                    }
+                    eventTypeName = 'Logon'
+                    device       = @{ clientIP = '203.0.113.10' }
+                    location     = @{ city = 'Anchorage'; countryCode = 'US' }
+                    rawDataJson  = @{
+                        ApplicationName = 'Microsoft 365'
+                        Workload        = 'AzureActiveDirectory'
+                        IpAddress       = '203.0.113.10'
+                    }
                 }
 
                 $record = ConvertTo-XdrAzureDataExplorerTypedRecord -InputEvent $event -TableProfile $profile
 
-                $record['Date'] | Should -Be '2026-04-28T12:00:00Z'
+                $record['Date'] | Should -Be ([DateTimeOffset]::FromUnixTimeMilliseconds(1777377600000).UtcDateTime)
                 $record['Timestamp'] | Should -Be 1777377600000
                 $record['ActivityId'] | Should -Be 'activity-1'
                 $record['RecordId'] | Should -Be 'record-1'
                 $record['UserName'] | Should -Be 'user@contoso.com'
                 $record['AppName'] | Should -Be 'Microsoft 365'
-                $record['ActivityType'] | Should -Be 'Login'
+                $record['App'] | Should -Be 12345
+                $record['Service'] | Should -Be 'AzureActiveDirectory'
+                $record['ActivityType'] | Should -Be 'User logged in'
+                $record['EventType'] | Should -Be 'Logon'
+                $record['Action'] | Should -Be 'UserLoggedIn'
                 $record['IpAddress'] | Should -Be '203.0.113.10'
                 $record['Location'] | Should -Be 'Anchorage'
                 $record['Country'] | Should -Be 'US'
@@ -2381,6 +2524,353 @@
                 $TrackIngestion
             }
             Should -Invoke Wait-XdrAzureDataExplorerQueuedIngestion -ModuleName XDRInternals -Times 2 -Exactly
+        }
+    }
+
+    Describe 'Set-XdrKustainer' {
+        BeforeEach {
+            InModuleScope XDRInternals {
+                $script:KustainerConnection = $null
+            }
+            Mock Invoke-XdrAzureDataExplorerManagementCommand {} -ModuleName XDRInternals
+        }
+
+        It 'validates and stores an HTTP emulator connection' {
+            Set-XdrKustainer -ClusterUri 'http://localhost:8080/path' -Database 'NetDefaultDB'
+
+            InModuleScope XDRInternals {
+                $connection = Get-XdrKustainerConnection
+                $connection.ClusterUri.AbsoluteUri | Should -Be 'http://localhost:8080/'
+                $connection.Database | Should -Be 'NetDefaultDB'
+                $connection.StreamingIngestionEnabled | Should -BeFalse
+            }
+
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Command -eq '.show tables' -and [string]::IsNullOrWhiteSpace($Token)
+            }
+        }
+
+        It 'can enable streaming ingestion at database scope' {
+            Set-XdrKustainer `
+                -ClusterUri 'http://localhost:8080' `
+                -Database 'NetDefaultDB' `
+                -EnableStreamingIngestion `
+                -WarningVariable streamingWarnings
+
+            InModuleScope XDRInternals {
+                (Get-XdrKustainerConnection).StreamingIngestionEnabled | Should -BeTrue
+            }
+
+            Should -Invoke Invoke-XdrAzureDataExplorerManagementCommand -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $Command -eq '.alter database NetDefaultDB policy streamingingestion enable'
+            }
+            $streamingWarnings | Should -BeLike '*experimental*'
+        }
+
+        It 'accepts an HTTPS reverse-proxy endpoint' {
+            Set-XdrKustainer -ClusterUri 'https://kustainer.example.test' -Database 'NetDefaultDB'
+
+            InModuleScope XDRInternals {
+                (Get-XdrKustainerConnection).ClusterUri.AbsoluteUri | Should -Be 'https://kustainer.example.test/'
+            }
+        }
+
+        It 'rejects unsupported endpoint schemes' {
+            {
+                Set-XdrKustainer -ClusterUri 'ftp://localhost:8080' -Database 'NetDefaultDB'
+            } | Should -Throw '*http:// endpoint or an https:// reverse-proxy endpoint*'
+        }
+    }
+
+    Describe 'Export-XdrKustainer' {
+        BeforeEach {
+            InModuleScope XDRInternals {
+                $script:KustainerConnection = $null
+            }
+            Mock Initialize-XdrAzureDataExplorerTable {} -ModuleName XDRInternals
+            Mock Send-XdrKustainerInlineIngestion {} -ModuleName XDRInternals
+            Mock Send-XdrKustainerStreamingIngestion {} -ModuleName XDRInternals
+        }
+
+        It 'bootstraps and ingests raw records through the emulator endpoint' {
+            $records = @(
+                [pscustomobject]@{ ActionType = 'ProcessCreated'; DeviceId = 'device-1' },
+                [pscustomobject]@{ ActionType = 'FileCreated'; DeviceId = 'device-2' }
+            )
+
+            $null = @($records | Export-XdrKustainer `
+                    -ClusterUri 'http://localhost:8080' `
+                    -Database 'NetDefaultDB' `
+                    -TableName 'DeviceTimeline' `
+                    -TempPath $TestDrive)
+
+            Should -Invoke Initialize-XdrAzureDataExplorerTable -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $ClusterUri.AbsoluteUri -eq 'http://localhost:8080/' -and
+                $Database -eq 'NetDefaultDB' -and
+                $TableName -eq 'DeviceTimeline' -and
+                $MappingName -eq 'DeviceTimeline_EventMapping' -and
+                [string]::IsNullOrWhiteSpace($Token)
+            }
+            Should -Invoke Send-XdrKustainerInlineIngestion -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $ClusterUri.AbsoluteUri -eq 'http://localhost:8080/' -and
+                $Database -eq 'NetDefaultDB' -and
+                $TableName -eq 'DeviceTimeline' -and
+                $MappingName -eq 'DeviceTimeline_EventMapping'
+            }
+        }
+
+        It 'routes device timeline events through the existing typed table profiles' {
+            $records = @(
+                [pscustomobject]@{ ActionType = 'ProcessCreated'; Machine = @{ MachineId = 'm1' } },
+                [pscustomobject]@{ ActionType = 'FileCreated'; Machine = @{ MachineId = 'm2' } }
+            )
+
+            $null = @($records | Export-XdrKustainer `
+                    -ClusterUri 'http://localhost:8080' `
+                    -Database 'NetDefaultDB' `
+                    -Source DeviceTimeline `
+                    -TempPath $TestDrive)
+
+            Should -Invoke Initialize-XdrAzureDataExplorerTable -ModuleName XDRInternals -Times 2 -Exactly
+            Should -Invoke Send-XdrKustainerInlineIngestion -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $TableName -eq 'XDRDeviceTimelineProcessEvents'
+            }
+            Should -Invoke Send-XdrKustainerInlineIngestion -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $TableName -eq 'XDRDeviceTimelineFileEvents'
+            }
+        }
+
+        It 'returns original records with PassThru' {
+            $records = @(
+                [pscustomobject]@{ Value = 1 },
+                [pscustomobject]@{ Value = 2 }
+            )
+
+            $result = @($records | Export-XdrKustainer `
+                    -ClusterUri 'http://localhost:8080' `
+                    -Database 'NetDefaultDB' `
+                    -TableName 'RawEvents' `
+                    -TempPath $TestDrive `
+                    -PassThru)
+
+            $result.Value | Should -Be @(1, 2)
+        }
+
+        It 'uses the connection configured by Set-XdrKustainer' {
+            InModuleScope XDRInternals {
+                $script:KustainerConnection = [pscustomobject]@{
+                    ClusterUri = [uri]'http://localhost:8080'
+                    Database   = 'NetDefaultDB'
+                }
+            }
+
+            $null = [pscustomobject]@{ Value = 1 } |
+                Export-XdrKustainer -TableName 'RawEvents' -TempPath $TestDrive
+
+            Should -Invoke Send-XdrKustainerInlineIngestion -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $ClusterUri.AbsoluteUri -eq 'http://localhost:8080/' -and
+                $Database -eq 'NetDefaultDB'
+            }
+        }
+
+        It 'uses the streaming endpoint for batches larger than 4 MB' {
+            $records = @(
+                [pscustomobject]@{ Value = ('a' * 2200000) },
+                [pscustomobject]@{ Value = ('b' * 2200000) }
+            )
+
+            $null = @($records | Export-XdrKustainer `
+                    -ClusterUri 'http://localhost:8080' `
+                    -Database 'NetDefaultDB' `
+                    -TableName 'StreamingEvents' `
+                    -IngestionMode Streaming `
+                    -MaxBatchSizeMB 10 `
+                    -TempPath $TestDrive `
+                    -WarningVariable streamingWarnings)
+
+            Should -Invoke Send-XdrKustainerStreamingIngestion -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $TableName -eq 'StreamingEvents' -and
+                $SchemaPropagationTimeoutSeconds -eq 300
+            }
+            Should -Invoke Send-XdrKustainerInlineIngestion -ModuleName XDRInternals -Times 0 -Exactly
+            $streamingWarnings | Should -BeLike '*experimental*'
+        }
+
+        It 'supports fractional inline batch sizes for request tuning' {
+            $records = @(
+                [pscustomobject]@{ Value = ('a' * 40000) },
+                [pscustomobject]@{ Value = ('b' * 40000) }
+            )
+
+            $null = @($records | Export-XdrKustainer `
+                    -ClusterUri 'http://localhost:8080' `
+                    -Database 'NetDefaultDB' `
+                    -TableName 'TunedEvents' `
+                    -MaxBatchSizeMB 0.0625 `
+                    -TempPath $TestDrive)
+
+            Should -Invoke Send-XdrKustainerInlineIngestion -ModuleName XDRInternals -Times 2 -Exactly
+        }
+
+        It 'allows large inline request sizes and forwards the request timeout' {
+            $null = [pscustomobject]@{ Value = 1 } | Export-XdrKustainer `
+                -ClusterUri 'http://localhost:8080' `
+                -Database 'NetDefaultDB' `
+                -TableName 'BulkEvents' `
+                -MaxBatchSizeMB 200 `
+                -RequestTimeout 1200 `
+                -TempPath $TestDrive
+
+            Should -Invoke Send-XdrKustainerInlineIngestion -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $RequestTimeout -eq 1200
+            }
+        }
+
+        It 'rejects streaming request sizes above 10 MB' {
+            {
+                [pscustomobject]@{ Value = 1 } | Export-XdrKustainer `
+                    -ClusterUri 'http://localhost:8080' `
+                    -Database 'NetDefaultDB' `
+                    -TableName 'StreamingEvents' `
+                    -IngestionMode Streaming `
+                    -MaxBatchSizeMB 10.01 `
+                    -TempPath $TestDrive `
+                    -WarningAction SilentlyContinue
+            } | Should -Throw '*cannot exceed 10 MB*'
+
+            Should -Invoke Send-XdrKustainerStreamingIngestion -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'accepts an HTTPS reverse-proxy endpoint' {
+            $null = [pscustomobject]@{ Value = 1 } | Export-XdrKustainer `
+                -ClusterUri 'https://kustainer.example.test' `
+                -Database 'NetDefaultDB' `
+                -TableName 'RawEvents' `
+                -TempPath $TestDrive
+
+            Should -Invoke Send-XdrKustainerInlineIngestion -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                $ClusterUri.AbsoluteUri -eq 'https://kustainer.example.test/'
+            }
+        }
+
+        It 'rejects unsupported endpoint schemes' {
+            {
+                [pscustomobject]@{ Value = 1 } | Export-XdrKustainer `
+                    -ClusterUri 'ftp://localhost:8080' `
+                    -Database 'NetDefaultDB' `
+                    -TableName 'RawEvents' `
+                    -TempPath $TestDrive
+            } | Should -Throw '*http:// endpoint or an https:// reverse-proxy endpoint*'
+
+            Should -Invoke Send-XdrKustainerInlineIngestion -ModuleName XDRInternals -Times 0 -Exactly
+            Should -Invoke Send-XdrKustainerStreamingIngestion -ModuleName XDRInternals -Times 0 -Exactly
+        }
+    }
+
+    Describe 'Invoke-XdrKustainerQuery' {
+        BeforeEach {
+            InModuleScope XDRInternals {
+                $script:KustainerConnection = [pscustomobject]@{
+                    ClusterUri = [uri]'http://localhost:8080'
+                    Database   = 'NetDefaultDB'
+                }
+            }
+        }
+
+        It 'sends regular KQL to the v2 query endpoint without a token' {
+            InModuleScope XDRInternals {
+                Mock Invoke-XdrAzureDataExplorerRestRequest {
+                    @(
+                        @{ FrameType = 'DataSetHeader'; IsProgressive = $false },
+                        @{ FrameType = 'DataTable'; TableKind = 'PrimaryResult'; Columns = @(
+                                @{ ColumnName = 'Count'; ColumnType = 'long' }
+                            ); Rows = @(, @(42))
+                        },
+                        @{ FrameType = 'DataSetCompletion'; HasErrors = $false }
+                    )
+                }
+
+                $result = Invoke-XdrKustainerQuery -Query 'Events | count'
+
+                $result.Count | Should -Be 42
+                Should -Invoke Invoke-XdrAzureDataExplorerRestRequest -Times 1 -Exactly -ParameterFilter {
+                    $BaseUri.AbsoluteUri -eq 'http://localhost:8080/' -and
+                    $Path -eq '/v2/rest/query' -and
+                    $Body.db -eq 'NetDefaultDB' -and
+                    $Body.csl -eq 'Events | count' -and
+                    [string]::IsNullOrWhiteSpace($Token) -and
+                    $TimeoutSec -eq 300 -and
+                    $RetryCount -eq 10
+                }
+            }
+        }
+
+        It 'sends management commands to the v1 management endpoint' {
+            InModuleScope XDRInternals {
+                Mock Invoke-XdrAzureDataExplorerRestRequest {
+                    @{ Tables = @(
+                            @{ Columns = @(@{ ColumnName = 'Name'; DataType = 'String' }); Rows = @(, @('Events')) }
+                        ) }
+                }
+
+                $result = Invoke-XdrKustainerQuery -Query '.show tables'
+
+                $result.Name | Should -Be 'Events'
+                Should -Invoke Invoke-XdrAzureDataExplorerRestRequest -Times 1 -Exactly -ParameterFilter {
+                    $Path -eq '/v1/rest/mgmt' -and $RetryCount -eq 1
+                }
+            }
+        }
+
+        It 'accepts an explicit endpoint and database without a configured connection' {
+            InModuleScope XDRInternals {
+                $script:KustainerConnection = $null
+                Mock Invoke-XdrAzureDataExplorerRestRequest {
+                    @(
+                        @{ FrameType = 'DataTable'; TableKind = 'PrimaryResult'; Columns = @(); Rows = @() }
+                    )
+                }
+
+                Invoke-XdrKustainerQuery `
+                    -ClusterUri 'https://kustainer.example.test/path' `
+                    -Database 'OtherDB' `
+                    -Query 'Events | take 1' `
+                    -RequestTimeout 900
+
+                Should -Invoke Invoke-XdrAzureDataExplorerRestRequest -Times 1 -Exactly -ParameterFilter {
+                    $BaseUri.AbsoluteUri -eq 'https://kustainer.example.test/' -and
+                    $Body.db -eq 'OtherDB' -and
+                    $TimeoutSec -eq 900
+                }
+            }
+        }
+
+        It 'returns the raw REST response when requested' {
+            InModuleScope XDRInternals {
+                Mock Invoke-XdrAzureDataExplorerRestRequest {
+                    @(
+                        @{ FrameType = 'DataSetHeader' },
+                        @{ FrameType = 'DataSetCompletion'; HasErrors = $false }
+                    )
+                }
+
+                $result = @(Invoke-XdrKustainerQuery -Query 'Events | take 1' -Raw)
+
+                $result | Should -HaveCount 2
+                $result[0].FrameType | Should -Be 'DataSetHeader'
+            }
+        }
+
+        It 'parses large emulator responses returned as JSON text' {
+            InModuleScope XDRInternals {
+                Mock Invoke-XdrAzureDataExplorerRestRequest {
+                    '[{"FrameType":"DataSetHeader"},{"FrameType":"DataTable","TableKind":"PrimaryResult","Columns":[{"ColumnName":"Count","ColumnType":"long"}],"Rows":[[42]]},{"FrameType":"DataSetCompletion","HasErrors":false}]'
+                }
+
+                $result = Invoke-XdrKustainerQuery -Query 'Events | count'
+
+                $result.Count | Should -Be 42
+            }
         }
     }
 

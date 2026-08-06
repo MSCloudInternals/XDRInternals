@@ -55,7 +55,7 @@ Get-XdrTenantContext -Force
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encodes an Advanced Hunting query for use in Microsoft Defender XDR. |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
 | Export-XdrAzureDataExplorer                                     | Exports pipeline data to Azure Data Explorer using queued ingestion. |
-| Export-XdrKustainer                                             | Exports pipeline data to a local Kusto emulator using inline or streaming ingestion. |
+| Export-XdrKustainer                                             | Exports pipeline data to a local Kusto emulator (Kustainer). |
 | Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |
 | Get-XdrActionsCenterHistory                                     | Retrieves historical actions from the Microsoft Defender XDR Action Center. |
 | Get-XdrActionsCenterPending                                     | Retrieves pending actions from the Microsoft Defender XDR Action Center. |
@@ -139,12 +139,12 @@ Get-XdrTenantContext -Force
 | Get-XdrXspmTopEntryPoint                                        | Retrieves top entry points from Microsoft Defender XDR XSPM attack paths. |
 | Get-XdrXspmTopTarget                                            | Retrieves top targets from Microsoft Defender XDR XSPM attack paths. |
 | Invoke-XdrAzureDataExplorerQuery                                | Executes a KQL query or management command against an Azure Data Explorer cluster. |
-| Invoke-XdrKustainerQuery                                        | Executes a KQL query or management command against a local Kusto emulator. |
 | Invoke-XdrEndpointDeviceAction                                  | Invokes response actions on an endpoint device in Microsoft Defender XDR. |
 | Invoke-XdrEndpointDeviceAutomatedInvestigation                  | Starts an automated investigation on an endpoint device in Microsoft Defender XDR. |
 | Invoke-XdrEndpointDeviceLiveResponseCommand                     | Sends a command to an active Live Response session in Microsoft Defender XDR. |
 | Invoke-XdrEndpointDevicePolicySync                              | Forces a policy sync on an endpoint device in Microsoft Defender XDR. |
 | Invoke-XdrHuntingQueryValidation                                | Validates an Advanced Hunting query for custom detection rules in Microsoft Defender XDR. |
+| Invoke-XdrKustainerQuery                                        | Executes a KQL query or management command against Kustainer. |
 | Invoke-XdrMtoAdvancedHunting                                    | Executes an Advanced Hunting query across multiple tenants in MTO (Multi-Tenant Organization). |
 | Invoke-XdrRestMethod                                            | Invokes a REST API call to Microsoft Defender XDR with authenticated session. |
 | Invoke-XdrXspmHuntingQuery                                      | Executes a hunting query against the Microsoft Defender XDR XSPM attack surface API. |
@@ -162,7 +162,6 @@ Get-XdrTenantContext -Force
 | Remove-XdrIdentityConfigurationRemediationActionAccount         | Removes a remediation action account from Microsoft Defender for Identity. |
 | Set-XdrAdvancedHuntingFunction                                  | Updates an existing Advanced Hunting function in Microsoft Defender XDR. |
 | Set-XdrAzureDataExplorerConnection                              | Configures Azure Data Explorer connection settings for export cmdlets. |
-| Set-XdrKustainer                                                | Configures a local Kusto emulator and optionally enables streaming ingestion. |
 | Set-XdrCloudAppsDiscoveredApp                                   | Updates a discovered app note in Microsoft Defender for Cloud Apps. |
 | Set-XdrConfigurationCriticalAssetManagementClassification       | Updates critical asset management classification rule metadata in Microsoft Defender XDR. |
 | Set-XdrConfigurationPreviewFeatures                             | Sets the configuration for Defender XDR Preview features. |
@@ -175,6 +174,7 @@ Get-XdrTenantContext -Force
 | Set-XdrEndpointDeviceRbacGroup                                  | Updates Defender for Endpoint device groups. |
 | Set-XdrEndpointDeviceTag                                        | Sets, adds, or removes user-defined tags on endpoint devices in Microsoft Defender XDR. |
 | Set-XdrIdentityConfigurationRemediationActionAccount            | Configures the remediation action account type for Microsoft Defender for Identity. |
+| Set-XdrKustainer                                                | Configures the local Kusto emulator connection used by Export-XdrKustainer. |
 | Set-XdrSentinelConnection                                       | Configures the Sentinel (Log Analytics) workspace connection for data export. |
 | Stop-XdrEndpointDeviceAction                                    | Cancels a pending device action in Microsoft Defender XDR. |
 | Update-XdrConnectionSettings                                    | Updates XDR connection session cookies and authentication tokens. |

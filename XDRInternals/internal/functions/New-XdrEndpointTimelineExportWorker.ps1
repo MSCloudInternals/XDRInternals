@@ -34,6 +34,7 @@
         $retryCount = 0
         $missingTimestampCount = 0L
         $boundaryTimestampCount = 0L
+        $previousTimestampUtc = $null
         $failureClass = 'Protocol'
 
         try {
@@ -181,6 +182,10 @@
                     if ($utcTimestamp -lt $chunkFromDate -or $utcTimestamp -gt $chunkToDate) {
                         throw "Chunk $chunkIndex received an event outside its requested interval: $($utcTimestamp.ToString('o'))."
                     }
+                    if ($null -ne $previousTimestampUtc -and $utcTimestamp -gt $previousTimestampUtc) {
+                        throw "Chunk $chunkIndex received events that were not in newest-first order: $($utcTimestamp.ToString('o')) followed $($previousTimestampUtc.ToString('o'))."
+                    }
+                    $previousTimestampUtc = $utcTimestamp
                     if ($utcTimestamp -eq $chunkFromDate -or $utcTimestamp -eq $chunkToDate) {
                         $boundaryTimestampCount++
                     }

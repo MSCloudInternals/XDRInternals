@@ -148,13 +148,46 @@
         }
     }
 
+    It 'fails closed when a continuation page is newer than the preceding page' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:OrderingCall = 0
+            Mock Invoke-RestMethod {
+                $script:OrderingCall++
+                if ($script:OrderingCall -eq 1) {
+                    return [PSCustomObject]@{
+                        Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:30:00Z'; Id = 'first-page' })
+                        PartialResponseReasons = @()
+                        Prev = '/machines/device/events/?cursor=older'
+                        Next = $null
+                    }
+                }
+                return [PSCustomObject]@{
+                    Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:45:00Z'; Id = 'newer-continuation' })
+                    PartialResponseReasons = @()
+                    Prev = $null
+                    Next = $null
+                }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'out-of-order.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.Error | Should -BeLike '*not in newest-first order*'
+            Test-Path -LiteralPath (Join-Path $TestRoot 'out-of-order.ndjson') | Should -BeFalse
+        }
+    }
+
     It 'uses half-open intervals to prevent duplicate boundary events' {
         InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
             Mock Invoke-RestMethod {
                 [PSCustomObject]@{
                     Items = @(
-                        [PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:00:00Z'; Id = 'included-lower' },
-                        [PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T01:00:00Z'; Id = 'excluded-upper' }
+                        [PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T01:00:00Z'; Id = 'excluded-upper' },
+                        [PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:00:00Z'; Id = 'included-lower' }
                     )
                     PartialResponseReasons = @()
                     Prev = $null
@@ -313,8 +346,9 @@
         } -ModuleName XDRInternals
         $outputPath = Join-Path $TestDrive 'timeline.ndjson'
         $sevenDayToDate = $script:FromDate.AddDays(7)
+        [System.IO.File]::WriteAllText($outputPath, "{`"old`":true}`n", [System.Text.UTF8Encoding]::new($false))
 
-        $result = Export-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $sevenDayToDate -Path $outputPath
+        $result = Export-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $sevenDayToDate -Path $outputPath -Force
         $lines = @(Get-Content -LiteralPath $outputPath)
         $manifest = Get-Content -LiteralPath "$outputPath.manifest.json" -Raw | ConvertFrom-Json
 
@@ -326,6 +360,127 @@
         $manifest.State | Should -Be 'Complete'
         $manifest.Summary.PartsRetained | Should -BeFalse
         Test-Path -LiteralPath "$outputPath.parts" | Should -BeFalse
+    }
+
+    It 'preserves an existing export when a forced replacement fails' {
+        Mock New-XdrEndpointTimelineExportWorker {
+            return {
+                param($chunk, $sharedParameters, $statusMap)
+                [PSCustomObject]@{
+                    Success = $false; ChunkIndex = [int]$chunk.Index; EventCount = 0L; PageCount = 0
+                    FileBytes = 0L; FileSha256 = $null; RetryCount = 0
+                    MissingTimestampCount = 0L; BoundaryTimestampCount = 0L; ElapsedSeconds = 0.01
+                    Error = 'simulated replacement failure'; FailureClass = 'PermanentHttp'
+                }
+            }
+        } -ModuleName XDRInternals
+        $outputPath = Join-Path $TestDrive 'preserved.ndjson'
+        [System.IO.File]::WriteAllText($outputPath, "{`"old`":true}`n", [System.Text.UTF8Encoding]::new($false))
+
+        { Export-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:FromDate.AddHours(1) -Path $outputPath -Force } |
+            Should -Throw -ExpectedMessage '*preserved for resume*'
+
+        (Get-Content -LiteralPath $outputPath -Raw | ConvertFrom-Json).old | Should -BeTrue
+    }
+
+    It 'recovers a finalizing manifest after the final file was published' {
+        Mock New-XdrEndpointTimelineExportWorker {
+            return {
+                param($chunk, $sharedParameters, $statusMap)
+                $filePath = Join-Path $sharedParameters.PartsPath ([string]$chunk.FileName)
+                $line = "{`"published`":true}`n"
+                [System.IO.File]::WriteAllText($filePath, $line, [System.Text.UTF8Encoding]::new($false))
+                [PSCustomObject]@{
+                    Success = $true; ChunkIndex = [int]$chunk.Index; EventCount = 1L; PageCount = 1
+                    FileBytes = (Get-Item -LiteralPath $filePath).Length
+                    FileSha256 = (Get-FileHash -LiteralPath $filePath).Hash.ToLowerInvariant(); RetryCount = 0
+                    MissingTimestampCount = 0L; BoundaryTimestampCount = 0L; ElapsedSeconds = 0.01
+                    Error = $null; FailureClass = $null
+                }
+            }
+        } -ModuleName XDRInternals
+        $outputPath = Join-Path $TestDrive 'recover-finalizing.ndjson'
+        $null = Export-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:FromDate.AddHours(1) -Path $outputPath
+        $manifestPath = "$outputPath.manifest.json"
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $originalElapsedSeconds = $manifest.Summary.ElapsedSeconds
+        $manifest.State = 'Finalizing'
+        $manifest.Summary.CompletedUtc = $null
+        $manifest.Summary.PartsRetained = $true
+        [System.IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 16), [System.Text.UTF8Encoding]::new($false))
+        New-Item -Path "$outputPath.parts" -ItemType Directory | Out-Null
+        $script:RecoveryWorkerCalled = $false
+        Mock New-XdrEndpointTimelineExportWorker {
+            $script:RecoveryWorkerCalled = $true
+            throw 'The worker must not run during publication recovery.'
+        } -ModuleName XDRInternals
+
+        $result = Export-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:FromDate.AddHours(1) -Path $outputPath
+        $recoveredManifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+
+        $result.TotalEvents | Should -Be 1
+        $result.FileSha256 | Should -Be (Get-FileHash -LiteralPath $outputPath).Hash.ToLowerInvariant()
+        $result.ElapsedSeconds | Should -Be $originalElapsedSeconds
+        $recoveredManifest.State | Should -Be 'Complete'
+        $recoveredManifest.Summary.PartsRetained | Should -BeFalse
+        $recoveredManifest.Summary.CompletedUtc | Should -Not -BeNullOrEmpty
+        $script:RecoveryWorkerCalled | Should -BeFalse
+        Test-Path -LiteralPath "$outputPath.parts" | Should -BeFalse
+    }
+
+    It 'resets every diagnostic when a completed part fails resume validation' {
+        Mock New-XdrEndpointTimelineExportWorker {
+            return {
+                param($chunk, $sharedParameters, $statusMap)
+                $filePath = Join-Path $sharedParameters.PartsPath ([string]$chunk.FileName)
+                $line = "{`"redownloaded`":true}`n"
+                [System.IO.File]::WriteAllText($filePath, $line, [System.Text.UTF8Encoding]::new($false))
+                [PSCustomObject]@{
+                    Success = $true; ChunkIndex = [int]$chunk.Index; EventCount = 1L; PageCount = 1
+                    FileBytes = (Get-Item -LiteralPath $filePath).Length
+                    FileSha256 = (Get-FileHash -LiteralPath $filePath).Hash.ToLowerInvariant(); RetryCount = 0
+                    MissingTimestampCount = 0L; BoundaryTimestampCount = 0L; ElapsedSeconds = 0.01
+                    Error = $null; FailureClass = $null
+                }
+            }
+        } -ModuleName XDRInternals
+        $outputPath = Join-Path $TestDrive 'reset-diagnostics.ndjson'
+        $partsPath = "$outputPath.parts"
+        $manifestPath = "$outputPath.manifest.json"
+        $fileName = 'chunk_0000_test.ndjson'
+        New-Item -Path $partsPath -ItemType Directory | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path $partsPath $fileName), "corrupt`n", [System.Text.UTF8Encoding]::new($false))
+        $manifest = [ordered]@{
+            SchemaVersion = 1; State = 'Failed'; DeviceId = $script:DeviceId
+            FromDateUtc = $script:FromDate.ToUniversalTime().ToString('o')
+            ToDateUtc = $script:FromDate.AddHours(1).ToUniversalTime().ToString('o')
+            IncludeSentinelEvents = $false; ChunkHours = 4; PageSize = 1000
+            Ordering = 'NewestTimeWindowFirst;ApiEventOrderPreserved'
+            CreatedUtc = [datetime]::UtcNow.ToString('o'); UpdatedUtc = [datetime]::UtcNow.ToString('o')
+            Chunks = @([ordered]@{
+                Index = 0; FromDateUtc = $script:FromDate.ToUniversalTime().ToString('o')
+                ToDateUtc = $script:FromDate.AddHours(1).ToUniversalTime().ToString('o')
+                DurationTicks = [timespan]::FromHours(1).Ticks; FileName = $fileName; Status = 'Completed'
+                EventCount = 99L; PageCount = 9; RetryCount = 8; AttemptCount = 7
+                FileBytes = 8L; FileSha256 = ('0' * 64); MissingTimestampCount = 6L
+                BoundaryTimestampCount = 5L; ElapsedSeconds = 100.0; Error = 'stale error'
+            })
+            Summary = $null
+        }
+        [System.IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 16), [System.Text.UTF8Encoding]::new($false))
+
+        $null = Export-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:FromDate.AddHours(1) -Path $outputPath
+        $completedManifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $chunk = $completedManifest.Chunks[0]
+
+        $chunk.EventCount | Should -Be 1
+        $chunk.PageCount | Should -Be 1
+        $chunk.RetryCount | Should -Be 0
+        $chunk.AttemptCount | Should -Be 0
+        $chunk.MissingTimestampCount | Should -Be 0
+        $chunk.BoundaryTimestampCount | Should -Be 0
+        $chunk.ElapsedSeconds | Should -BeLessThan 1
+        $chunk.Error | Should -BeNullOrEmpty
     }
 
     It 'resumes validated chunks after a failed run' {

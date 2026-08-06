@@ -35,7 +35,8 @@
         Includes Microsoft Sentinel events in the exported timeline.
 
     .PARAMETER Force
-        Replaces an existing export and discards incompatible resumable state at Path.
+        Replaces an existing export and discards incompatible resumable state at Path. The
+        existing export remains available until its validated replacement is published.
 
     .EXAMPLE
         Export-XdrEndpointDeviceTimeline -DeviceId $deviceId -FromDate $from -ToDate $to -Path '.\timeline.ndjson'
@@ -111,27 +112,7 @@
         $manifestPartialPath = "$manifestPath.partial"
         $partsPath = "$outputPath.parts"
         $outputPartialPath = "$outputPath.partial"
-
-        if ($Force) {
-            foreach ($staleFile in @($outputPath, $manifestPath, $manifestPartialPath, $outputPartialPath)) {
-                if (Test-Path -LiteralPath $staleFile) {
-                    Remove-Item -LiteralPath $staleFile -Force -ErrorAction Stop
-                }
-            }
-            if (Test-Path -LiteralPath $partsPath) {
-                Remove-Item -LiteralPath $partsPath -Recurse -Force -ErrorAction Stop
-            }
-        }
-        elseif (Test-Path -LiteralPath $outputPath) {
-            throw "Path '$outputPath' already exists. Use -Force to replace it."
-        }
-
-        if (Test-Path -LiteralPath $manifestPartialPath) {
-            Remove-Item -LiteralPath $manifestPartialPath -Force -ErrorAction SilentlyContinue
-        }
-        if (Test-Path -LiteralPath $outputPartialPath) {
-            Remove-Item -LiteralPath $outputPartialPath -Force -ErrorAction SilentlyContinue
-        }
+        $replaceExistingOutput = $Force.IsPresent -and (Test-Path -LiteralPath $outputPath -PathType Leaf)
 
         $writeManifest = {
             param($Manifest, $ManifestPath, $PartialPath)
@@ -155,7 +136,17 @@
         $manifest = $null
         $resumedChunkCount = 0
 
-        if (Test-Path -LiteralPath $manifestPath) {
+        if ($Force) {
+            foreach ($staleFile in @($manifestPath, $manifestPartialPath, $outputPartialPath)) {
+                if (Test-Path -LiteralPath $staleFile) {
+                    Remove-Item -LiteralPath $staleFile -Force -ErrorAction Stop
+                }
+            }
+            if (Test-Path -LiteralPath $partsPath) {
+                Remove-Item -LiteralPath $partsPath -Recurse -Force -ErrorAction Stop
+            }
+        }
+        elseif (Test-Path -LiteralPath $manifestPath) {
             try {
                 $manifest = Get-Content -LiteralPath $manifestPath -Raw -ErrorAction Stop | ConvertFrom-Json -AsHashtable -Depth 16 -ErrorAction Stop
             }
@@ -176,7 +167,71 @@
                 throw "Manifest '$manifestPath' does not match this request. Use -Force to discard it or choose another Path."
             }
         }
-        else {
+
+        if (-not $Force -and (Test-Path -LiteralPath $outputPath -PathType Leaf)) {
+            if (-not $manifest -or [string]$manifest.State -ne 'Finalizing') {
+                throw "Path '$outputPath' already exists. Use -Force to replace it."
+            }
+
+            $summary = $manifest.Summary
+            $hasPublishMetadata =
+                $summary -and
+                $null -ne $summary.FileBytes -and
+                -not [string]::IsNullOrWhiteSpace([string]$summary.FileSha256)
+            $publishedFile = Get-Item -LiteralPath $outputPath -ErrorAction Stop
+            $publishedFileIsValid = $hasPublishMetadata -and $publishedFile.Length -eq [long]$summary.FileBytes
+            if ($publishedFileIsValid) {
+                $publishedHash = (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256).Hash.ToLowerInvariant()
+                $publishedFileIsValid = $publishedHash -eq [string]$summary.FileSha256
+            }
+            if (-not $publishedFileIsValid) {
+                throw "Finalizing manifest '$manifestPath' does not validate the published file. Use -Force to replace it."
+            }
+
+            $partsRetained = $false
+            if (Test-Path -LiteralPath $partsPath) {
+                try {
+                    Remove-Item -LiteralPath $partsPath -Recurse -Force -ErrorAction Stop
+                }
+                catch {
+                    $partsRetained = $true
+                    Write-Warning "The published export was recovered, but temporary part files could not be removed from '$partsPath': $($_.Exception.Message)"
+                }
+            }
+            $operationStopwatch.Stop()
+            $manifest.State = 'Complete'
+            $manifest.Summary.PartsRetained = $partsRetained
+            $manifest.Summary.CompletedUtc = [datetime]::UtcNow.ToString('o')
+            & $writeManifest $manifest $manifestPath $manifestPartialPath
+
+            Write-Information "Recovered the completed endpoint timeline export at '$outputPath'." -InformationAction Continue
+            return [PSCustomObject]@{
+                OutputPath              = $outputPath
+                ManifestPath            = $manifestPath
+                TotalEvents             = [long]$summary.EventCount
+                TotalPages              = [long]$summary.PageCount
+                TotalRetries            = [long]$summary.RetryCount
+                TotalChunkRestarts      = [long]$summary.ChunkRestartCount
+                TotalChunks             = @($manifest.Chunks).Count
+                ResumedChunks           = [long]$summary.ResumedChunkCount
+                FileBytes               = [long]$summary.FileBytes
+                FileSha256              = [string]$summary.FileSha256
+                MissingTimestampCount   = [long]$summary.MissingTimestampCount
+                BoundaryTimestampCount  = [long]$summary.BoundaryTimestampCount
+                MergeSeconds            = [double]$summary.MergeSeconds
+                ElapsedSeconds          = [double]$manifest.Summary.ElapsedSeconds
+                TemporaryPartsRetained  = $partsRetained
+            }
+        }
+
+        if (Test-Path -LiteralPath $manifestPartialPath) {
+            Remove-Item -LiteralPath $manifestPartialPath -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path -LiteralPath $outputPartialPath) {
+            Remove-Item -LiteralPath $outputPartialPath -Force -ErrorAction SilentlyContinue
+        }
+
+        if (-not $manifest) {
             $plannedChunks = @(New-XdrEndpointTimelineExportChunk -FromDate $rangeStart -ToDate $rangeEnd -ChunkHours $chunkHours)
             $manifestChunks = @(
                 foreach ($plannedChunk in $plannedChunks) {
@@ -246,6 +301,9 @@
                     $manifestChunk.AttemptCount = 0
                     $manifestChunk.FileBytes = 0L
                     $manifestChunk.FileSha256 = $null
+                    $manifestChunk.MissingTimestampCount = 0L
+                    $manifestChunk.BoundaryTimestampCount = 0L
+                    $manifestChunk.ElapsedSeconds = 0.0
                     $manifestChunk.Error = 'Previously completed part failed resume validation and was scheduled again.'
                 }
             }
@@ -550,7 +608,6 @@
         $mergeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         try {
             $mergeResult = Merge-XdrEndpointTimelineNdjsonPart -Part $orderedParts -DestinationPath $outputPartialPath
-            [System.IO.File]::Move($outputPartialPath, $outputPath, $false)
         }
         catch {
             if (Test-Path -LiteralPath $outputPartialPath) {
@@ -565,22 +622,11 @@
             $mergeStopwatch.Stop()
         }
 
-        $partsRetained = $false
-        try {
-            Remove-Item -LiteralPath $partsPath -Recurse -Force -ErrorAction Stop
-        }
-        catch {
-            $partsRetained = $true
-            Write-Warning "The export completed, but temporary part files could not be removed from '$partsPath': $($_.Exception.Message)"
-        }
-
-        $operationStopwatch.Stop()
         $totalPages = [long](($manifest.Chunks | ForEach-Object { [long]$_.PageCount } | Measure-Object -Sum).Sum)
         $totalRetries = [long](($manifest.Chunks | ForEach-Object { [long]$_.RetryCount } | Measure-Object -Sum).Sum)
         $totalChunkRestarts = [long](($manifest.Chunks | ForEach-Object { [long]$_.AttemptCount } | Measure-Object -Sum).Sum)
         $missingTimestampCount = [long](($manifest.Chunks | ForEach-Object { [long]$_.MissingTimestampCount } | Measure-Object -Sum).Sum)
         $boundaryTimestampCount = [long](($manifest.Chunks | ForEach-Object { [long]$_.BoundaryTimestampCount } | Measure-Object -Sum).Sum)
-        $manifest.State = 'Complete'
         $manifest.Summary = [ordered]@{
             OutputPath              = $outputPath
             EventCount              = [long]$mergeResult.EventCount
@@ -592,11 +638,35 @@
             MissingTimestampCount   = $missingTimestampCount
             BoundaryTimestampCount  = $boundaryTimestampCount
             ResumedChunkCount       = $resumedChunkCount
-            PartsRetained           = $partsRetained
+            PartsRetained           = $true
             MergeSeconds            = [math]::Round($mergeStopwatch.Elapsed.TotalSeconds, 3)
             ElapsedSeconds          = [math]::Round($operationStopwatch.Elapsed.TotalSeconds, 3)
-            CompletedUtc            = [datetime]::UtcNow.ToString('o')
+            CompletedUtc            = $null
         }
+        & $writeManifest $manifest $manifestPath $manifestPartialPath
+
+        try {
+            [System.IO.File]::Move($outputPartialPath, $outputPath, $replaceExistingOutput)
+        }
+        catch {
+            throw "The endpoint timeline was validated but could not be published to '$outputPath'. Running the same command again can retry finalization. $($_.Exception.Message)"
+        }
+
+        $operationStopwatch.Stop()
+        $manifest.State = 'Complete'
+        $manifest.Summary.CompletedUtc = [datetime]::UtcNow.ToString('o')
+        $manifest.Summary.ElapsedSeconds = [math]::Round($operationStopwatch.Elapsed.TotalSeconds, 3)
+        & $writeManifest $manifest $manifestPath $manifestPartialPath
+
+        $partsRetained = $false
+        try {
+            Remove-Item -LiteralPath $partsPath -Recurse -Force -ErrorAction Stop
+        }
+        catch {
+            $partsRetained = $true
+            Write-Warning "The export completed, but temporary part files could not be removed from '$partsPath': $($_.Exception.Message)"
+        }
+        $manifest.Summary.PartsRetained = $partsRetained
         & $writeManifest $manifest $manifestPath $manifestPartialPath
 
         Write-Information "Endpoint timeline export complete: $($mergeResult.EventCount) events, $totalChunkCount windows, $([math]::Round($mergeResult.FileBytes / 1MB, 2)) MiB, elapsed $($operationStopwatch.Elapsed.ToString('c'))." -InformationAction Continue

@@ -1,3 +1,5 @@
-﻿publish
+publish
 TestResults
 test-results
+node_modules
+mcp/dist

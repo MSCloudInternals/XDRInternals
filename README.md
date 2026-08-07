@@ -455,6 +455,22 @@ Notes:
 - `Connect-XdrEndpointDeviceLiveResponse -NonInteractive` accepts pipeline input from `Get-XdrEndpointDevice` and supports `-NoStatusTable` when connecting to multiple devices.
 - `Invoke-XdrEndpointDeviceLiveResponseCommand` expands common table outputs such as `processes`, `services`, `drivers`, `connections`, `dir`, and `persistence` into typed row objects by default. Use `-RawCommandResult` to keep the original API response shape, or `-IncludeCommandResult` together with `-ExpandTableOutput` to emit both forms.
 - `Disconnect-XdrEndpointDeviceLiveResponse` accepts session objects or raw session IDs from the pipeline.
+## MCP server
+
+The [`mcp`](./mcp/README.md) folder contains an MCP (Model Context Protocol) server that exposes
+incident investigation, incident handling and threat hunting to MCP clients such as Claude Code.
+It keeps one authenticated XDRInternals PowerShell session alive and shares it across tool calls.
+
+```bash
+cd mcp && npm install && npm run build
+node dist/index.js --smoke-test
+```
+
+Sign-in is interactive and reuses the account already signed in on the machine
+(`/mcp__xdr__login`); a manually supplied `sccauth` or `ESTSAUTH` cookie also works
+(`/mcp__xdr__use-token`). See [mcp/README.md](./mcp/README.md) for the tool list, prompts,
+configuration and safety notes.
+
 ## License
 
 See LICENSE file for details.

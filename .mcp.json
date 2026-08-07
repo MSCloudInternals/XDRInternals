@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "xdr": {
+      "command": "node",
+      "args": ["./mcp/dist/index.js"],
+      "env": {}
+    }
+  }
+}

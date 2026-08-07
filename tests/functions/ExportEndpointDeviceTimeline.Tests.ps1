@@ -8,6 +8,26 @@
         $script:DeviceId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
         $script:FromDate = [datetime]'2026-01-01T00:00:00Z'
         $script:ToDate = [datetime]'2026-01-01T09:00:00Z'
+        InModuleScope XDRInternals {
+            function script:New-TestEndpointTimelinePrev {
+                param([string]$DeviceId, [string]$Token)
+
+                $query = @(
+                    'generateIdentityEvents=true'
+                    'includeIdentityEvents=true'
+                    'supportMdiOnlyEvents=true'
+                    'fromDate=2026-01-01T00%3A00%3A00.000Z'
+                    'toDate=2026-01-01T01%3A00%3A00.000Z'
+                    'doNotUseCache=false'
+                    'forceUseCache=false'
+                    'pageSize=1000'
+                    'includeSentinelEvents=false'
+                    'IsScrollingForward=false'
+                    "ReportIdForScrolling=$Token"
+                )
+                return "/machines/$DeviceId/events?$($query -join '&')"
+            }
+        }
     }
 
     It 'keeps the public parameter surface intentionally small' {
@@ -69,7 +89,7 @@
                 [PSCustomObject]@{
                     Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T01:30:00Z'; ActionType = 'Newest'; Id = 2 })
                     PartialResponseReasons = @()
-                    Prev = '/machines/device/events/?cursor=older'
+                    Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'older'
                     Next = '/machines/device/events/?cursor=must-not-follow'
                 },
                 [PSCustomObject]@{
@@ -118,8 +138,130 @@
             ($lines[0] | ConvertFrom-Json).Id | Should -Be 2
             ($lines[1] | ConvertFrom-Json).Id | Should -Be 1
             $script:RequestedUris.Count | Should -Be 2
-            $script:RequestedUris[1] | Should -BeLike '*cursor=older*'
+            $script:RequestedUris[1] | Should -BeLike '*ReportIdForScrolling=older*'
             ($script:RequestedUris -join "`n") | Should -Not -BeLike '*must-not-follow*'
+        }
+    }
+
+    It 'preserves equal timestamps across three continuation pages' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:EqualTimestampCall = 0
+            Mock Invoke-RestMethod {
+                $script:EqualTimestampCall++
+                $previous = if ($script:EqualTimestampCall -lt 3) {
+                    New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token "page$($script:EqualTimestampCall + 1)"
+                }
+                else {
+                    $null
+                }
+                [PSCustomObject]@{
+                    Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:30:00Z'; Id = "page-$script:EqualTimestampCall" })
+                    PartialResponseReasons = @()
+                    Prev = $previous
+                    Next = $null
+                }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'equal-timestamps.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+            $ids = @(Get-Content -LiteralPath $result.FilePath | ForEach-Object { ($_ | ConvertFrom-Json).Id })
+
+            $result.Success | Should -BeTrue
+            $result.PageCount | Should -Be 3
+            $result.EventCount | Should -Be 3
+            $ids | Should -Be @('page-1', 'page-2', 'page-3')
+        }
+    }
+
+    It 'stops on a full page when Prev is absent' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            Mock Invoke-RestMethod {
+                [PSCustomObject]@{
+                    Items = @(
+                        [PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:40:00Z'; Id = 2 },
+                        [PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:30:00Z'; Id = 1 }
+                    )
+                    PartialResponseReasons = @()
+                    Prev = $null
+                    Next = '/machines/ignored/events/?cursor=next'
+                }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'full-no-prev.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 2; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeTrue
+            $result.PageCount | Should -Be 1
+            $result.EventCount | Should -Be 2
+            Should -Invoke Invoke-RestMethod -Times 1 -Exactly
+        }
+    }
+
+    It 'fails closed when Prev repeats' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            Mock Invoke-RestMethod {
+                [PSCustomObject]@{
+                    Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:30:00Z'; Id = 1 })
+                    PartialResponseReasons = @()
+                    Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'repeated'
+                    Next = $null
+                }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'repeated-prev.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.Error | Should -BeLike '*repeated pagination URI*'
+            Should -Invoke Invoke-RestMethod -Times 2 -Exactly
+            Test-Path -LiteralPath (Join-Path $TestRoot 'repeated-prev.ndjson') | Should -BeFalse
+        }
+    }
+
+    It 'rejects an invalid raw Prev reference: <Name>' -TestCases @(
+        @{ Name = 'absolute URI'; Prev = 'https://evil.example/machines/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/events?cursor=1' },
+        @{ Name = 'network-path URI'; Prev = '//evil.example/machines/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/events?cursor=1' },
+        @{ Name = 'wrong device'; Prev = '/machines/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/events?cursor=1' },
+        @{ Name = 'wrong path'; Prev = '/machines/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/alerts/?cursor=1' },
+        @{ Name = 'missing query'; Prev = '/machines/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/events' },
+        @{ Name = 'empty query value'; Prev = '/machines/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/events?cursor=' },
+        @{ Name = 'duplicate query key'; Prev = '/machines/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/events?cursor=1&cursor=2' },
+        @{ Name = 'malformed escape'; Prev = '/machines/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/events?cursor=%zz' },
+        @{ Name = 'fragment'; Prev = '/machines/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/events?cursor=1#fragment' },
+        @{ Name = 'backslash'; Prev = '/machines/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/events?cursor=1\extra' },
+        @{ Name = 'unexpected query key'; Prev = '/machines/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/events?cursor=1' }
+    ) {
+        param($Name, $Prev)
+
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId; InvalidPrev = $Prev } {
+            Mock Invoke-RestMethod {
+                [PSCustomObject]@{
+                    Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:30:00Z'; Id = 1 })
+                    PartialResponseReasons = @()
+                    Prev = $InvalidPrev
+                    Next = $null
+                }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'invalid-prev.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.Error | Should -BeLike '*invalid pagination URI*'
+            Should -Invoke Invoke-RestMethod -Times 1 -Exactly
+            Test-Path -LiteralPath (Join-Path $TestRoot 'invalid-prev.ndjson') | Should -BeFalse
         }
     }
 
@@ -157,7 +299,7 @@
                     return [PSCustomObject]@{
                         Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:30:00Z'; Id = 'first-page' })
                         PartialResponseReasons = @()
-                        Prev = '/machines/device/events/?cursor=older'
+                        Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'ordering'
                         Next = $null
                     }
                 }
@@ -282,6 +424,265 @@
             $result.RetryCount | Should -Be 1
             Should -Invoke Invoke-RestMethod -Times 2 -Exactly
             Should -Invoke Start-Sleep -Times 1 -Exactly
+        }
+    }
+
+    It 'fails closed when a continuation page reports partial data' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:LaterPartialCall = 0
+            Mock Invoke-RestMethod {
+                $script:LaterPartialCall++
+                if ($script:LaterPartialCall -eq 1) {
+                    return [PSCustomObject]@{
+                        Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:40:00Z'; Id = 'valid-first-page' })
+                        PartialResponseReasons = @()
+                        Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'partial'
+                        Next = $null
+                    }
+                }
+                [PSCustomObject]@{ Items = @(); PartialResponseReasons = @('later backend timeout'); Prev = $null; Next = $null }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'later-partial.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.PageCount | Should -Be 1
+            $result.EventCount | Should -Be 1
+            $result.FailureClass | Should -Be 'PartialResponse'
+            Test-Path -LiteralPath (Join-Path $TestRoot 'later-partial.ndjson') | Should -BeFalse
+            Test-Path -LiteralPath (Join-Path $TestRoot 'later-partial.ndjson.partial') | Should -BeFalse
+        }
+    }
+
+    It 'honors and caps Retry-After for HTTP 429' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:RateLimitCall = 0
+            Mock Start-Sleep {}
+            Mock Invoke-RestMethod {
+                $script:RateLimitCall++
+                if ($script:RateLimitCall -eq 1) {
+                    $httpResponse = [System.Net.Http.HttpResponseMessage]::new([System.Net.HttpStatusCode]::TooManyRequests)
+                    $httpResponse.Headers.RetryAfter = [System.Net.Http.Headers.RetryConditionHeaderValue]::new([timespan]::FromSeconds(45))
+                    throw [Microsoft.PowerShell.Commands.HttpResponseException]::new('rate limited', $httpResponse)
+                }
+                [PSCustomObject]@{ Items = @(); PartialResponseReasons = @(); Prev = $null; Next = $null }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'rate-limited.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 2; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeTrue
+            $result.RetryCount | Should -Be 1
+            Should -Invoke Start-Sleep -Times 1 -Exactly -ParameterFilter { $Seconds -eq 30 }
+        }
+    }
+
+    It 'honors an HTTP-date Retry-After value' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:RateLimitDateCall = 0
+            Mock Start-Sleep {}
+            Mock Invoke-RestMethod {
+                $script:RateLimitDateCall++
+                if ($script:RateLimitDateCall -eq 1) {
+                    $httpResponse = [System.Net.Http.HttpResponseMessage]::new([System.Net.HttpStatusCode]::TooManyRequests)
+                    $httpResponse.Headers.RetryAfter = [System.Net.Http.Headers.RetryConditionHeaderValue]::new([datetimeoffset]::UtcNow.AddMinutes(1))
+                    throw [Microsoft.PowerShell.Commands.HttpResponseException]::new('rate limited', $httpResponse)
+                }
+                [PSCustomObject]@{ Items = @(); PartialResponseReasons = @(); Prev = $null; Next = $null }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'rate-limited-date.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 2; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeTrue
+            $result.RetryCount | Should -Be 1
+            Should -Invoke Start-Sleep -Times 1 -Exactly -ParameterFilter { $Seconds -eq 30 }
+        }
+    }
+
+    It 'retries a transient HTTP failure' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:TransientHttpCall = 0
+            Mock Start-Sleep {}
+            Mock Invoke-RestMethod {
+                $script:TransientHttpCall++
+                if ($script:TransientHttpCall -eq 1) {
+                    $httpResponse = [System.Net.Http.HttpResponseMessage]::new([System.Net.HttpStatusCode]::ServiceUnavailable)
+                    throw [Microsoft.PowerShell.Commands.HttpResponseException]::new('service unavailable', $httpResponse)
+                }
+                [PSCustomObject]@{ Items = @(); PartialResponseReasons = @(); Prev = $null; Next = $null }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'transient-http.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 2; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeTrue
+            $result.RetryCount | Should -Be 1
+            Should -Invoke Invoke-RestMethod -Times 2 -Exactly
+            Should -Invoke Start-Sleep -Times 1 -Exactly
+        }
+    }
+
+    It 'retries any 5xx HTTP failure' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:LessCommon5xxCall = 0
+            Mock Start-Sleep {}
+            Mock Invoke-RestMethod {
+                $script:LessCommon5xxCall++
+                if ($script:LessCommon5xxCall -eq 1) {
+                    $httpResponse = [System.Net.Http.HttpResponseMessage]::new([System.Net.HttpStatusCode]::InsufficientStorage)
+                    throw [Microsoft.PowerShell.Commands.HttpResponseException]::new('insufficient storage', $httpResponse)
+                }
+                [PSCustomObject]@{ Items = @(); PartialResponseReasons = @(); Prev = $null; Next = $null }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'less-common-5xx.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 2; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeTrue
+            $result.RetryCount | Should -Be 1
+            Should -Invoke Invoke-RestMethod -Times 2 -Exactly
+            Should -Invoke Start-Sleep -Times 1 -Exactly
+        }
+    }
+
+    It 'retries a transport failure' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:TransportCall = 0
+            Mock Start-Sleep {}
+            Mock Invoke-RestMethod {
+                $script:TransportCall++
+                if ($script:TransportCall -eq 1) {
+                    throw [System.Net.Http.HttpRequestException]::new('simulated timeout')
+                }
+                [PSCustomObject]@{ Items = @(); PartialResponseReasons = @(); Prev = $null; Next = $null }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'transport.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 2; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeTrue
+            $result.RetryCount | Should -Be 1
+            Should -Invoke Invoke-RestMethod -Times 2 -Exactly
+            Should -Invoke Start-Sleep -Times 1 -Exactly
+        }
+    }
+
+    It 'retries an explicit timeout failure' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:TimeoutCall = 0
+            Mock Start-Sleep {}
+            Mock Invoke-RestMethod {
+                $script:TimeoutCall++
+                if ($script:TimeoutCall -eq 1) {
+                    throw [System.TimeoutException]::new('simulated request timeout')
+                }
+                [PSCustomObject]@{ Items = @(); PartialResponseReasons = @(); Prev = $null; Next = $null }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'timeout.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 2; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeTrue
+            $result.RetryCount | Should -Be 1
+            Should -Invoke Invoke-RestMethod -Times 2 -Exactly
+            Should -Invoke Start-Sleep -Times 1 -Exactly
+        }
+    }
+
+    It 'treats malformed JSON as a non-retryable protocol failure' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            Mock Start-Sleep {}
+            Mock Invoke-RestMethod { throw [System.Text.Json.JsonException]::new('malformed JSON') }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'malformed-json.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 3; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.FailureClass | Should -Be 'Protocol'
+            $result.RetryCount | Should -Be 0
+            Should -Invoke Invoke-RestMethod -Times 1 -Exactly
+            Should -Invoke Start-Sleep -Times 0 -Exactly
+        }
+    }
+
+    It 'does not retry a permanent HTTP response: <StatusCode>' -TestCases @(
+        @{ StatusCode = 400; ExpectedClass = 'PermanentHttp' },
+        @{ StatusCode = 401; ExpectedClass = 'Authentication' },
+        @{ StatusCode = 403; ExpectedClass = 'Authentication' },
+        @{ StatusCode = 404; ExpectedClass = 'PermanentHttp' }
+    ) {
+        param($StatusCode, $ExpectedClass)
+
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId; HttpStatusCode = $StatusCode; FailureClass = $ExpectedClass } {
+            Mock Start-Sleep {}
+            Mock Invoke-RestMethod {
+                $httpResponse = [System.Net.Http.HttpResponseMessage]::new([System.Net.HttpStatusCode]$HttpStatusCode)
+                throw [Microsoft.PowerShell.Commands.HttpResponseException]::new('permanent failure', $httpResponse)
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'permanent-http.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 3; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.FailureClass | Should -Be $FailureClass
+            $result.RetryCount | Should -Be 0
+            Should -Invoke Invoke-RestMethod -Times 1 -Exactly
+            Should -Invoke Start-Sleep -Times 0 -Exactly
+        }
+    }
+
+    It 'removes the partial part when serialization fails during writing' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            Mock Invoke-RestMethod {
+                [PSCustomObject]@{
+                    Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:30:00Z'; Id = 1 })
+                    PartialResponseReasons = @()
+                    Prev = $null
+                    Next = $null
+                }
+            }
+            Mock ConvertTo-Json { throw [System.IO.IOException]::new('simulated part write failure') }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'write-failure.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.FailureClass | Should -Be 'Protocol'
+            $result.Error | Should -BeLike '*simulated part write failure*'
+            Test-Path -LiteralPath (Join-Path $TestRoot 'write-failure.ndjson') | Should -BeFalse
+            Test-Path -LiteralPath (Join-Path $TestRoot 'write-failure.ndjson.partial') | Should -BeFalse
         }
     }
 
@@ -481,6 +882,68 @@
         $chunk.BoundaryTimestampCount | Should -Be 0
         $chunk.ElapsedSeconds | Should -BeLessThan 1
         $chunk.Error | Should -BeNullOrEmpty
+    }
+
+    It 'stops scheduling after authentication failure and resumes completed parts' {
+        $script:AuthenticationFailure = $true
+        Mock New-XdrEndpointTimelineExportWorker {
+            if ($script:AuthenticationFailure) {
+                return {
+                    param($chunk, $sharedParameters, $statusMap)
+                    if ([int]$chunk.Index -eq 0) {
+                        return [PSCustomObject]@{
+                            Success = $false; ChunkIndex = 0; EventCount = 0L; PageCount = 0
+                            FileBytes = 0L; FileSha256 = $null; RetryCount = 0
+                            MissingTimestampCount = 0L; BoundaryTimestampCount = 0L; ElapsedSeconds = 0.01
+                            Error = 'simulated authentication failure'; FailureClass = 'Authentication'
+                        }
+                    }
+
+                    Start-Sleep -Milliseconds 800
+                    $filePath = Join-Path $sharedParameters.PartsPath ([string]$chunk.FileName)
+                    $line = [string]::Format('{{"chunk":{0}}}{1}', [int]$chunk.Index, "`n")
+                    [System.IO.File]::WriteAllText($filePath, $line, [System.Text.UTF8Encoding]::new($false))
+                    return [PSCustomObject]@{
+                        Success = $true; ChunkIndex = [int]$chunk.Index; EventCount = 1L; PageCount = 1
+                        FileBytes = (Get-Item -LiteralPath $filePath).Length
+                        FileSha256 = (Get-FileHash -LiteralPath $filePath).Hash.ToLowerInvariant(); RetryCount = 0
+                        MissingTimestampCount = 0L; BoundaryTimestampCount = 0L; ElapsedSeconds = 0.8
+                        Error = $null; FailureClass = $null
+                    }
+                }
+            }
+
+            return {
+                param($chunk, $sharedParameters, $statusMap)
+                $filePath = Join-Path $sharedParameters.PartsPath ([string]$chunk.FileName)
+                $line = [string]::Format('{{"chunk":{0}}}{1}', [int]$chunk.Index, "`n")
+                [System.IO.File]::WriteAllText($filePath, $line, [System.Text.UTF8Encoding]::new($false))
+                return [PSCustomObject]@{
+                    Success = $true; ChunkIndex = [int]$chunk.Index; EventCount = 1L; PageCount = 1
+                    FileBytes = (Get-Item -LiteralPath $filePath).Length
+                    FileSha256 = (Get-FileHash -LiteralPath $filePath).Hash.ToLowerInvariant(); RetryCount = 0
+                    MissingTimestampCount = 0L; BoundaryTimestampCount = 0L; ElapsedSeconds = 0.01
+                    Error = $null; FailureClass = $null
+                }
+            }
+        } -ModuleName XDRInternals
+        $outputPath = Join-Path $TestDrive 'authentication-resume.ndjson'
+        $toDate = $script:FromDate.AddHours(17)
+
+        { Export-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $toDate -Path $outputPath } |
+            Should -Throw -ExpectedMessage '*preserved for resume*'
+        $failedManifest = Get-Content -LiteralPath "$outputPath.manifest.json" -Raw | ConvertFrom-Json
+
+        $failedManifest.Chunks[0].Status | Should -Be 'Failed'
+        @($failedManifest.Chunks | Where-Object Status -eq 'Completed').Count | Should -Be 3
+        $failedManifest.Chunks[4].Status | Should -Be 'Pending'
+
+        $script:AuthenticationFailure = $false
+        $result = Export-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $toDate -Path $outputPath
+
+        $result.ResumedChunks | Should -Be 3
+        $result.TotalEvents | Should -Be 5
+        Test-Path -LiteralPath $outputPath | Should -BeTrue
     }
 
     It 'resumes validated chunks after a failed run' {

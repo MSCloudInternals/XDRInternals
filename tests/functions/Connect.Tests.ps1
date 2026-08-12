@@ -689,6 +689,14 @@ InModuleScope XDRInternals {
             $arguments = Get-XdrBrowserLaunchArgumentList -Browser ([pscustomobject]@{ Name = 'Microsoft Edge'; Path = 'msedge.exe' }) -UsePrivateSession:$false -DebugPort 9222 -ProfileDirectory '/tmp/xdr-browser-profile' -StartUrl 'https://security.microsoft.com/'
 
             $arguments | Should -Contain '--profile-directory=XDRInternals'
+            $arguments | Should -Contain '--remote-debugging-address=127.0.0.1'
+        }
+
+        It 'binds SSO browser debugging to loopback without allowing every websocket origin' {
+            $arguments = Get-XdrSsoLaunchArgumentList -ProfilePath '/tmp/xdr-sso-profile' -DebugPort 9222 -StartUrl 'https://security.microsoft.com/'
+
+            $arguments | Should -Contain '--remote-debugging-address=127.0.0.1'
+            $arguments | Should -Not -Contain '--remote-allow-origins=*'
         }
 
         It 'suppresses interactive browser stdout and stderr on non-Windows platforms by default' {

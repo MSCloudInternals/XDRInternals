@@ -473,6 +473,7 @@ function Get-XdrBrowserLaunchArgumentList {
 
     $arguments = @(
         "--remote-debugging-port=$DebugPort",
+        '--remote-debugging-address=127.0.0.1',
         "--user-data-dir=$ProfileDirectory",
         "--profile-directory=$(Get-XdrBrowserProfileDirectoryName)",
         '--new-window',

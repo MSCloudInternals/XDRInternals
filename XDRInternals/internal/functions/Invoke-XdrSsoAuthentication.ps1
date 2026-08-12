@@ -92,7 +92,7 @@ function Get-XdrSsoLaunchArgumentList {
 
     $arguments = @(
         "--remote-debugging-port=$DebugPort",
-        '--remote-allow-origins=*',
+        '--remote-debugging-address=127.0.0.1',
         "--user-data-dir=$ProfilePath",
         '--no-first-run',
         '--no-default-browser-check',

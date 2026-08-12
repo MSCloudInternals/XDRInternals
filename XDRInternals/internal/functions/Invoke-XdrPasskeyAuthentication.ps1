@@ -263,14 +263,19 @@ function Invoke-XdrPasskeyAuthentication {
     #endregion
 
     #region Load credential file
-    if (-not (Test-Path $KeyFilePath)) {
-        throw "Credential file not found: $KeyFilePath"
+    if (-not (Test-Path -LiteralPath $KeyFilePath -PathType Leaf)) {
+        throw 'The passkey credential file was not found or is not a regular file.'
     }
-    Write-Verbose "Loading credential file: $KeyFilePath"
+    $keyFile = Get-Item -LiteralPath $KeyFilePath -Force -ErrorAction Stop
+    if ($keyFile.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+        throw 'Refusing to load a passkey credential file through a symbolic link or reparse point.'
+    }
+    $resolvedKeyFilePath = $keyFile.FullName
+    Write-Verbose 'Loading the passkey credential file.'
     try {
-        $keyData = Get-Content $KeyFilePath -Raw | ConvertFrom-Json
+        $keyData = Get-Content -LiteralPath $resolvedKeyFilePath -Raw | ConvertFrom-Json
     } catch {
-        throw "Invalid JSON in credential file '$KeyFilePath': $($_.Exception.Message)"
+        throw 'The passkey credential file does not contain valid JSON.'
     }
 
     $targetUser = if ($null -ne $keyData.username) { $keyData.username } else { $keyData.userName }
@@ -291,8 +296,7 @@ function Invoke-XdrPasskeyAuthentication {
     if (-not $credentialId) { throw "Credential file is missing 'credentialId' field" }
     $credentialId = ($credentialId.TrimEnd('=') -replace '\+', '-' -replace '/', '_') | ForEach-Object { ConvertFrom-XdrUuidToBase64Url $_ }
 
-    Write-Verbose "User: $targetUser | RP ID: $rpId | Origin: $origin"
-    Write-Verbose "Credential ID: $($credentialId.Substring(0, [Math]::Min(20, $credentialId.Length)))..."
+    Write-Verbose "Loaded passkey metadata for relying party '$rpId'."
     #endregion
 
     #region Determine signing mode and prepare credentials
@@ -327,6 +331,28 @@ function Invoke-XdrPasskeyAuthentication {
         Write-Verbose "Key Vault access token obtained"
     } else {
         Write-Verbose "Local passkey detected"
+        if (-not $IsWindows) {
+            $fileMode = [System.IO.File]::GetUnixFileMode($resolvedKeyFilePath)
+            $sharedAccess = [System.IO.UnixFileMode]::GroupRead -bor
+                [System.IO.UnixFileMode]::GroupWrite -bor
+                [System.IO.UnixFileMode]::GroupExecute -bor
+                [System.IO.UnixFileMode]::OtherRead -bor
+                [System.IO.UnixFileMode]::OtherWrite -bor
+                [System.IO.UnixFileMode]::OtherExecute
+            if (($fileMode -band $sharedAccess) -ne 0) {
+                throw 'The local passkey file is accessible by other users. Restrict it to the current user (for example, chmod 600).'
+            }
+        } else {
+            $unsafeTrustees = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545')
+            $unsafeReadAccess = Get-Acl -LiteralPath $resolvedKeyFilePath | Select-Object -ExpandProperty Access | Where-Object {
+                $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Allow -and
+                $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -in $unsafeTrustees -and
+                ($_.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::ReadData)
+            }
+            if ($unsafeReadAccess) {
+                throw 'The local passkey file grants read access to a broad Windows security principal. Restrict its ACL to the owning account and trusted administrators.'
+            }
+        }
         $privateKeySource = if ($null -ne $keyData.privateKey) { $keyData.privateKey } else { $keyData.keyValue }
         if (-not $privateKeySource) { throw "Credential file is missing 'privateKey' field (required for local passkeys)" }
         try {
@@ -349,7 +375,7 @@ function Invoke-XdrPasskeyAuthentication {
     $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
     $session.UserAgent = $UserAgent
 
-    Write-Verbose "Initiating authentication flow for $targetUser..."
+    Write-Verbose 'Initiating the passkey authentication flow.'
     $initialResponse = Invoke-WebRequest -UseBasicParsing -Uri $authUrl -Method Get -WebSession $session -MaximumRedirection 0 -SkipHttpErrorCheck -Verbose:$false
 
     if (-not ($initialResponse.Content -match '{(.*)}')) {
@@ -360,7 +386,7 @@ function Invoke-XdrPasskeyAuthentication {
     if (-not $sessionInfo.oGetCredTypeResult.Credentials.HasFido -or -not $sessionInfo.sFidoChallenge) {
         $hasFido = $sessionInfo.oGetCredTypeResult.Credentials.HasFido
         $hasChallenge = [bool]$sessionInfo.sFidoChallenge
-        throw "Passkey authentication not available for '$targetUser'. HasFido: $hasFido, Challenge present: $hasChallenge. Verify the account has a passkey registered."
+        throw "Passkey authentication is not available for the account. HasFido: $hasFido, Challenge present: $hasChallenge. Verify the account has a passkey registered."
     }
 
     $serverChallenge = [System.Text.Encoding]::ASCII.GetBytes($sessionInfo.sFidoChallenge)

@@ -523,6 +523,41 @@ InModuleScope XDRInternals {
             Should -Invoke Get-XdrKeyVaultAccessToken -ModuleName XDRInternals -Times 0 -Exactly
         }
 
+        It 'rejects a local passkey file readable by other users on Unix' {
+            if ($IsWindows) {
+                Set-ItResult -Skipped -Because 'Unix file-mode validation is not applicable on Windows.'
+                return
+            }
+
+            $keyPath = Join-Path $TestDrive 'shared-local.passkey'
+            @{
+                username      = 'user@contoso.com'
+                relyingParty  = 'login.microsoft.com'
+                userHandle    = 'dXNlcg'
+                credentialId  = 'Y3JlZGVudGlhbA'
+                privateKey    = 'not-used'
+            } | ConvertTo-Json | Set-Content -LiteralPath $keyPath
+            [System.IO.File]::SetUnixFileMode($keyPath, [System.IO.UnixFileMode]::UserRead -bor [System.IO.UnixFileMode]::UserWrite -bor [System.IO.UnixFileMode]::GroupRead)
+
+            { Invoke-XdrPasskeyAuthentication -KeyFilePath $keyPath } |
+                Should -Throw '*accessible by other users*chmod 600*'
+        }
+
+        It 'rejects a passkey path that resolves through a symbolic link on Unix' {
+            if ($IsWindows) {
+                Set-ItResult -Skipped -Because 'Unix symbolic-link validation is not applicable on Windows.'
+                return
+            }
+
+            $targetPath = Join-Path $TestDrive 'target.passkey'
+            $linkPath = Join-Path $TestDrive 'linked.passkey'
+            '{}' | Set-Content -LiteralPath $targetPath
+            $null = New-Item -ItemType SymbolicLink -Path $linkPath -Target $targetPath
+
+            { Invoke-XdrPasskeyAuthentication -KeyFilePath $linkPath } |
+                Should -Throw '*symbolic link or reparse point*'
+        }
+
         It 'uses select_account for browser auth when Username is omitted' {
             $startUrl = Get-XdrBrowserInteractiveStartUrl -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
 

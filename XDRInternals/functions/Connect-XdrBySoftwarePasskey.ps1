@@ -87,7 +87,7 @@
     )
 
     process {
-        Write-Host "Authenticating with software passkey: $KeyFilePath"
+        Write-Host 'Authenticating with software passkey.'
 
         $passkeyParams = @{
             KeyFilePath        = $KeyFilePath

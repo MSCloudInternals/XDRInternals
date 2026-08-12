@@ -9,3 +9,7 @@ foreach ($file in Get-ChildItem -Path "$PSScriptRoot/functions" -Filter *.ps1 -R
 foreach ($file in Get-ChildItem -Path "$PSScriptRoot/internal/scripts" -Filter *.ps1 -Recurse) {
     . $file.FullName
 }
+
+$ExecutionContext.SessionState.Module.OnRemove = {
+    Clear-XdrConnectionState
+}

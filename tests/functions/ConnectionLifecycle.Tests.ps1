@@ -44,6 +44,24 @@
 }
 
 Describe 'Connection credential lifecycle helpers' {
+    It 'clears connection state when the module removal hook runs' {
+        InModuleScope XDRInternals {
+            $script:session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            $script:headers = @{ 'X-XSRF-TOKEN' = 'xsrf-secret' }
+            $script:XdrCacheStore = @{ cached = 'tenant-data' }
+            $script:AzureDataExplorerConnection = [pscustomobject]@{ AccessToken = 'adx-secret' }
+            $script:SentinelSharedKey = 'sentinel-secret'
+
+            $ExecutionContext.SessionState.Module.OnRemove.Invoke()
+
+            $script:session | Should -BeNullOrEmpty
+            $script:headers | Should -BeNullOrEmpty
+            $script:XdrCacheStore | Should -BeNullOrEmpty
+            $script:AzureDataExplorerConnection | Should -BeNullOrEmpty
+            $script:SentinelSharedKey | Should -BeNullOrEmpty
+        }
+    }
+
     It 'converts an Az SecureString token for immediate use' {
         Mock Get-AzAccessToken {
             $secureToken = [System.Security.SecureString]::new()

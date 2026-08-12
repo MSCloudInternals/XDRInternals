@@ -46,13 +46,19 @@
     .PARAMETER UserAgent
         Optional User-Agent override for the launched browser.
 
+    .PARAMETER WhatIf
+        Shows what would happen if the dedicated browser profile were reset without deleting it.
+
+    .PARAMETER Confirm
+        Prompts for confirmation before deleting and recreating the dedicated browser profile.
+
     .EXAMPLE
         Connect-XdrByBrowser -Username 'admin@contoso.com'
 
         Launches the browser sign-in flow and connects to Defender XDR.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     param(
         [string]$Username,
 
@@ -75,6 +81,13 @@
     process {
         if ($PrivateSession -and $ProfilePath) {
             throw 'Do not combine -PrivateSession with -ProfilePath. Private session uses a temporary profile automatically.'
+        }
+
+        if ($ResetProfile) {
+            $resetTarget = if ($ProfilePath) { $ProfilePath } else { 'default XDRInternals browser profile' }
+            if (-not $PSCmdlet.ShouldProcess($resetTarget, 'Delete and recreate the dedicated browser authentication profile')) {
+                return
+            }
         }
 
         $authParams = @{

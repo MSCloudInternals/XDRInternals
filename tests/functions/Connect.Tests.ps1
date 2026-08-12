@@ -156,7 +156,7 @@ Describe 'Connect-XdrByBrowser' {
     }
 
     It 'forwards optional browser launch parameters when provided' {
-        $result = Connect-XdrByBrowser -Username 'user@contoso.com' -BrowserPath 'msedge.exe' -ProfilePath 'C:\Temp\XdrBrowserProfile' -ResetProfile -UserAgent 'Custom-Agent/1.0'
+        $result = Connect-XdrByBrowser -Username 'user@contoso.com' -BrowserPath 'msedge.exe' -ProfilePath 'C:\Temp\XdrBrowserProfile' -ResetProfile -UserAgent 'Custom-Agent/1.0' -Confirm:$false
 
         $result | Should -Be 'connected'
         Should -Invoke Invoke-XdrBrowserAuthentication -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
@@ -192,6 +192,13 @@ Describe 'Connect-XdrByBrowser' {
         {
             Connect-XdrByBrowser -Username 'user@contoso.com' -ProfilePath 'C:\Temp\XdrBrowserProfile' -PrivateSession
         } | Should -Throw '*Do not combine -PrivateSession with -ProfilePath*'
+    }
+
+    It 'honors WhatIf before resetting a browser profile' {
+        $result = Connect-XdrByBrowser -Username 'user@contoso.com' -ProfilePath 'C:\Temp\XdrBrowserProfile' -ResetProfile -WhatIf
+
+        $result | Should -BeNullOrEmpty
+        Should -Invoke Invoke-XdrBrowserAuthentication -ModuleName XDRInternals -Times 0 -Exactly
     }
 
     It 'prefers ESTS cookie bootstrap when browser auth returns both ESTS and portal cookies' {
@@ -463,6 +470,7 @@ InModuleScope XDRInternals {
                 $localState = Get-Content -LiteralPath $localStatePath -Raw | ConvertFrom-Json
 
                 Test-Path -LiteralPath $namedProfilePath -PathType Container | Should -BeTrue
+                Test-Path -LiteralPath (Join-Path $profileRoot '.xdrinternals-browser-profile') -PathType Leaf | Should -BeTrue
                 $preferences.profile.name | Should -Be 'XDRInternals'
                 $preferences.profile.exit_type | Should -Be 'Normal'
                 $preferences.session.restore_on_startup | Should -Be 5
@@ -474,6 +482,30 @@ InModuleScope XDRInternals {
             } finally {
                 Remove-Item -Path $profileRoot -Recurse -Force -ErrorAction SilentlyContinue
             }
+        }
+
+        It 'refuses to reset an unowned caller-supplied directory' {
+            $profileRoot = Join-Path $TestDrive 'unowned-profile'
+            $null = New-Item -ItemType Directory -Path $profileRoot
+            $sentinelPath = Join-Path $profileRoot 'keep.txt'
+            Set-Content -LiteralPath $sentinelPath -Value 'keep'
+
+            { Resolve-XdrBrowserProfileConfiguration -ProfilePath $profileRoot -ResetProfile } |
+                Should -Throw '*not marked as managed by XDRInternals*'
+            Test-Path -LiteralPath $sentinelPath -PathType Leaf | Should -BeTrue
+        }
+
+        It 'resets only a profile previously marked as managed by XDRInternals' {
+            $profileRoot = Join-Path $TestDrive 'owned-profile'
+            Initialize-XdrBrowserProfile -ProfilePath $profileRoot
+            $stalePath = Join-Path $profileRoot 'stale.txt'
+            Set-Content -LiteralPath $stalePath -Value 'stale'
+
+            $result = Resolve-XdrBrowserProfileConfiguration -ProfilePath $profileRoot -ResetProfile
+
+            Test-Path -LiteralPath $stalePath | Should -BeFalse
+            Test-Path -LiteralPath (Join-Path $profileRoot '.xdrinternals-browser-profile') -PathType Leaf | Should -BeTrue
+            $result.ProfilePath | Should -Be $profileRoot
         }
 
         It 'migrates the legacy Default browser profile to XDRInternals' {

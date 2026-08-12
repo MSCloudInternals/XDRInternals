@@ -334,6 +334,11 @@ function Initialize-XdrBrowserProfile {
     Set-XdrBrowserJsonConfigurationValue -Configuration $preferences -Path @('session', 'restore_on_startup') -Value 5
     Set-XdrBrowserJsonConfigurationValue -Configuration $preferences -Path @('session', 'startup_urls') -Value @()
     Write-XdrBrowserJsonConfigurationFile -Path $preferencesPath -Configuration $preferences
+
+    $markerPath = Join-Path $ProfilePath '.xdrinternals-browser-profile'
+    if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
+        [System.IO.File]::WriteAllText($markerPath, 'Managed by XDRInternals browser authentication.')
+    }
 }
 
 function Resolve-XdrBrowserProfileConfiguration {
@@ -364,7 +369,27 @@ function Resolve-XdrBrowserProfileConfiguration {
 
     $resolvedProfilePath = if ($ProfilePath) { $ProfilePath } else { Get-XdrBrowserDefaultProfilePath }
     if ($ResetProfile -and (Test-Path -LiteralPath $resolvedProfilePath)) {
-        Remove-Item -Path $resolvedProfilePath -Recurse -Force -ErrorAction Stop
+        $profileItem = Get-Item -LiteralPath $resolvedProfilePath -Force -ErrorAction Stop
+        $fullProfilePath = [System.IO.Path]::GetFullPath($profileItem.FullName)
+        $pathRoot = [System.IO.Path]::GetPathRoot($fullProfilePath)
+        if ([string]::Equals($fullProfilePath, $pathRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+            ($profileItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+            throw 'Refusing to reset an unsafe browser profile path.'
+        }
+
+        $fullProfilePath = $fullProfilePath.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+
+        $markerPath = Join-Path $fullProfilePath '.xdrinternals-browser-profile'
+        $legacyNamedProfilePath = Get-XdrBrowserNamedProfilePath -UserDataDirectory $fullProfilePath
+        $legacyLocalStatePath = Join-Path $fullProfilePath 'Local State'
+        $isOwnedProfile = (Test-Path -LiteralPath $markerPath -PathType Leaf) -or
+            ((Test-Path -LiteralPath $legacyNamedProfilePath -PathType Container) -and
+            (Test-Path -LiteralPath $legacyLocalStatePath -PathType Leaf))
+        if (-not $isOwnedProfile) {
+            throw 'Refusing to reset a browser profile that is not marked as managed by XDRInternals.'
+        }
+
+        Remove-Item -LiteralPath $fullProfilePath -Recurse -Force -ErrorAction Stop
     }
 
     Initialize-XdrBrowserProfile -ProfilePath $resolvedProfilePath

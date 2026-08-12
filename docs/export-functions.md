@@ -64,7 +64,7 @@ timestamp validation, and recovery remain workload-specific.
 ## Identity timeline export lifecycle
 
 `Export-XdrIdentityUserTimeline` resolves one user, fingerprints the canonical API
-identifiers, and divides the requested range into adjacent 24-hour windows. Up to eight
+identifiers, and divides the requested range into adjacent 12-hour windows. Up to eight
 windows run concurrently; pages within each window remain sequential.
 
 Some portal entities cannot be resolved through the UPN lookup even though their AadId
@@ -167,7 +167,7 @@ windows or more workers improved some short runs but increased memory, retries, 
 window restarts in longer runs. `ChunkHours` and `ThrottleLimit` should remain private
 until an automatic policy or broadly validated settings can replace manual guessing.
 
-The identity exporter uses 24-hour windows, eight workers, and 1,000-row
+The identity exporter uses 12-hour windows, eight workers, and 1,000-row
 timestamp-keyset pages. Delayed fresh-context probes over a fixed 30-day range for a
 dense test identity produced the same 23,490-event logical set across 36 requests,
 including a page boundary
@@ -175,13 +175,25 @@ with 723 events in one second. Raw bytes differed because the service regenerate
 `Id`, `RowNumber`, and `Description`; no stable payload field differed. The fallback key
 also remained stable for the three events without `EventId`.
 
-Repeated corrected-strategy benchmarks favored 24 hours/eight workers over 48
-hours/four workers: median elapsed time improved from 19.5 to 14.1 seconds over seven
-days and from 87.5 to 54.1 seconds over 30 days. Over 90 days, 24 hours/eight workers
-completed in 192.3 seconds versus 316.9 seconds for 24 hours/four workers. Directly
-comparable event sets were identical, candidate runs had no retries or restarts, and
-peak working set remained below 756 MiB. The settings remain private because these are
-tenant-specific measurements rather than a documented service guarantee.
+Follow-up page-size probes retained 1,000 rows. Dense 30-day runs at 250 and 500 rows
+failed closed when two individual API seconds filled a page, while 1,000 rows completed
+with 23,502 events and a maximum tied group of 723. A low-volume 30-day range returned
+the same 335-event canonical set at all three sizes, supporting the short-page terminal
+assumption when the page can contain a complete second.
+
+An aligned seven-day matrix of 6-, 12-, and 24-hour windows with 4, 8, and 16 workers
+produced the same 10,070-event canonical set in every configuration. Interleaved 30-day
+runs then completed in 56.2 and 61.0 seconds at 12 hours/eight workers versus 70.8 and
+68.2 seconds at 24 hours/eight workers. Each returned the same 23,502 events with no
+retries or restarts. Peak working set was 573-700 MiB for 12 hours and 658-678 MiB for
+24 hours. The repeatable elapsed-time improvement justified the 12-hour default; the
+settings remain private because these are tenant-specific measurements rather than a
+documented service guarantee.
+
+On a separate midnight-aligned dense range, the service repeatedly returned an event
+one second outside its stated exclusive lower bound. Six-, 12-, and 24-hour variants
+all rejected it after fresh-window restarts. This safe failure is preferable to silently
+duplicating an event across adjacent windows.
 
 Independent streaming validation confirmed line count, range, global order, length,
 SHA-256, interruption/resume, and equality across adjacent-window splits. A fixed
@@ -195,10 +207,12 @@ history.
 
 Recovery occurs at two levels:
 
-- A worker retries transient transport failures, HTTP 408/429/5xx responses, and an
-  initially partial response with bounded exponential backoff and jitter.
-- If a window's request context appears poisoned, the coordinator can restart the
-  entire window with a fresh session. Device restarts also receive a new correlation ID.
+- A worker retries transient transport failures and HTTP 408/429/5xx responses with
+  bounded exponential backoff and jitter. Identity requests honor a 429 `Retry-After`
+  value, capped at five minutes.
+- If a window returns a partial or malformed response, or its request context appears
+  poisoned, the coordinator can restart the entire window with a fresh session. Device
+  restarts also receive a new correlation ID.
 
 The entire window is restarted because an arbitrary page is not a durable checkpoint.
 Device continuation URIs are service-owned and may expire; identity page membership can

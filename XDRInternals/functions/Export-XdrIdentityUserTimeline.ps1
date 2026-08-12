@@ -165,7 +165,7 @@
             [System.IO.File]::Move($manifestPartialPath, $manifestPath, $true)
         }
 
-        $chunkHours = 24
+        $chunkHours = 12
         $pageSize = 1000
         $paginationStrategy = 'TimestampKeysetV2'
         $throttleLimit = 8

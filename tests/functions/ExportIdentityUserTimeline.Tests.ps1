@@ -304,12 +304,12 @@
         $manifest = Get-Content -LiteralPath "$outputPath.manifest.json" -Raw | ConvertFrom-Json
         $chunks = @(Get-Content -LiteralPath $outputPath | ForEach-Object { ($_ | ConvertFrom-Json).chunk })
 
-        $result.TotalChunks | Should -Be 5
-        $result.TotalEvents | Should -Be 5
-        $chunks | Should -Be @(0, 1, 2, 3, 4)
+        $result.TotalChunks | Should -Be 9
+        $result.TotalEvents | Should -Be 9
+        $chunks | Should -Be @(0, 1, 2, 3, 4, 5, 6, 7, 8)
         $manifest.IdentityFingerprint | Should -Match '^[0-9a-f]{64}$'
         $manifest.State | Should -Be 'Complete'
-        $manifest.ChunkHours | Should -Be 24
+        $manifest.ChunkHours | Should -Be 12
         $manifest.PaginationStrategy | Should -Be 'TimestampKeysetV2'
         $result.FileSha256 | Should -Be (Get-FileHash -LiteralPath $outputPath).Hash.ToLowerInvariant()
     }
@@ -421,6 +421,164 @@
         }
     }
 
+    It 'honors Retry-After when retrying a throttled request' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive } {
+            $script:ThrottleCall = 0
+            Mock Start-Sleep {}
+            Mock Invoke-RestMethod {
+                $script:ThrottleCall++
+                if ($script:ThrottleCall -eq 1) {
+                    $response = [System.Net.Http.HttpResponseMessage]::new(
+                        [System.Net.HttpStatusCode]::TooManyRequests
+                    )
+                    $response.Headers.RetryAfter = [System.Net.Http.Headers.RetryConditionHeaderValue]::new(
+                        [timespan]::FromSeconds(7)
+                    )
+                    throw [Microsoft.PowerShell.Commands.HttpResponseException]::new('throttled', $response)
+                }
+                [PSCustomObject]@{ count = 0; data = @(); errors = [PSCustomObject]@{} }
+            }
+            $worker = New-XdrIdentityTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01Z'; ToDate = [datetime]'2026-01-02Z'; FileName = 'throttle.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; UserIdentifiers = @{ upn = 'u' }; CookieData = @(); HeadersData = @{}; PageSize = 1000; MaxRetries = 2; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeTrue -Because $result.Error
+            $result.RetryCount | Should -Be 1
+            Should -Invoke Start-Sleep -Times 1 -Exactly -ParameterFilter { $Seconds -eq 7 }
+        }
+    }
+
+    It 'retries a server failure but does not retry a permanent HTTP failure' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive } {
+            $script:ServerCall = 0
+            Mock Get-Random { 0 }
+            Mock Start-Sleep {}
+            Mock Invoke-RestMethod {
+                $script:ServerCall++
+                if ($script:ServerCall -eq 1) {
+                    $response = [System.Net.Http.HttpResponseMessage]::new(
+                        [System.Net.HttpStatusCode]::ServiceUnavailable
+                    )
+                    throw [Microsoft.PowerShell.Commands.HttpResponseException]::new('unavailable', $response)
+                }
+                [PSCustomObject]@{ count = 0; data = @(); errors = [PSCustomObject]@{} }
+            }
+            $worker = New-XdrIdentityTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01Z'; ToDate = [datetime]'2026-01-02Z'; FileName = 'server.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; UserIdentifiers = @{ upn = 'u' }; CookieData = @(); HeadersData = @{}; PageSize = 1000; MaxRetries = 2; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $retried = & $worker $chunk $shared $status
+
+            $retried.Success | Should -BeTrue -Because $retried.Error
+            $retried.RetryCount | Should -Be 1
+            Should -Invoke Start-Sleep -Times 1 -Exactly -ParameterFilter { $Seconds -eq 1 }
+
+            Mock Invoke-RestMethod {
+                $response = [System.Net.Http.HttpResponseMessage]::new(
+                    [System.Net.HttpStatusCode]::BadRequest
+                )
+                throw [Microsoft.PowerShell.Commands.HttpResponseException]::new('bad request', $response)
+            }
+            $chunk.FileName = 'permanent.ndjson'
+            $permanent = & $worker $chunk $shared $status
+
+            $permanent.Success | Should -BeFalse
+            $permanent.FailureClass | Should -Be 'PermanentHttp'
+            $permanent.RetryCount | Should -Be 0
+        }
+    }
+
+    It 'discards an interval when service errors follow an earlier valid page' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive } {
+            $script:PartialPageCall = 0
+            Mock Invoke-RestMethod {
+                $script:PartialPageCall++
+                if ($script:PartialPageCall -eq 1) {
+                    return [PSCustomObject]@{
+                        count = 2
+                        data = @(
+                            [PSCustomObject]@{ EventId = 'newer'; Timestamp = '2026-01-01T00:50:00Z' },
+                            [PSCustomObject]@{ EventId = 'boundary'; Timestamp = '2026-01-01T00:40:00Z' }
+                        )
+                        errors = [PSCustomObject]@{}
+                    }
+                }
+                [PSCustomObject]@{ count = 0; data = @(); errors = [PSCustomObject]@{ backend = 'partial' } }
+            }
+            $worker = New-XdrIdentityTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'late-errors.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; UserIdentifiers = @{ upn = 'u' }; CookieData = @(); HeadersData = @{}; PageSize = 2; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.FailureClass | Should -Be 'PartialResponse'
+            $result.PageCount | Should -Be 1
+            Test-Path -LiteralPath (Join-Path $TestRoot 'late-errors.ndjson') | Should -BeFalse
+            Test-Path -LiteralPath (Join-Path $TestRoot 'late-errors.ndjson.partial') | Should -BeFalse
+        }
+    }
+
+    It 'rejects an out-of-range timestamp' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive } {
+            Mock Invoke-RestMethod {
+                [PSCustomObject]@{
+                    count = 1
+                    data = @([PSCustomObject]@{ EventId = 'outside'; Timestamp = '2026-01-02T00:00:00Z' })
+                    errors = [PSCustomObject]@{}
+                }
+            }
+            $worker = New-XdrIdentityTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01Z'; ToDate = [datetime]'2026-01-02Z'; FileName = 'outside.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; UserIdentifiers = @{ upn = 'u' }; CookieData = @(); HeadersData = @{}; PageSize = 1000; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.FailureClass | Should -Be 'Protocol'
+            $result.Error | Should -BeLike '*outside*interval*'
+        }
+    }
+
+    It 'rejects an ordering reversal on a continuation page' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive } {
+            $script:OrderingPageCall = 0
+            Mock Invoke-RestMethod {
+                $script:OrderingPageCall++
+                $events = if ($script:OrderingPageCall -eq 1) {
+                    @(
+                        [PSCustomObject]@{ EventId = 'newer'; Timestamp = '2026-01-01T00:50:00Z' },
+                        [PSCustomObject]@{ EventId = 'boundary'; Timestamp = '2026-01-01T00:40:00Z' }
+                    )
+                }
+                else {
+                    @(
+                        [PSCustomObject]@{ EventId = 'older'; Timestamp = '2026-01-01T00:30:00.100Z' },
+                        [PSCustomObject]@{ EventId = 'reversed'; Timestamp = '2026-01-01T00:30:00.900Z' }
+                    )
+                }
+                [PSCustomObject]@{ count = 2; data = $events; errors = [PSCustomObject]@{} }
+            }
+            $worker = New-XdrIdentityTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'page-order.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; UserIdentifiers = @{ upn = 'u' }; CookieData = @(); HeadersData = @{}; PageSize = 2; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.FailureClass | Should -Be 'Protocol'
+            $result.Error | Should -BeLike '*descending timestamp order*'
+            $script:OrderingPageCall | Should -Be 2
+        }
+    }
+
     It 'fails closed on a missing timestamp' {
         InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive } {
             Mock Invoke-RestMethod {
@@ -501,9 +659,66 @@
         $script:ResumePhase = 2
         $result = Export-XdrIdentityUserTimeline -Upn 'user@contoso.com' -FromDate $script:FromDate -ToDate $script:ToDate -Path $outputPath
 
-        $result.ResumedChunks | Should -Be 3
-        $result.TotalEvents | Should -Be 5
+        $result.ResumedChunks | Should -BeGreaterThan 0
+        $result.ResumedChunks | Should -BeLessThan $result.TotalChunks
+        $result.TotalChunks | Should -Be 9
+        $result.TotalEvents | Should -Be 9
         Test-Path -LiteralPath "$outputPath.parts" | Should -BeFalse
+    }
+
+    It 'stops scheduling after authentication failure and resumes completed parts after reconnect' {
+        $script:AuthenticationPhase = 1
+        Mock New-XdrIdentityTimelineExportWorker {
+            if ($script:AuthenticationPhase -eq 1) {
+                return {
+                    param($chunk, $sharedParameters, $statusMap)
+                    if ([int]$chunk.Index -eq 0) {
+                        return [PSCustomObject]@{
+                            Success = $false; ChunkIndex = 0; EventCount = 0L; PageCount = 0; RetryCount = 0
+                            RewindCount = 0; FileBytes = 0L; FileSha256 = $null; MissingTimestampCount = 0L
+                            BoundaryTimestampCount = 0L; DuplicateRepresentationCount = 0L; ElapsedSeconds = 0.01
+                            Error = 'simulated authentication interruption'; FailureClass = 'Authentication'
+                        }
+                    }
+                    $filePath = Join-Path $sharedParameters.PartsPath ([string]$chunk.FileName)
+                    [System.IO.File]::WriteAllText($filePath, "{`"chunk`":$([int]$chunk.Index)}`n", [System.Text.UTF8Encoding]::new($false))
+                    return [PSCustomObject]@{
+                        Success = $true; ChunkIndex = [int]$chunk.Index; EventCount = 1L; PageCount = 1; RetryCount = 0
+                        RewindCount = 0; FileBytes = (Get-Item $filePath).Length; FileSha256 = (Get-FileHash $filePath).Hash.ToLowerInvariant()
+                        MissingTimestampCount = 0L; BoundaryTimestampCount = 0L; DuplicateRepresentationCount = 0L
+                        ElapsedSeconds = 0.01; Error = $null; FailureClass = $null
+                    }
+                }
+            }
+            return {
+                param($chunk, $sharedParameters, $statusMap)
+                $filePath = Join-Path $sharedParameters.PartsPath ([string]$chunk.FileName)
+                [System.IO.File]::WriteAllText($filePath, "{`"chunk`":$([int]$chunk.Index)}`n", [System.Text.UTF8Encoding]::new($false))
+                [PSCustomObject]@{
+                    Success = $true; ChunkIndex = [int]$chunk.Index; EventCount = 1L; PageCount = 1; RetryCount = 0
+                    RewindCount = 0; FileBytes = (Get-Item $filePath).Length; FileSha256 = (Get-FileHash $filePath).Hash.ToLowerInvariant()
+                    MissingTimestampCount = 0L; BoundaryTimestampCount = 0L; DuplicateRepresentationCount = 0L
+                    ElapsedSeconds = 0.01; Error = $null; FailureClass = $null
+                }
+            }
+        } -ModuleName XDRInternals
+        $outputPath = Join-Path $TestDrive 'authentication-resume.ndjson'
+
+        { Export-XdrIdentityUserTimeline -Upn 'user@contoso.com' -FromDate $script:FromDate -ToDate $script:ToDate -Path $outputPath } |
+            Should -Throw -ExpectedMessage '*preserved for resume*'
+
+        $interruptedManifest = Get-Content -LiteralPath "$outputPath.manifest.json" -Raw | ConvertFrom-Json
+        @($interruptedManifest.Chunks | Where-Object Status -eq 'Completed').Count | Should -BeGreaterThan 0
+        @($interruptedManifest.Chunks | Where-Object Status -eq 'Pending').Count | Should -BeGreaterThan 0
+        Test-Path -LiteralPath "$outputPath.parts" | Should -BeTrue
+
+        $script:AuthenticationPhase = 2
+        $result = Export-XdrIdentityUserTimeline -Upn 'user@contoso.com' -FromDate $script:FromDate -ToDate $script:ToDate -Path $outputPath
+
+        $result.ResumedChunks | Should -BeGreaterThan 0
+        $result.TotalChunks | Should -Be 9
+        $result.TotalEvents | Should -Be 9
+        (Get-Content -LiteralPath "$outputPath.manifest.json" -Raw | ConvertFrom-Json).State | Should -Be 'Complete'
     }
 
     It 'completes a manifest left in Publishing after validating the partial output' {

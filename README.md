@@ -396,7 +396,7 @@ Export-XdrIdentityUserTimeline `
 ```
 
 The command accepts `-Upn`, `-AadId`, `-Sid`, or `-RadiusUserId`, exports one identity
-per invocation, and uses fixed internal 24-hour windows with eight workers. Completed
+per invocation, and uses fixed internal 12-hour windows with eight workers. Completed
 parts are length- and SHA-256-validated before resume. An existing final file remains in
 place during a `-Force` replacement and is atomically replaced only after the new export
 has been fully validated.
@@ -423,16 +423,31 @@ same logical set. Duplicate
 representations are counted, the first raw object is retained unchanged, and the export
 fails if one second fills all 1,000 rows because completeness cannot then be proven.
 
-Repeated corrected-strategy benchmarks favored the 24-hour/eight-worker default. On a
-fixed 7-day range its median was 14.1 seconds versus 19.5 seconds for 48 hours/four
-workers; on a fixed 30-day range it was 54.1 seconds versus 87.5 seconds. A 90-day run
-completed in 192.3 seconds versus 316.9 seconds for 24 hours/four workers. Event sets
-were identical for directly comparable runs, no candidate run retried or restarted, and
-peak process working set remained below 756 MiB. The settings remain private because
-this is tenant-specific evidence, not a service guarantee.
+Follow-up testing kept the 1,000-row page size. On a dense 30-day range, both 250- and
+500-row pages failed closed because two API seconds each filled an entire page; the
+1,000-row run completed with 23,502 events and a maximum of 723 events in one second.
+A separate low-volume 30-day range returned the same 335-event canonical set with page
+sizes 250, 500, and 1,000, supporting the short-page terminal assumption where the page
+can represent a complete second.
+
+The same follow-up compared 6-, 12-, and 24-hour windows with 4, 8, and 16 workers on a
+dense fixed seven-day range. All nine aligned runs produced the same 10,070-event
+canonical set. The 12-hour/eight-worker candidate was then interleaved with the prior
+24-hour/eight-worker default over 30 days: 12-hour runs completed in 56.2 and 61.0
+seconds versus 70.8 and 68.2 seconds for 24 hours. All four returned the same 23,502
+events with no retries or restarts; peak working set ranged from 573 to 700 MiB for 12
+hours and 658 to 678 MiB for 24 hours. The repeatable improvement earned the 12-hour
+default, while worker count and page size remain unchanged and private.
+
+A midnight-aligned stress range also exposed a service boundary violation: the API
+repeatedly returned a 23:59:59 event outside its exclusive lower bound. Every tested
+window size rejected that response after fresh-window restarts instead of publishing
+overlapping output.
 
 Independent validation also confirmed line count, half-open range, global ordering,
-byte length, SHA-256, interruption/resume, and adjacent-window set equality. On a fixed
+byte length, SHA-256, interruption/resume, and adjacent-window set equality. A live
+12-hour-window export resumed 18 of 60 hash-validated parts after interruption and
+completed 23,502 rows with matching length and SHA-256. On a fixed
 six-hour range, the public `Get-` and `Export-` commands returned identical 1,845-event
 stable sets. Repeated raw-file hashes are not expected to match: the service changed
 only `Id`, `RowNumber`, and `Description` on otherwise identical logical events during

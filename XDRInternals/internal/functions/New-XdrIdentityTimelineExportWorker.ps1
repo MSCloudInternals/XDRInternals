@@ -189,8 +189,27 @@
                             }
 
                             $retryCount++
-                            $delaySeconds = [math]::Min(30, [math]::Pow(2, $attempt - 1) + (Get-Random -Minimum 0 -Maximum 3))
-                            Start-Sleep -Seconds $delaySeconds
+                            $retryAfterSeconds = $null
+                            if ($statusCode -eq 429 -and $_.Exception.Response.Headers.RetryAfter) {
+                                $retryAfter = $_.Exception.Response.Headers.RetryAfter
+                                if ($null -ne $retryAfter.Delta) {
+                                    $retryAfterSeconds = [math]::Ceiling($retryAfter.Delta.TotalSeconds)
+                                }
+                                elseif ($null -ne $retryAfter.Date) {
+                                    $retryAfterSeconds = [math]::Ceiling(
+                                        ($retryAfter.Date.UtcDateTime - [datetime]::UtcNow).TotalSeconds
+                                    )
+                                }
+                            }
+                            $delaySeconds = if ($null -ne $retryAfterSeconds) {
+                                [math]::Min(300, [math]::Max(0, $retryAfterSeconds))
+                            }
+                            else {
+                                [math]::Min(30, [math]::Pow(2, $attempt - 1) + (Get-Random -Minimum 0 -Maximum 3))
+                            }
+                            if ($delaySeconds -gt 0) {
+                                Start-Sleep -Seconds $delaySeconds
+                            }
                         }
                     }
 

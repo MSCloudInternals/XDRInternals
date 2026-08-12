@@ -138,10 +138,15 @@ Windows are scheduled newest first because recent activity is normally the most 
 during an active incident. The service's order within each window is preserved, and the
 final merge follows window order.
 
-Each worker follows only the response's `Prev` continuation URI. It rejects repeated,
-off-host, or unexpected continuation paths. Pagination cannot safely be parallelized
-within one window because later continuation URIs do not exist until earlier pages have
-been returned. Throughput therefore comes from concurrent independent windows.
+Each worker follows only the response's `Prev` continuation reference, regardless of
+page length, and ignores `Next`. Before resolving that reference against the trusted
+Defender base URL, it requires the live-confirmed relative
+`/machines/{deviceId}/events` path and exact continuation query-key set. Absolute or
+network-path URIs, another device or path, fragments, malformed or duplicate query keys,
+empty values, and repeated resolved cursors fail closed. Pagination cannot safely be
+parallelized within one window because later continuation references do not exist until
+earlier pages have been returned. Throughput therefore comes from concurrent independent
+windows.
 
 ## Streaming and memory behavior
 
@@ -207,12 +212,14 @@ history.
 
 Recovery occurs at two levels:
 
-- A worker retries transient transport failures and HTTP 408/429/5xx responses with
-  bounded exponential backoff and jitter. Identity requests honor a 429 `Retry-After`
-  value, capped at five minutes.
-- If a window returns a partial or malformed response, or its request context appears
-  poisoned, the coordinator can restart the entire window with a fresh session. Device
-  restarts also receive a new correlation ID.
+- A worker retries genuine transport failures and HTTP 408/429/5xx responses with
+  bounded exponential backoff and jitter. A valid 429 `Retry-After` delta or date is
+  honored up to 30 seconds for device requests and five minutes for identity requests;
+  authentication failures and permanent HTTP errors are not retried.
+- Device workers also retry an initially partial response. If a window returns a partial
+  or malformed response, or its request context appears poisoned, the coordinator can
+  restart the entire window with a fresh session. Device restarts also receive a new
+  correlation ID.
 
 The entire window is restarted because an arbitrary page is not a durable checkpoint.
 Device continuation URIs are service-owned and may expire; identity page membership can
@@ -224,7 +231,9 @@ completed part by recorded byte length and SHA-256. Valid parts are reused; inva
 failed, and in-progress parts are downloaded again. The device ID, time range, Sentinel
 option, window size, and page size must match the device manifest. The identity
 fingerprint, range, window size, page size, and pagination strategy must match the identity
-manifest. `-Force` deliberately discards resumable state.
+manifest. `-Force` deliberately discards resumable state and starts a replacement, but
+an existing published output is not replaced unless the new export has been fully
+validated and atomically published.
 
 ## Correctness and fail-closed behavior
 
@@ -281,6 +290,24 @@ objects, but raw NDJSON is not needed for initial diagnosis. Useful details are:
 Do not silently fall back to a non-Sentinel request when a Sentinel-enabled request is
 empty. An empty response can be legitimate, and fallback would make the file appear
 complete while failing to satisfy the caller's request.
+
+## Follow-up validation evidence
+
+A fixed one-hour UTC export on sanitized device label `known-high-volume-01` traversed
+five live `Prev` pages and published 4,967 lines (18,698,247 bytes) with no retries,
+restarts, warnings, or timestamp diagnostics. The independent line count, file length,
+and SHA-256 matched the completed manifest. The densest live timestamp contained 257
+events, so no equal timestamp crossed a 1,000-record page in that range; the focused
+suite retains a synthetic three-page equal-timestamp proof.
+
+A separate seven-day export was terminated after one part completed. A new authenticated
+process validated and resumed that part, ignored an injected stale partial, and
+atomically published 167,599 lines (1,204,753,184 bytes) with a matching SHA-256 and no
+retries or window restarts.
+
+Sentinel-enabled and disabled probes over the same one-hour range each returned 4,967
+ordinary MDE events. No known Sentinel-backed event was available, so Sentinel-specific
+inclusion remains unproven and behavior was not changed.
 
 ## Why the implementation is not a single download loop
 

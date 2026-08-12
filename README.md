@@ -374,8 +374,28 @@ can vary slightly because the portal's historical response is not immutable betw
 
 The 4-hour/four-worker balance is therefore the initial release default: it completed the
 90-day export without retries or restarts while remaining competitive on elapsed time and
-memory. These defaults can be revisited as more devices, tenants, and time ranges are
-available for testing.
+memory. A later fixed-UTC seven-day matrix exercised all 36 combinations of 250, 500, or
+1,000 records per page; two-, four-, or eight-hour windows; and 2, 4, 8, or 16 workers.
+Only 16 combinations completed. The current 1,000/4-hour/4-worker configuration completed
+in 176 seconds with no retries or restarts and a 1.40 GiB peak working set. The nearest
+clean challenger, 1,000/8-hour/4-worker, was only 2% faster and used about 12% more peak
+memory, so it did not meet the 10% speed and memory gates. The defaults remain unchanged
+and can be revisited as more devices, tenants, and time ranges are available for testing.
+
+The baseline and two strongest valid challengers were then run twice over the same fixed
+30-day UTC range, first in baseline/8-hour/2-hour order and then in reverse:
+
+| Configuration | Elapsed pair | Peak working-set pair | Retries / restarts pair |
+| --- | ---: | ---: | ---: |
+| 1,000 / 4-hour / 4 workers | 919s / 924s | 1.47 / 1.48 GiB | 1/0 / 1/0 |
+| 1,000 / 8-hour / 4 workers | 696s / 947s | 1.76 / 1.77 GiB | 0/0 / 1/0 |
+| 1,000 / 2-hour / 4 workers | 787s / 927s | 1.50 / 1.57 GiB | 21/9 / 6/2 |
+
+Each run independently validated 805,109–805,115 lines, 853–998 pages, 4.37 GB, and the
+final SHA-256. The 8-hour challenger exceeded the memory gate in both runs and was slower
+in the reverse comparison. The 2-hour challenger added retries and restarts in both runs
+and was also slower in the reverse comparison. Neither challenger qualified to replace
+the defaults.
 
 #### Large identity timeline exports
 

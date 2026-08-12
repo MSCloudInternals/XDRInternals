@@ -34,6 +34,7 @@
         $retryCount = 0
         $missingTimestampCount = 0L
         $boundaryTimestampCount = 0L
+        $previousTimestampUtc = $null
         $failureClass = 'Protocol'
 
         try {
@@ -123,16 +124,55 @@
                             throw
                         }
 
-                        $isTransient = $null -eq $statusCode -or $statusCode -in @(408, 429, 500, 502, 503, 504)
+                        $exceptionCursor = $_.Exception
+                        $isMalformedJson = $false
+                        while ($exceptionCursor) {
+                            if ($exceptionCursor -is [System.Text.Json.JsonException] -or
+                                $exceptionCursor.GetType().FullName -in @(
+                                    'Newtonsoft.Json.JsonReaderException',
+                                    'Newtonsoft.Json.JsonSerializationException'
+                                )) {
+                                $isMalformedJson = $true
+                                break
+                            }
+                            $exceptionCursor = $exceptionCursor.InnerException
+                        }
+                        if ($isMalformedJson) {
+                            $failureClass = 'Protocol'
+                            throw
+                        }
+
+                        $isTransportFailure = $false
+                        if ($null -eq $statusCode) {
+                            $exceptionCursor = $_.Exception
+                            while ($exceptionCursor) {
+                                if ($exceptionCursor -is [System.Net.Http.HttpRequestException] -or
+                                    $exceptionCursor -is [System.Net.WebException] -or
+                                    $exceptionCursor -is [System.Net.Sockets.SocketException] -or
+                                    $exceptionCursor -is [System.Threading.Tasks.TaskCanceledException] -or
+                                    $exceptionCursor -is [System.TimeoutException]) {
+                                    $isTransportFailure = $true
+                                    break
+                                }
+                                $exceptionCursor = $exceptionCursor.InnerException
+                            }
+                        }
+
+                        $isTransientHttp = $statusCode -in @(408, 429) -or
+                            ($null -ne $statusCode -and $statusCode -ge 500 -and $statusCode -le 599)
+                        $isTransient = $isTransientHttp -or $isTransportFailure
                         if (-not $isTransient -or $attempt -eq [int]$sharedParameters.MaxRetries) {
                             $failureClass = if ($statusCode -in @(401, 403)) {
                                 'Authentication'
                             }
-                            elseif ($isTransient -and $null -eq $statusCode) {
+                            elseif ($isTransportFailure) {
                                 'Transport'
                             }
                             elseif ($isTransient) {
                                 'TransientHttp'
+                            }
+                            elseif ($null -eq $statusCode) {
+                                'Protocol'
                             }
                             else {
                                 'PermanentHttp'
@@ -141,7 +181,20 @@
                         }
 
                         $retryCount++
-                        $delaySeconds = [math]::Min(30, [math]::Pow(2, $attempt - 1) + (Get-Random -Minimum 0 -Maximum 3))
+                        $delaySeconds = $null
+                        if ($statusCode -eq 429 -and $_.Exception.Response.Headers.RetryAfter) {
+                            $retryAfter = $_.Exception.Response.Headers.RetryAfter
+                            if ($null -ne $retryAfter.Delta) {
+                                $delaySeconds = [math]::Ceiling($retryAfter.Delta.TotalSeconds)
+                            }
+                            elseif ($null -ne $retryAfter.Date) {
+                                $delaySeconds = [math]::Ceiling(($retryAfter.Date.UtcDateTime - [datetime]::UtcNow).TotalSeconds)
+                            }
+                        }
+                        if ($null -eq $delaySeconds) {
+                            $delaySeconds = [math]::Pow(2, $attempt - 1) + (Get-Random -Minimum 0 -Maximum 3)
+                        }
+                        $delaySeconds = [math]::Max(0, [math]::Min(30, $delaySeconds))
                         Start-Sleep -Seconds $delaySeconds
                     }
                 }
@@ -181,6 +234,10 @@
                     if ($utcTimestamp -lt $chunkFromDate -or $utcTimestamp -gt $chunkToDate) {
                         throw "Chunk $chunkIndex received an event outside its requested interval: $($utcTimestamp.ToString('o'))."
                     }
+                    if ($null -ne $previousTimestampUtc -and $utcTimestamp -gt $previousTimestampUtc) {
+                        throw "Chunk $chunkIndex received events that were not in newest-first order: $($utcTimestamp.ToString('o')) followed $($previousTimestampUtc.ToString('o'))."
+                    }
+                    $previousTimestampUtc = $utcTimestamp
                     if ($utcTimestamp -eq $chunkFromDate -or $utcTimestamp -eq $chunkToDate) {
                         $boundaryTimestampCount++
                     }
@@ -203,12 +260,52 @@
                     $requestUri = $null
                 }
                 else {
-                    $continuationUri = "$($sharedParameters.BaseUrl)/apiproxy/mtp/mdeTimelineExperience$($response.Prev)"
-                    $parsedContinuationUri = [uri]$continuationUri
-                    if ($parsedContinuationUri.Host -ne ([uri]$sharedParameters.BaseUrl).Host -or
-                        -not $parsedContinuationUri.AbsolutePath.StartsWith('/apiproxy/mtp/mdeTimelineExperience/', [System.StringComparison]::Ordinal)) {
+                    $previousReference = [string]$response.Prev
+                    $expectedPath = "/machines/$($sharedParameters.DeviceId)/events"
+                    $expectedQueryKeys = @(
+                        'generateIdentityEvents'
+                        'includeIdentityEvents'
+                        'supportMdiOnlyEvents'
+                        'fromDate'
+                        'toDate'
+                        'doNotUseCache'
+                        'forceUseCache'
+                        'pageSize'
+                        'includeSentinelEvents'
+                        'IsScrollingForward'
+                        'ReportIdForScrolling'
+                    )
+                    $allowedQueryKeys = [System.Collections.Generic.HashSet[string]]::new(
+                        [string[]]$expectedQueryKeys,
+                        [System.StringComparer]::OrdinalIgnoreCase
+                    )
+                    $querySeparator = $previousReference.IndexOf('?')
+                    $previousPath = if ($querySeparator -ge 0) { $previousReference.Substring(0, $querySeparator) } else { $previousReference }
+                    $previousQuery = if ($querySeparator -ge 0) { $previousReference.Substring($querySeparator + 1) } else { '' }
+                    $queryParts = @($previousQuery -split '&')
+                    $queryKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+                    $queryIsValid = -not [string]::IsNullOrWhiteSpace($previousQuery) -and $previousQuery -notmatch '%(?![0-9A-Fa-f]{2})'
+                    foreach ($queryPart in $queryParts) {
+                        if ($queryPart -notmatch '^(?<Key>[A-Za-z][A-Za-z0-9._-]*)=.+$' -or
+                            -not $allowedQueryKeys.Contains($Matches.Key) -or
+                            -not $queryKeys.Add($Matches.Key)) {
+                            $queryIsValid = $false
+                            break
+                        }
+                    }
+                    if ($queryKeys.Count -ne $expectedQueryKeys.Count) {
+                        $queryIsValid = $false
+                    }
+
+                    if (-not $previousReference.StartsWith('/', [System.StringComparison]::Ordinal) -or
+                        $previousReference.StartsWith('//', [System.StringComparison]::Ordinal) -or
+                        $previousReference.Contains('#') -or
+                        $previousReference.Contains('\') -or
+                        -not $previousPath.Equals($expectedPath, [System.StringComparison]::OrdinalIgnoreCase) -or
+                        -not $queryIsValid) {
                         throw "Chunk $chunkIndex received an invalid pagination URI."
                     }
+                    $continuationUri = "$($sharedParameters.BaseUrl)/apiproxy/mtp/mdeTimelineExperience$previousReference"
                     $requestUri = $continuationUri
                 }
 

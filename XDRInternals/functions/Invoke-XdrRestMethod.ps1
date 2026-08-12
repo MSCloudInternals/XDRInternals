@@ -40,7 +40,7 @@
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
-        [string]$Uri,
+        [uri]$Uri,
 
         [Parameter(Mandatory = $false)]
         [string]$Method = "GET",
@@ -59,6 +59,14 @@
     )
 
     begin {
+        if (-not $Uri.IsAbsoluteUri -or
+            $Uri.Scheme -ne 'https' -or
+            -not $Uri.IsDefaultPort -or
+            $Uri.DnsSafeHost -ne 'security.microsoft.com' -or
+            -not [string]::IsNullOrWhiteSpace($Uri.UserInfo)) {
+            throw 'Invoke-XdrRestMethod only sends an authenticated session to https://security.microsoft.com.'
+        }
+
         Update-XdrConnectionSettings
     }
 

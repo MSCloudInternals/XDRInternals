@@ -442,4 +442,14 @@ Describe 'Invoke-XdrCloudAppsRequest' {
                 Should -Throw -ExpectedMessage '*Cloud Apps request failed: Get https://security.microsoft.com/apiproxy/mcas/missing returned request failure. The service returned an HTML portal error page.*'
         }
     }
+
+    It 'rejects absolute Cloud Apps destinations outside the Defender portal' {
+        Mock Invoke-RestMethod { throw 'must not be called' } -ModuleName XDRInternals
+
+        InModuleScope XDRInternals {
+            { Invoke-XdrCloudAppsRequest -Path 'https://attacker.example/collect' } |
+                Should -Throw '*must target https://security.microsoft.com*'
+        }
+        Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 0 -Exactly
+    }
 }

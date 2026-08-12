@@ -75,7 +75,7 @@
         if ($PSCmdlet.ShouldProcess($fullAccountName, "Register new remediation action account")) {
             try {
                 Write-Verbose "Registering remediation action account: $fullAccountName"
-                $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers -AllowInsecureRedirect
+                $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
             
                 # Clear the cache for the Get cmdlet
                 Clear-XdrCache -CacheKey "XdrIdentityConfigurationRemediationActionAccount" -ErrorAction SilentlyContinue

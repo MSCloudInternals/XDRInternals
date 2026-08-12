@@ -77,7 +77,10 @@
         }
         # Create session and cookies
         $script:session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-        $script:session.Cookies.Add((New-Object System.Net.Cookie("sccauth", $SccAuthValue, "/", "security.microsoft.com")))
+        $sccAuthCookie = [System.Net.Cookie]::new('sccauth', $SccAuthValue, '/', 'security.microsoft.com')
+        $sccAuthCookie.Secure = $true
+        $sccAuthCookie.HttpOnly = $true
+        $script:session.Cookies.Add($sccAuthCookie)
 
         if ($PSBoundParameters.ContainsKey('Xsrf')) {
             if ($Xsrf -is [System.Security.SecureString]) {
@@ -91,7 +94,9 @@
             } else {
                 $XsrfValue = $Xsrf
             }
-            $script:session.Cookies.Add((New-Object System.Net.Cookie("XSRF-TOKEN", $XsrfValue, "/", "security.microsoft.com")))
+            $xsrfCookie = [System.Net.Cookie]::new('XSRF-TOKEN', $XsrfValue, '/', 'security.microsoft.com')
+            $xsrfCookie.Secure = $true
+            $script:session.Cookies.Add($xsrfCookie)
         } else {
             if ($TenantId) {
                 $SecurityPortalUri = "https://security.microsoft.com/?tid=$TenantId"
@@ -122,8 +127,13 @@
         $XsrfValue = $script:session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value
         # Create session and cookies
         $script:session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-        $script:session.Cookies.Add((New-Object System.Net.Cookie("sccauth", $SccAuthValue, "/", "security.microsoft.com")))
-        $script:session.Cookies.Add((New-Object System.Net.Cookie("XSRF-TOKEN", $XsrfValue, "/", "security.microsoft.com")))
+        $sccAuthCookie = [System.Net.Cookie]::new('sccauth', $SccAuthValue, '/', 'security.microsoft.com')
+        $sccAuthCookie.Secure = $true
+        $sccAuthCookie.HttpOnly = $true
+        $script:session.Cookies.Add($sccAuthCookie)
+        $xsrfCookie = [System.Net.Cookie]::new('XSRF-TOKEN', $XsrfValue, '/', 'security.microsoft.com')
+        $xsrfCookie.Secure = $true
+        $script:session.Cookies.Add($xsrfCookie)
     }
 
     # Set the headers to include the xsrf token

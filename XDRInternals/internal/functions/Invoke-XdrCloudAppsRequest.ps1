@@ -83,6 +83,16 @@
         $Path = "https://security.microsoft.com/apiproxy$Path"
     }
 
+    $requestUri = [uri]$Path
+    if (-not $requestUri.IsAbsoluteUri -or
+        $requestUri.Scheme -ne 'https' -or
+        -not $requestUri.IsDefaultPort -or
+        $requestUri.DnsSafeHost -ne 'security.microsoft.com' -or
+        -not [string]::IsNullOrWhiteSpace($requestUri.UserInfo)) {
+        throw 'Cloud Apps authenticated requests must target https://security.microsoft.com.'
+    }
+    $Path = $requestUri.AbsoluteUri
+
     if ($CacheKey -and -not $Force) {
         $cachedValue = Get-XdrCache -CacheKey $CacheKey -ErrorAction SilentlyContinue
         if ($cachedValue -and $cachedValue.NotValidAfter -gt (Get-Date)) {

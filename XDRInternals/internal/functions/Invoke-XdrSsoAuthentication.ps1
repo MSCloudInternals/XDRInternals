@@ -137,9 +137,14 @@ function New-XdrSsoCookieWebSession {
         $session.UserAgent = $UserAgent
     }
 
-    $session.Cookies.Add((New-Object System.Net.Cookie('sccauth', $SccAuthCookieValue, '/', 'security.microsoft.com')))
+    $sccAuthCookie = [System.Net.Cookie]::new('sccauth', $SccAuthCookieValue, '/', 'security.microsoft.com')
+    $sccAuthCookie.Secure = $true
+    $sccAuthCookie.HttpOnly = $true
+    $session.Cookies.Add($sccAuthCookie)
     if ($XsrfToken) {
-        $session.Cookies.Add((New-Object System.Net.Cookie('XSRF-TOKEN', $XsrfToken, '/', 'security.microsoft.com')))
+        $xsrfCookie = [System.Net.Cookie]::new('XSRF-TOKEN', $XsrfToken, '/', 'security.microsoft.com')
+        $xsrfCookie.Secure = $true
+        $session.Cookies.Add($xsrfCookie)
     }
 
     return $session

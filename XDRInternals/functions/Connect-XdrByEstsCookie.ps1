@@ -83,6 +83,8 @@
 
         foreach ($cookieName in @('ESTSAUTH', 'ESTSAUTHPERSISTENT')) {
             $cookie = [System.Net.Cookie]::new($cookieName, $EstsAuthCookieValue)
+            $cookie.Secure = $true
+            $cookie.HttpOnly = $true
             $session.Cookies.Add('https://login.microsoftonline.com/', $cookie)
         }
         $SessionCookies = $session.Cookies.GetCookies('https://login.microsoftonline.com') | Select-Object -ExpandProperty Name

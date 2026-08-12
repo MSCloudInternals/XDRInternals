@@ -90,6 +90,10 @@
     .PARAMETER KeepTempFiles
         If specified, keeps the temporary JSON files after merging.
 
+    .PARAMETER AllowPartial
+        Returns completed chunks when one or more chunks fail. By default, the cmdlet
+        fails rather than returning an incomplete identity timeline.
+
     .PARAMETER ExportPath
         Optional. Export results directly to a JSON file at the specified path.
 
@@ -253,6 +257,9 @@
         [switch]$KeepTempFiles,
 
         [Parameter()]
+        [switch]$AllowPartial,
+
+        [Parameter()]
         [ValidateScript({
             if ([string]::IsNullOrWhiteSpace($_)) { return $true }
             $parentDir = Split-Path -Path $_ -Parent
@@ -268,10 +275,8 @@
         Update-XdrConnectionSettings
 
         # Constants - centralized for maintainability (function-local scope)
-        $UnixEpoch = [datetime]'1970-01-01'
         $StallTimeoutSeconds = 120           # Stall detection: no progress for this duration kills the job
         $RecentProgressSeconds = 30          # Progress files updated within this window reset stall timer
-        $IdentityMaxSkip = 9000            # Identity API skip values above 9000 are rejected
 
         # Build headers required for MDI identity APIs
         $mdiHeaders = Get-XdrIdentityHeaders
@@ -322,9 +327,12 @@
             $isNotFound = $fqid -like 'XdrIdentityUserNotFound*' -or $fqid -like '*XdrIdentityUserNotFound*'
 
             if ($isNotFound) {
+                $selectorHint = if ($IdentifierLabel -eq 'UPN') {
+                    ' If the Defender user URL contains aad or sid values, retry with -AadId or -Sid.'
+                } else { '' }
                 $PSCmdlet.ThrowTerminatingError(
                     [System.Management.Automation.ErrorRecord]::new(
-                        [System.ArgumentException]::new("Could not resolve user with ${IdentifierLabel}: $IdentifierValue"),
+                        [System.ArgumentException]::new("Could not resolve user with ${IdentifierLabel}: $IdentifierValue.$selectorHint"),
                         'UserNotFound',
                         [System.Management.Automation.ErrorCategory]::ObjectNotFound,
                         $IdentifierValue
@@ -569,7 +577,6 @@
             RetryDelaySeconds = $RetryDelaySeconds
             EventType         = if ($PSBoundParameters.ContainsKey('EventType')) { $EventType } else { $null }
             RequestTimeoutSec = $RequestTimeoutSeconds
-            MaxSkip           = $IdentityMaxSkip
         }
 
         # Generate date chunks.
@@ -667,24 +674,73 @@
                 $chunkToDate = $chunk.ToDate
                 $chunkIndex = $chunk.Index
 
-                # Recreate web session with cookies (required for isolated execution context)
-                $webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
-                foreach ($c in $cookieInfo) {
-                    $cookie = [System.Net.Cookie]::new($c.Name, $c.Value, $c.Path, $c.Domain)
-                    $webSession.Cookies.Add($cookie)
-                }
-
                 # Convert dates to Unix timestamps (seconds)
-                $unixEpoch = [datetime]'1970-01-01'
-                $fromUnix = [int]($chunkFromDate.ToUniversalTime() - $unixEpoch).TotalSeconds
-                $toUnix = [int]($chunkToDate.ToUniversalTime() - $unixEpoch).TotalSeconds
+                # The identity API treats both Unix-second bounds as exclusive. Expand
+                # the lower bound by one second so the logical interval remains
+                # [chunkFromDate, chunkToDate), including subsecond caller ranges.
+                $chunkFromUtc = $chunkFromDate.ToUniversalTime()
+                $chunkToUtc = $chunkToDate.ToUniversalTime()
+                $fromOffset = [datetimeoffset]::new($chunkFromUtc)
+                $toOffset = [datetimeoffset]::new($chunkToUtc)
+                $fromUnix = $fromOffset.ToUnixTimeSeconds()
+                if (($chunkFromUtc.Ticks % [timespan]::TicksPerSecond) -ne 0) { $fromUnix++ }
+                $fromUnix--
+                $toUnix = $toOffset.ToUnixTimeSeconds()
+                if (($chunkToUtc.Ticks % [timespan]::TicksPerSecond) -ne 0) { $toUnix++ }
 
                 $Uri = "$baseUrl/apiproxy/mdi/identity/userapiservice/timeline/mtp"
                 $maxRetries = $baseParams.MaxRetries
                 $baseDelay = $baseParams.RetryDelaySeconds
                 $requestTimeout = $baseParams.RequestTimeoutSec
-                $maxSkip = $baseParams.MaxSkip
                 $pageSize = $baseParams.PageSize
+
+                $canonicalizePayload = {
+                    param($Value)
+
+                    if ($Value -is [System.Collections.IDictionary]) {
+                        $ordered = [ordered]@{}
+                        foreach ($name in @($Value.Keys | Sort-Object)) {
+                            $ordered[[string]$name] = & $canonicalizePayload $Value[$name]
+                        }
+                        return $ordered
+                    }
+                    if ($Value -is [System.Management.Automation.PSCustomObject]) {
+                        $ordered = [ordered]@{}
+                        foreach ($property in @($Value.PSObject.Properties | Sort-Object Name)) {
+                            $ordered[$property.Name] = & $canonicalizePayload $property.Value
+                        }
+                        return $ordered
+                    }
+                    if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
+                        return @($Value | ForEach-Object { & $canonicalizePayload $_ })
+                    }
+                    return $Value
+                }
+                $getEventKey = {
+                    param($EventItem, [datetime]$Timestamp)
+
+                    $stablePayload = [ordered]@{}
+                    foreach ($property in @($EventItem.PSObject.Properties | Sort-Object Name)) {
+                        if ($property.Name -notin @('Id', 'RowNumber', 'Description')) {
+                            $stablePayload[$property.Name] = & $canonicalizePayload $property.Value
+                        }
+                    }
+                    $stableJson = $stablePayload | ConvertTo-Json -Depth 20 -Compress
+                    $hasher = [System.Security.Cryptography.SHA256]::Create()
+                    try {
+                        $hash = $hasher.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($stableJson))
+                        $idPrefix = if ($EventItem.PSObject.Properties['EventId'] -and
+                            -not [string]::IsNullOrWhiteSpace([string]$EventItem.EventId)) {
+                            "EventId:$([string]$EventItem.EventId)"
+                        } else {
+                            'NoEventId'
+                        }
+                        return "$($Timestamp.ToString('o'))|$idPrefix|Payload:$([System.BitConverter]::ToString($hash).Replace('-', ''))"
+                    }
+                    finally {
+                        $hasher.Dispose()
+                    }
+                }
 
                 # Chunk-level retry loop
                 $chunkAttempt = 0
@@ -693,24 +749,28 @@
 
                 while (-not $chunkSuccess -and $chunkAttempt -lt $maxRetries) {
                     $chunkAttempt++
+                    # A failed attempt may poison this undocumented API's request
+                    # context. Recreate the cookie-backed session before replaying
+                    # the complete logical chunk.
+                    $webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+                    foreach ($c in $cookieInfo) {
+                        $cookie = [System.Net.Cookie]::new($c.Name, $c.Value, $c.Path, $c.Domain)
+                        $webSession.Cookies.Add($cookie)
+                    }
                     $chunkEvents = [System.Collections.Generic.List[object]]::new()
-                    $skip = 0
                     $currentToUnix = $toUnix
-                    $previousBoundaryTimestamp = $null
                     $progressFile = Join-Path $tempPath "progress_$chunkIndex.txt"
                     $lastProgressWriteUtc = [datetime]::MinValue
+                    $chunkFailureIsRetryable = $true
 
                     try {
                         $chunkStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                         $pagesRetrieved = 0
-                        $boundaryTimestamp = $null
-                        $boundaryCount = 0
-
-                        do {
+                        while ($true) {
                             # Build request body
                             $requestBody = @{
                                 count           = $pageSize
-                                skip            = $skip
+                                skip            = 0
                                 userIdentifiers = $userIds
                                 filters         = @{
                                     Timeframe = @{
@@ -753,108 +813,117 @@
                                     # Check if it's a timeout
                                     $isTimeout = $_.Exception.Message -like "*timeout*" -or $_.Exception.Message -like "*timed out*"
 
-                                    if ($statusCode -eq 429 -or $statusCode -eq 403) {
+                                    if ($statusCode -in @(401, 403)) {
+                                        $chunkFailureIsRetryable = $false
+                                        throw "Chunk $chunkIndex : Authentication failed with HTTP $statusCode"
+                                    } elseif ($attempt -ge $maxRetries) {
+                                        throw "Chunk $chunkIndex : Failed after $maxRetries attempts (HTTP $statusCode)"
+                                    } elseif ($statusCode -eq 429) {
                                         $delay = $baseDelay * [Math]::Pow(2, $attempt - 1) + (Get-Random -Minimum 1 -Maximum 10)
                                         $delay = [Math]::Min($delay, 300)
                                         Start-Sleep -Seconds $delay
-                                    } elseif ($isTimeout -and $attempt -lt $maxRetries) {
+                                    } elseif ($isTimeout) {
                                         Start-Sleep -Seconds (Get-Random -Minimum 2 -Maximum 5)
-                                    } elseif ($attempt -lt $maxRetries) {
+                                    } elseif ($null -eq $statusCode -or $statusCode -in @(408, 500, 502, 503, 504)) {
                                         $delay = Get-Random -Minimum 5 -Maximum 15
                                         Start-Sleep -Seconds $delay
                                     } else {
-                                        throw "Chunk $chunkIndex : Failed after $maxRetries attempts. Last error: $_"
+                                        $chunkFailureIsRetryable = $false
+                                        throw "Chunk $chunkIndex : Timeline request failed with HTTP $statusCode"
                                     }
                                 }
                             }
 
-                            $responseData = if ($response -and $response.data) { @($response.data) } else { @() }
-                            if ($responseData.Count -eq 0) {
-                                break
+                            foreach ($requiredProperty in @('count', 'data', 'errors')) {
+                                if (-not $response.PSObject.Properties[$requiredProperty]) {
+                                    throw "Chunk $chunkIndex : Timeline response did not contain '$requiredProperty'"
+                                }
                             }
-
+                            $responseData = if ($null -eq $response.data) { @() } else { @($response.data) }
+                            $responseErrorPropertyCount = if ($null -eq $response.errors) {
+                                0
+                            } else {
+                                @($response.errors.PSObject.Properties).Count
+                            }
+                            if ($responseErrorPropertyCount -gt 0) {
+                                throw "Chunk $chunkIndex : Timeline response contained service errors"
+                            }
+                            if ([int]$response.count -ne $responseData.Count) {
+                                throw "Chunk $chunkIndex : Timeline response count=$($response.count) but data contained $($responseData.Count) event(s)"
+                            }
+                            $requestFromDate = [datetimeoffset]::FromUnixTimeSeconds($fromUnix).UtcDateTime
+                            $requestToDate = [datetimeoffset]::FromUnixTimeSeconds($currentToUnix).UtcDateTime
+                            $previousTimestamp = $null
+                            $pageNewestTimestamp = $null
+                            $pageOldestTimestamp = $null
+                            $pageNewestUnixSecond = $null
+                            $pageOldestUnixSecond = $null
+                            $pageEvents = [System.Collections.Generic.List[object]]::new()
+                            $pageKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
                             foreach ($timelineEvent in $responseData) {
-                                $chunkEvents.Add($timelineEvent)
-
-                                # Track the oldest timestamp and count events at that boundary.
-                                if ($timelineEvent.PSObject.Properties['Timestamp'] -and $timelineEvent.Timestamp) {
-                                    try {
-                                        $eventTimestamp = [datetime]::Parse($timelineEvent.Timestamp).ToUniversalTime()
-                                        if ($null -eq $boundaryTimestamp -or $eventTimestamp -lt $boundaryTimestamp) {
-                                            $boundaryTimestamp = $eventTimestamp
-                                            $boundaryCount = 1
-                                        } elseif ($eventTimestamp -eq $boundaryTimestamp) {
-                                            $boundaryCount++
-                                        }
-                                    } catch {
-                                        Write-Verbose "Ignoring timestamp parse errors for boundary tracking."
-                                    }
+                                if (-not $timelineEvent.PSObject.Properties['Timestamp'] -or
+                                    [string]::IsNullOrWhiteSpace([string]$timelineEvent.Timestamp)) {
+                                    throw "Chunk $chunkIndex : Timeline event did not contain a Timestamp"
                                 }
-                            }
-
-                            if ($responseData.Count -lt $pageSize) {
-                                break
-                            }
-
-                            $nextSkip = $skip + $responseData.Count
-                            if ($nextSkip -gt $maxSkip) {
-                                if ($null -eq $boundaryTimestamp) {
-                                    throw "Chunk $chunkIndex : Hit skip limit but no boundary timestamp was available"
+                                $parsedTimestamp = [datetimeoffset]::MinValue
+                                $parseStyles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
+                                if (-not [datetimeoffset]::TryParse(
+                                        [string]$timelineEvent.Timestamp,
+                                        [System.Globalization.CultureInfo]::InvariantCulture,
+                                        $parseStyles,
+                                        [ref]$parsedTimestamp
+                                    )) {
+                                    throw "Chunk $chunkIndex : Timeline event Timestamp could not be parsed"
                                 }
+                                $eventTimestamp = $parsedTimestamp.UtcDateTime
+                                if ($eventTimestamp -le $requestFromDate -or $eventTimestamp -ge $requestToDate) {
+                                    throw "Chunk $chunkIndex : Timeline event fell outside the API's exclusive interval"
+                                }
+                                if ($eventTimestamp -lt $chunkFromUtc -or $eventTimestamp -ge $chunkToUtc) {
+                                    throw "Chunk $chunkIndex : Timeline event fell outside the logical interval"
+                                }
+                                if ($null -ne $previousTimestamp -and $eventTimestamp -gt $previousTimestamp) {
+                                    throw "Chunk $chunkIndex : Timeline response was not in descending timestamp order"
+                                }
+                                $previousTimestamp = $eventTimestamp
+                                $eventUnixSecond = [datetimeoffset]::new($eventTimestamp).ToUnixTimeSeconds()
+                                if ($null -eq $pageNewestTimestamp) {
+                                    $pageNewestTimestamp = $eventTimestamp
+                                    $pageNewestUnixSecond = $eventUnixSecond
+                                }
+                                $pageOldestTimestamp = $eventTimestamp
+                                $pageOldestUnixSecond = $eventUnixSecond
 
-                                # Pathological case: too many events in one second (> maxSkip + pageSize).
-                                if ($null -ne $previousBoundaryTimestamp -and $boundaryTimestamp -eq $previousBoundaryTimestamp) {
-                                    # API cannot page past this second. Drop all events for this second so output is deterministic.
-                                    $keptEvents = [System.Collections.Generic.List[object]]::new()
-                                    $droppedCount = 0
-                                    foreach ($existingEvent in $chunkEvents) {
-                                        $isBoundaryEvent = $false
-                                        if ($existingEvent.PSObject.Properties['Timestamp'] -and $existingEvent.Timestamp) {
-                                            try {
-                                                $existingTs = [datetime]::Parse($existingEvent.Timestamp).ToUniversalTime()
-                                                $isBoundaryEvent = ($existingTs -eq $boundaryTimestamp)
-                                            } catch {
-                                                Write-Verbose "Ignoring timestamp parse errors; treat event as non-boundary."
-                                            }
-                                        }
-
-                                        if ($isBoundaryEvent) {
-                                            $droppedCount++
-                                        } else {
-                                            $keptEvents.Add($existingEvent)
-                                        }
-                                    }
-                                    $chunkEvents = $keptEvents
-
-                                    Write-Warning "Chunk $chunkIndex : More than $($maxSkip + $pageSize) events at timestamp $($boundaryTimestamp.ToString('o')); dropped $droppedCount events at this second due to API pagination limits"
-
-                                    # Move to older data and skip this second entirely.
-                                    $currentToUnix = [int]($boundaryTimestamp.AddSeconds(-1) - $unixEpoch).TotalSeconds
-                                    if ($currentToUnix -lt $fromUnix) {
-                                        break
-                                    }
-
-                                    $skip = 0
-                                    $previousBoundaryTimestamp = $null
-                                    $boundaryTimestamp = $null
-                                    $boundaryCount = 0
+                                $eventKey = & $getEventKey $timelineEvent $eventTimestamp
+                                if (-not $pageKeys.Add($eventKey)) {
                                     continue
                                 }
-                                # Remove the incomplete boundary second and restart at that boundary.
-                                if ($boundaryCount -gt 0 -and $boundaryCount -le $chunkEvents.Count) {
-                                    $chunkEvents.RemoveRange($chunkEvents.Count - $boundaryCount, $boundaryCount)
-                                }
-
-                                $previousBoundaryTimestamp = $boundaryTimestamp
-                                $currentToUnix = [int]($boundaryTimestamp.AddSeconds(1) - $unixEpoch).TotalSeconds
-                                $skip = 0
-                                $boundaryTimestamp = $null
-                                $boundaryCount = 0
-                                continue
+                                $pageEvents.Add([PSCustomObject]@{
+                                        Event = $timelineEvent
+                                        Timestamp = $eventTimestamp
+                                        UnixSecond = $eventUnixSecond
+                                    })
                             }
 
-                            $skip = $nextSkip
-                        } while ($true)
+                            $pageIsFull = $responseData.Count -eq $pageSize
+                            if ($pageIsFull -and $pageNewestUnixSecond -eq $pageOldestUnixSecond) {
+                                throw "Chunk $chunkIndex : UnpageableBoundary - one API timestamp second filled a complete $pageSize-row page at $($pageOldestTimestamp.ToString('o'))"
+                            }
+                            foreach ($pageEvent in $pageEvents) {
+                                if (-not $pageIsFull -or $pageEvent.UnixSecond -gt $pageOldestUnixSecond) {
+                                    $chunkEvents.Add($pageEvent.Event)
+                                }
+                            }
+
+                            if (-not $pageIsFull) {
+                                break
+                            }
+                            $nextToUnix = $pageOldestUnixSecond + 1L
+                            if ($nextToUnix -ge $currentToUnix) {
+                                throw "Chunk $chunkIndex : UnpageableBoundary - cannot advance beyond timestamp $($pageOldestTimestamp.ToString('o'))"
+                            }
+                            $currentToUnix = $nextToUnix
+                        }
 
                         $chunkStopwatch.Stop()
                         $chunkSuccess = $true
@@ -891,8 +960,11 @@
                         if ($chunkStopwatch) { $chunkStopwatch.Stop() }
                         $lastChunkError = $_.ToString()
 
-                        # Non-retryable error or max retries reached
-                        if ($chunkAttempt -ge $maxRetries) {
+                        # Authentication, permanent HTTP failures, and an
+                        # unpageable API second cannot improve on replay.
+                        $nonRetryableChunkFailure = -not $chunkFailureIsRetryable -or
+                            $lastChunkError -like '*UnpageableBoundary*'
+                        if ($nonRetryableChunkFailure -or $chunkAttempt -ge $maxRetries) {
                             @{
                                 ChunkIndex     = $chunkIndex
                                 Success        = $false
@@ -1113,17 +1185,20 @@
             Write-Progress -Activity "Retrieving User Timeline for $userDisplayName" -Completed -Id 1
 
             # Check for failures
-            $failures = $results | Where-Object { -not $_.Success }
-            if ($failures) {
+            $failures = @($results | Where-Object { -not $_.Success })
+            if ($failures.Count -gt 0) {
                 Write-Warning "Some chunks failed to retrieve: $($failures.Count) failures"
                 foreach ($fail in $failures) {
                     Write-Warning "  Chunk $($fail.ChunkIndex) ($($fail.FromDate) - $($fail.ToDate)): $($fail.Error)"
+                }
+                if (-not $AllowPartial) {
+                    throw "Identity timeline retrieval failed for $($failures.Count) chunk(s). Use -AllowPartial to return only completed chunks."
                 }
             }
 
             # Output timing information for each chunk
             Write-Information "`n=== Chunk Download Statistics ===" -InformationAction Continue
-            $successfulResults = $results | Where-Object { $_.Success }
+            $successfulResults = @($results | Where-Object { $_.Success })
             $totalElapsed = 0
             $totalSizeKB = 0
             foreach ($result in ($successfulResults | Sort-Object ChunkIndex)) {
@@ -1158,6 +1233,29 @@
             $toUtcExclusive = $ToDate.ToUniversalTime()
             $sha256 = [System.Security.Cryptography.SHA256]::Create()
             $chunkFiles = Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue | Sort-Object Name
+
+            $canonicalizePayload = {
+                param($Value)
+
+                if ($Value -is [System.Collections.IDictionary]) {
+                    $ordered = [ordered]@{}
+                    foreach ($name in @($Value.Keys | Sort-Object)) {
+                        $ordered[[string]$name] = & $canonicalizePayload $Value[$name]
+                    }
+                    return $ordered
+                }
+                if ($Value -is [System.Management.Automation.PSCustomObject]) {
+                    $ordered = [ordered]@{}
+                    foreach ($property in @($Value.PSObject.Properties | Sort-Object Name)) {
+                        $ordered[$property.Name] = & $canonicalizePayload $property.Value
+                    }
+                    return $ordered
+                }
+                if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
+                    return @($Value | ForEach-Object { & $canonicalizePayload $_ })
+                }
+                return $Value
+            }
 
             $addDedupedEvent = {
                 param([PSObject]$eventObject)
@@ -1195,17 +1293,21 @@
                     return
                 }
 
-                $unstableProperties = @('Id', 'RowNumber', 'EventId', 'ReportId')
                 $stablePayload = [ordered]@{}
                 foreach ($property in ($eventObject.PSObject.Properties | Sort-Object Name)) {
-                    if ($unstableProperties -notcontains $property.Name) {
-                        $stablePayload[$property.Name] = $property.Value
+                    if ($property.Name -notin @('Id', 'RowNumber', 'Description')) {
+                        $stablePayload[$property.Name] = & $canonicalizePayload $property.Value
                     }
                 }
-
                 $stableJson = $stablePayload | ConvertTo-Json -Depth 20 -Compress
                 $stableHashBytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($stableJson))
-                $stableKey = [System.BitConverter]::ToString($stableHashBytes).Replace('-', '')
+                $idPrefix = if ($eventObject.PSObject.Properties['EventId'] -and
+                    -not [string]::IsNullOrWhiteSpace([string]$eventObject.EventId)) {
+                    "EventId:$([string]$eventObject.EventId)"
+                } else {
+                    'NoEventId'
+                }
+                $stableKey = "$($eventTimestampUtc.ToString('o'))|$idPrefix|Payload:$([System.BitConverter]::ToString($stableHashBytes).Replace('-', ''))"
                 $mergeCounters['TotalCandidates']++
 
                 if ($stableEventKeys.Add($stableKey)) {
@@ -1289,6 +1391,10 @@
 
             $sha256.Dispose()
             Write-Verbose "Merge stats: candidates=$($mergeCounters.TotalCandidates), duplicates=$($mergeCounters.Duplicates), outOfRange=$($mergeCounters.OutOfRange), missingTimestamp=$($mergeCounters.MissingTimestamp), timestampParseErrors=$($mergeCounters.TimestampParseErrors)"
+            if (-not $AllowPartial -and
+                ([int]$mergeCounters.MissingTimestamp -gt 0 -or [int]$mergeCounters.TimestampParseErrors -gt 0)) {
+                throw "Identity timeline retrieval encountered $($mergeCounters.MissingTimestamp) missing timestamp(s) and $($mergeCounters.TimestampParseErrors) timestamp parse error(s). Use -AllowPartial to omit invalid events."
+            }
 
             # Sort events by timestamp (newest first) with deterministic tie-breaker
             $sortedEvents = $eventRows |
@@ -1297,8 +1403,8 @@
 
             $operationStartTime.Stop()
             $totalEvents = $sortedEvents.Count
-            $successCount = ($results | Where-Object { $_.Success }).Count
-            $failCount = ($results | Where-Object { -not $_.Success }).Count
+            $successCount = @($results | Where-Object { $_.Success }).Count
+            $failCount = @($results | Where-Object { -not $_.Success }).Count
             $wallClockSeconds = $operationStartTime.Elapsed.TotalSeconds
             $totalSizeMB = [math]::Round($totalSizeKB / 1024, 1)
             $effectiveRate = if ($wallClockSeconds -gt 0) { [math]::Round($totalEvents / $wallClockSeconds, 1) } else { 0 }
@@ -1329,17 +1435,14 @@
             return $sortedEvents
 
         } catch {
-            Write-Error -Exception $_.Exception -Message "Failed to retrieve user timeline: $($_.Exception.Message)"
+            $capturedError = $_
             Write-Verbose "Full error: $($_.Exception.ToString())"
 
             # Cleanup on error
             if (-not $KeepTempFiles -and (Test-Path $runTempPath)) {
                 Remove-Item -Path $runTempPath -Recurse -Force -ErrorAction SilentlyContinue
             }
+            throw $capturedError
         }
     }
 }
-
-
-
-

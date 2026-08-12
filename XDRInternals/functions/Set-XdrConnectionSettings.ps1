@@ -61,6 +61,12 @@
         [switch]$ResetWebSession
     )
 
+    if (-not $ResetWebSession) {
+        # Authentication replacement is also an authorization-boundary change. Cached portal
+        # data from a prior principal must never survive into the new session, even in the same tenant.
+        Clear-XdrCache
+    }
+
     # Determine sccauth and xsrf format, then create session and cookies
     Write-Verbose "Setting session cookies for XDR webpage requests"
     if ($PSBoundParameters.ContainsKey('SccAuth')) {

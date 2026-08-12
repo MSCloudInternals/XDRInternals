@@ -87,6 +87,19 @@ Describe 'Defender authenticated request boundaries' {
             $cookies['XSRF-TOKEN'].Secure | Should -BeTrue
         }
     }
+
+    It 'clears same-tenant cached data when authentication is replaced' {
+        Mock Write-Host {} -ModuleName XDRInternals
+
+        InModuleScope XDRInternals {
+            $tenantId = '8612f621-73ca-4c12-973c-0da732bc44c2'
+            Set-XdrCache -CacheKey 'PrincipalScopedResult' -Value 'previous-user-data' -TTLMinutes 30 -TenantId $tenantId
+
+            Set-XdrConnectionSettings -SccAuth 'replacement-sccauth' -Xsrf 'replacement-xsrf' -TenantId $tenantId
+
+            Get-XdrCache -CacheKey 'PrincipalScopedResult' -TenantId $tenantId | Should -BeNullOrEmpty
+        }
+    }
 }
 
 Describe 'Connect-XdrByPhoneSignIn' {

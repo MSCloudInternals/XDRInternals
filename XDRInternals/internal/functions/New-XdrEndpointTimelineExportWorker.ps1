@@ -36,6 +36,7 @@
         $boundaryTimestampCount = 0L
         $previousTimestampUtc = $null
         $failureClass = 'Protocol'
+        $failureMessage = $null
 
         try {
             if (Test-Path -LiteralPath $partialPath) {
@@ -67,6 +68,7 @@
             )
             $requestUri = "$($sharedParameters.BaseUrl)/apiproxy/mtp/mdeTimelineExperience/machines/$($sharedParameters.DeviceId)/events/?$($queryParameters -join '&')"
             $seenUris = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+            $currentRequestToUtc = $chunkToDate
 
             $fileStream = [System.IO.FileStream]::new(
                 $partialPath,
@@ -104,7 +106,8 @@
                         if ($partialReasons.Count -gt 0) {
                             if ($attempt -ge $partialResponseAttempts -or $attempt -eq [int]$sharedParameters.MaxRetries) {
                                 $failureClass = 'PartialResponse'
-                                throw "Chunk $chunkIndex received a partial API response after $attempt attempt(s): $($partialReasons -join '; ')"
+                                $failureMessage = "Chunk $chunkIndex received a partial API response after $attempt attempt(s)."
+                                throw $failureMessage
                             }
                             $retryCount++
                             $delaySeconds = [math]::Min(30, [math]::Pow(2, $attempt - 1) + (Get-Random -Minimum 0 -Maximum 3))
@@ -139,6 +142,7 @@
                         }
                         if ($isMalformedJson) {
                             $failureClass = 'Protocol'
+                            $failureMessage = "Chunk $chunkIndex received malformed JSON from the endpoint timeline API."
                             throw
                         }
 
@@ -176,6 +180,13 @@
                             }
                             else {
                                 'PermanentHttp'
+                            }
+                            $failureMessage = switch ($failureClass) {
+                                'Authentication' { "Chunk $chunkIndex endpoint timeline authentication failed (HTTP $statusCode)." }
+                                'PermanentHttp' { "Chunk $chunkIndex endpoint timeline request failed permanently (HTTP $statusCode)." }
+                                'TransientHttp' { "Chunk $chunkIndex endpoint timeline request failed after $attempt attempt(s) (HTTP $statusCode)." }
+                                'Transport' { "Chunk $chunkIndex endpoint timeline transport failed after $attempt attempt(s)." }
+                                default { "Chunk $chunkIndex endpoint timeline request failed with a protocol error." }
                             }
                             throw
                         }
@@ -336,16 +347,23 @@
                         $continuationDateStyles,
                         [ref]$continuationFromUtc
                     ) -and $continuationFromUtc.UtcDateTime -eq $chunkFromDate
-                    $toDateIsValid = $queryValues.ContainsKey('toDate') -and [datetimeoffset]::TryParse(
+                    $toDateWasParsed = $queryValues.ContainsKey('toDate') -and [datetimeoffset]::TryParse(
                         $queryValues['toDate'],
                         [System.Globalization.CultureInfo]::InvariantCulture,
                         $continuationDateStyles,
                         [ref]$continuationToUtc
-                    ) -and $continuationToUtc.UtcDateTime -ge $chunkFromDate -and
-                        $continuationToUtc.UtcDateTime -lt $chunkToDate
-                    if ($toDateIsValid -and $null -ne $oldestPageTimestampUtc) {
-                        $toDateIsValid = $oldestPageTimestampUtc -gt [datetime]::MinValue -and
-                            $continuationToUtc.UtcDateTime -eq $oldestPageTimestampUtc.AddTicks(-1)
+                    )
+                    $toDateIsValid = $toDateWasParsed -and
+                        $continuationToUtc.UtcDateTime -lt $chunkToDate -and
+                        $continuationToUtc.UtcDateTime -le $currentRequestToUtc
+                    if ($toDateIsValid) {
+                        if ($null -ne $oldestPageTimestampUtc) {
+                            $toDateIsValid = $oldestPageTimestampUtc -gt [datetime]::MinValue -and
+                                $continuationToUtc.UtcDateTime -eq $oldestPageTimestampUtc.AddTicks(-1)
+                        }
+                        else {
+                            $toDateIsValid = $continuationToUtc.UtcDateTime -ge $chunkFromDate
+                        }
                     }
                     $reportIdIsValid = $queryValues.ContainsKey('ReportIdForScrolling') -and
                         -not [string]::IsNullOrWhiteSpace($queryValues['ReportIdForScrolling'])
@@ -363,6 +381,7 @@
                     }
                     $continuationUri = "$($sharedParameters.BaseUrl)/apiproxy/mtp/mdeTimelineExperience$previousReference"
                     $requestUri = $continuationUri
+                    $currentRequestToUtc = $continuationToUtc.UtcDateTime
                 }
 
                 $response = $null
@@ -403,7 +422,23 @@
             }
         }
         catch {
-            $errorText = $_.ToString()
+            $errorText = if (-not [string]::IsNullOrWhiteSpace($failureMessage)) {
+                $failureMessage
+            }
+            elseif ($_.Exception -and -not [string]::IsNullOrWhiteSpace($_.Exception.Message)) {
+                $_.Exception.Message
+            }
+            else {
+                "Chunk $chunkIndex endpoint timeline worker failed."
+            }
+            if (-not [string]::IsNullOrWhiteSpace($requestUri)) {
+                $errorText = $errorText.Replace($requestUri, '[request URI redacted]')
+            }
+            $errorText = [regex]::Replace(
+                $errorText,
+                '(?i)(ReportIdForScrolling=)[^&\s"''<>]+',
+                '$1[redacted]'
+            )
             $stopwatch.Stop()
             return [PSCustomObject]@{
                 Success                = $false

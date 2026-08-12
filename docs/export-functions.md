@@ -95,7 +95,10 @@ Defender base URL, it requires the live-confirmed relative
 cache, page-size, Sentinel, and scroll-direction values must remain unchanged, and
 `fromDate` must remain the window start. `ReportIdForScrolling` is the only fully opaque
 value. On a nonempty page, the server advances `toDate` to exactly one tick before that
-page's oldest event; an empty-page cursor must still remain inside the requested window.
+page's oldest event. That value may be one tick before the inclusive window start when
+the oldest event is exactly on the lower boundary. Continuation time may stay equal while
+one timestamp spans pages, but it may never move newer. An empty-page cursor must remain
+inside the requested window.
 Absolute or network-path URIs, another device or path, fragments, malformed or duplicate
 query keys, changed invariant values, empty report IDs, and repeated resolved cursors
 fail closed. Pagination cannot safely be parallelized within one window because later
@@ -159,6 +162,10 @@ window fails when, for example:
 - a completed part fails length or SHA-256 validation;
 - the output volume cannot be finalized with the available disk space.
 
+HTTP and runspace failures are reduced to a failure class and compact status message
+before they are written to the resumable manifest. Response bodies and continuation
+values are not retained in manifest errors.
+
 This is intentionally stricter than returning whatever data happened to arrive. During
 incident response, a plausible-looking but incomplete timeline is more dangerous than a
 clear failure that preserves resumable work.
@@ -210,6 +217,13 @@ restarts, warnings, or timestamp diagnostics. The independent line count, file l
 and SHA-256 matched the completed manifest. The densest live timestamp contained 257
 events, so no equal timestamp crossed a 1,000-record page in that range; the focused
 suite retains a synthetic three-page equal-timestamp proof.
+
+A disposable follow-up repeated that fixed range with a 250-record page size. It again
+published 4,967 matching-hash lines across 20 live `Prev` pages, so the 257-event
+timestamp necessarily crossed page boundaries while the non-increasing cursor guard was
+active. A separate request starting exactly at that timestamp returned different event
+membership and could not prove the lower-bound replay; the focused suite therefore also
+retains a three-page proof with every event exactly on the inclusive lower boundary.
 
 A separate seven-day export was terminated after one part completed. A new authenticated
 process validated and resumed that part, ignored an injected stale partial, and

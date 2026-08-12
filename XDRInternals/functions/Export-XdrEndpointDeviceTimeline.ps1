@@ -426,6 +426,7 @@
                         }
                     }
                     catch {
+                        $workerError = "Chunk $($job.Chunk.Index) worker failed before returning a structured result."
                         $result = [PSCustomObject]@{
                             Success                = $false
                             ChunkIndex             = [int]$job.Chunk.Index
@@ -437,7 +438,7 @@
                             BoundaryTimestampCount = 0L
                             ElapsedSeconds         = 0.0
                             RetryCount             = 0
-                            Error                  = $_.ToString()
+                            Error                  = $workerError
                             FailureClass           = 'WorkerFailure'
                         }
                     }
@@ -556,9 +557,10 @@
 
         if ($capturedError) {
             $manifest.State = 'Failed'
-            $manifest.Summary = [ordered]@{ Error = $capturedError.ToString() }
+            $capturedErrorMessage = 'Endpoint timeline export failed before completion.'
+            $manifest.Summary = [ordered]@{ Error = $capturedErrorMessage }
             & $writeManifest $manifest $manifestPath $manifestPartialPath
-            throw $capturedError
+            throw $capturedErrorMessage
         }
 
         if ($failureResults.Count -gt 0) {

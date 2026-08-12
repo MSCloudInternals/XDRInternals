@@ -182,6 +182,43 @@
         }
     }
 
+    It 'preserves equal timestamps spanning three pages at the inclusive lower boundary' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:LowerBoundaryCall = 0
+            Mock Invoke-RestMethod {
+                $script:LowerBoundaryCall++
+                $previous = if ($script:LowerBoundaryCall -lt 3) {
+                    New-TestEndpointTimelinePrev `
+                        -DeviceId $DeviceId `
+                        -Token "lower-page$($script:LowerBoundaryCall + 1)" `
+                        -CursorToDate ([datetime]'2025-12-31T23:59:59.9999999Z') `
+                        -PageSize 1
+                }
+                else {
+                    $null
+                }
+                [PSCustomObject]@{
+                    Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:00:00Z'; Id = "lower-$script:LowerBoundaryCall" })
+                    PartialResponseReasons = @()
+                    Prev = $previous
+                    Next = $null
+                }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'lower-boundary-equal-timestamps.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+            $ids = @(Get-Content -LiteralPath $result.FilePath | ForEach-Object { ($_ | ConvertFrom-Json).Id })
+
+            $result.Success | Should -BeTrue
+            $result.PageCount | Should -Be 3
+            $result.EventCount | Should -Be 3
+            $ids | Should -Be @('lower-1', 'lower-2', 'lower-3')
+        }
+    }
+
     It 'stops on a full page when Prev is absent' {
         InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
             Mock Invoke-RestMethod {
@@ -424,6 +461,39 @@
             $result.Success | Should -BeFalse
             $result.Error | Should -BeLike '*invalid pagination URI*'
             Should -Invoke Invoke-RestMethod -Times 1 -Exactly
+        }
+    }
+
+    It 'rejects an empty-page continuation that moves the cursor newer' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:IncreasingEmptyCursorCall = 0
+            Mock Invoke-RestMethod {
+                $script:IncreasingEmptyCursorCall++
+                if ($script:IncreasingEmptyCursorCall -eq 1) {
+                    return [PSCustomObject]@{
+                        Items = @()
+                        PartialResponseReasons = @()
+                        Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'empty-older' -CursorToDate ([datetime]'2026-01-01T00:20:00Z')
+                        Next = $null
+                    }
+                }
+                [PSCustomObject]@{
+                    Items = @()
+                    PartialResponseReasons = @()
+                    Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'empty-newer' -CursorToDate ([datetime]'2026-01-01T00:30:00Z')
+                    Next = $null
+                }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'empty-page-newer-cursor.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.Error | Should -BeLike '*invalid pagination URI*'
+            Should -Invoke Invoke-RestMethod -Times 2 -Exactly
         }
     }
 
@@ -820,6 +890,81 @@
             Should -Invoke Invoke-RestMethod -Times 1 -Exactly
             Should -Invoke Start-Sleep -Times 0 -Exactly
         }
+    }
+
+    It 'does not retain an HTTP error body or continuation value in worker errors' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $responseBodyMarker = 'response-body-must-not-persist'
+            $cursorMarker = 'cursor-must-not-persist'
+            Mock Start-Sleep {}
+            Mock Invoke-RestMethod {
+                $httpResponse = [System.Net.Http.HttpResponseMessage]::new([System.Net.HttpStatusCode]::BadRequest)
+                $exception = [Microsoft.PowerShell.Commands.HttpResponseException]::new(
+                    "request failed ReportIdForScrolling=$cursorMarker",
+                    $httpResponse
+                )
+                $errorRecord = [System.Management.Automation.ErrorRecord]::new(
+                    $exception,
+                    'EndpointTimelineBadRequest',
+                    [System.Management.Automation.ErrorCategory]::InvalidResult,
+                    $null
+                )
+                $errorRecord.ErrorDetails = [System.Management.Automation.ErrorDetails]::new($responseBodyMarker)
+                throw $errorRecord
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'sanitized-http-error.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 3; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.FailureClass | Should -Be 'PermanentHttp'
+            $result.Error | Should -Be 'Chunk 0 endpoint timeline request failed permanently (HTTP 400).'
+            $result.Error | Should -Not -BeLike "*$responseBodyMarker*"
+            $result.Error | Should -Not -BeLike "*$cursorMarker*"
+        }
+    }
+
+    It 'does not retain an error body or continuation value in the resumable manifest' {
+        $responseBodyMarker = 'coordinator-body-must-not-persist'
+        $cursorMarker = 'coordinator-cursor-must-not-persist'
+        Mock New-XdrEndpointTimelineExportWorker {
+            return {
+                param($chunk, $sharedParameters, $statusMap)
+                $exception = [System.InvalidOperationException]::new(
+                    "worker failed ReportIdForScrolling=coordinator-cursor-must-not-persist"
+                )
+                $errorRecord = [System.Management.Automation.ErrorRecord]::new(
+                    $exception,
+                    'EndpointTimelineWorkerFailure',
+                    [System.Management.Automation.ErrorCategory]::InvalidResult,
+                    $null
+                )
+                $errorRecord.ErrorDetails = [System.Management.Automation.ErrorDetails]::new(
+                    'coordinator-body-must-not-persist'
+                )
+                throw $errorRecord
+            }
+        } -ModuleName XDRInternals
+        $outputPath = Join-Path $TestDrive 'sanitized-manifest-error.ndjson'
+
+        $thrownError = $null
+        try {
+            Export-XdrEndpointDeviceTimeline -DeviceId $script:DeviceId -FromDate $script:FromDate -ToDate $script:FromDate.AddHours(1) -Path $outputPath
+        }
+        catch {
+            $thrownError = $_
+        }
+
+        $thrownError | Should -Not -BeNullOrEmpty
+        $thrownError.Exception.Message | Should -Not -BeLike "*$responseBodyMarker*"
+        $thrownError.Exception.Message | Should -Not -BeLike "*$cursorMarker*"
+        $manifestText = Get-Content -LiteralPath "$outputPath.manifest.json" -Raw
+        $manifestText | Should -Not -BeLike "*$responseBodyMarker*"
+        $manifestText | Should -Not -BeLike "*$cursorMarker*"
+        $manifestText | Should -BeLike '*worker failed before returning a structured result*'
     }
 
     It 'removes the partial part when serialization fails during writing' {

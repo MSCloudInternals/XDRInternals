@@ -91,12 +91,16 @@ final merge follows window order.
 Each worker follows only the response's `Prev` continuation reference, regardless of
 page length, and ignores `Next`. Before resolving that reference against the trusted
 Defender base URL, it requires the live-confirmed relative
-`/machines/{deviceId}/events` path and exact continuation query-key set. Absolute or
-network-path URIs, another device or path, fragments, malformed or duplicate query keys,
-empty values, and repeated resolved cursors fail closed. Pagination cannot safely be
-parallelized within one window because later continuation references do not exist until
-earlier pages have been returned. Throughput therefore comes from concurrent independent
-windows.
+`/machines/{deviceId}/events` path and exact continuation query-key set. Identity-event,
+cache, page-size, Sentinel, and scroll-direction values must remain unchanged, and
+`fromDate` must remain the window start. `ReportIdForScrolling` is the only fully opaque
+value. On a nonempty page, the server advances `toDate` to exactly one tick before that
+page's oldest event; an empty-page cursor must still remain inside the requested window.
+Absolute or network-path URIs, another device or path, fragments, malformed or duplicate
+query keys, changed invariant values, empty report IDs, and repeated resolved cursors
+fail closed. Pagination cannot safely be parallelized within one window because later
+continuation references do not exist until earlier pages have been returned. Throughput
+therefore comes from concurrent independent windows.
 
 ## Streaming and memory behavior
 

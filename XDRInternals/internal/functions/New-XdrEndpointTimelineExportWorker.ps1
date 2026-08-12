@@ -201,6 +201,7 @@
 
                 $pageCount++
 
+                $oldestPageTimestampUtc = $null
                 foreach ($eventItem in @($response.Items)) {
                     $timestampValue = if ($eventItem.ActionTimeIsoString) { $eventItem.ActionTimeIsoString } else { $eventItem.ActionTime }
                     $timestampParsed = $false
@@ -238,6 +239,7 @@
                         throw "Chunk $chunkIndex received events that were not in newest-first order: $($utcTimestamp.ToString('o')) followed $($previousTimestampUtc.ToString('o'))."
                     }
                     $previousTimestampUtc = $utcTimestamp
+                    $oldestPageTimestampUtc = $utcTimestamp
                     if ($utcTimestamp -eq $chunkFromDate -or $utcTimestamp -eq $chunkToDate) {
                         $boundaryTimestampCount++
                     }
@@ -284,6 +286,7 @@
                     $previousQuery = if ($querySeparator -ge 0) { $previousReference.Substring($querySeparator + 1) } else { '' }
                     $queryParts = @($previousQuery -split '&')
                     $queryKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+                    $queryValues = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::OrdinalIgnoreCase)
                     $queryIsValid = -not [string]::IsNullOrWhiteSpace($previousQuery) -and $previousQuery -notmatch '%(?![0-9A-Fa-f]{2})'
                     foreach ($queryPart in $queryParts) {
                         if ($queryPart -notmatch '^(?<Key>[A-Za-z][A-Za-z0-9._-]*)=.+$' -or
@@ -292,8 +295,61 @@
                             $queryIsValid = $false
                             break
                         }
+                        try {
+                            $queryValues[$Matches.Key] = [System.Uri]::UnescapeDataString(
+                                $queryPart.Substring($queryPart.IndexOf('=') + 1)
+                            )
+                        }
+                        catch {
+                            $queryIsValid = $false
+                            break
+                        }
                     }
                     if ($queryKeys.Count -ne $expectedQueryKeys.Count) {
+                        $queryIsValid = $false
+                    }
+
+                    $expectedStaticValues = @{
+                        generateIdentityEvents = 'true'
+                        includeIdentityEvents  = 'true'
+                        supportMdiOnlyEvents   = 'true'
+                        doNotUseCache          = 'false'
+                        forceUseCache          = 'false'
+                        pageSize               = [string]$sharedParameters.PageSize
+                        includeSentinelEvents  = $sharedParameters.IncludeSentinelEvents.ToString().ToLowerInvariant()
+                        IsScrollingForward     = 'false'
+                    }
+                    foreach ($expectedValue in $expectedStaticValues.GetEnumerator()) {
+                        if (-not $queryValues.ContainsKey($expectedValue.Key) -or
+                            -not $queryValues[$expectedValue.Key].Equals([string]$expectedValue.Value, [System.StringComparison]::OrdinalIgnoreCase)) {
+                            $queryIsValid = $false
+                            break
+                        }
+                    }
+
+                    $continuationFromUtc = [datetimeoffset]::MinValue
+                    $continuationToUtc = [datetimeoffset]::MinValue
+                    $continuationDateStyles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
+                    $fromDateIsValid = $queryValues.ContainsKey('fromDate') -and [datetimeoffset]::TryParse(
+                        $queryValues['fromDate'],
+                        [System.Globalization.CultureInfo]::InvariantCulture,
+                        $continuationDateStyles,
+                        [ref]$continuationFromUtc
+                    ) -and $continuationFromUtc.UtcDateTime -eq $chunkFromDate
+                    $toDateIsValid = $queryValues.ContainsKey('toDate') -and [datetimeoffset]::TryParse(
+                        $queryValues['toDate'],
+                        [System.Globalization.CultureInfo]::InvariantCulture,
+                        $continuationDateStyles,
+                        [ref]$continuationToUtc
+                    ) -and $continuationToUtc.UtcDateTime -ge $chunkFromDate -and
+                        $continuationToUtc.UtcDateTime -lt $chunkToDate
+                    if ($toDateIsValid -and $null -ne $oldestPageTimestampUtc) {
+                        $toDateIsValid = $oldestPageTimestampUtc -gt [datetime]::MinValue -and
+                            $continuationToUtc.UtcDateTime -eq $oldestPageTimestampUtc.AddTicks(-1)
+                    }
+                    $reportIdIsValid = $queryValues.ContainsKey('ReportIdForScrolling') -and
+                        -not [string]::IsNullOrWhiteSpace($queryValues['ReportIdForScrolling'])
+                    if (-not $fromDateIsValid -or -not $toDateIsValid -or -not $reportIdIsValid) {
                         $queryIsValid = $false
                     }
 

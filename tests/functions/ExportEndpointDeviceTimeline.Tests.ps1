@@ -10,18 +10,24 @@
         $script:ToDate = [datetime]'2026-01-01T09:00:00Z'
         InModuleScope XDRInternals {
             function script:New-TestEndpointTimelinePrev {
-                param([string]$DeviceId, [string]$Token)
+                param(
+                    [string]$DeviceId,
+                    [string]$Token,
+                    [datetime]$CursorToDate = [datetime]'2026-01-01T00:29:59.9999999Z',
+                    [int]$PageSize = 1000,
+                    [bool]$IncludeSentinelEvents = $false
+                )
 
                 $query = @(
                     'generateIdentityEvents=true'
                     'includeIdentityEvents=true'
                     'supportMdiOnlyEvents=true'
                     'fromDate=2026-01-01T00%3A00%3A00.000Z'
-                    'toDate=2026-01-01T01%3A00%3A00.000Z'
+                    "toDate=$([uri]::EscapeDataString($CursorToDate.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffffffZ')))"
                     'doNotUseCache=false'
                     'forceUseCache=false'
-                    'pageSize=1000'
-                    'includeSentinelEvents=false'
+                    "pageSize=$PageSize"
+                    "includeSentinelEvents=$($IncludeSentinelEvents.ToString().ToLowerInvariant())"
                     'IsScrollingForward=false'
                     "ReportIdForScrolling=$Token"
                 )
@@ -89,7 +95,7 @@
                 [PSCustomObject]@{
                     Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T01:30:00Z'; ActionType = 'Newest'; Id = 2 })
                     PartialResponseReasons = @()
-                    Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'older'
+                    Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'older' -CursorToDate ([datetime]'2026-01-01T01:29:59.9999999Z')
                     Next = '/machines/device/events/?cursor=must-not-follow'
                 },
                 [PSCustomObject]@{
@@ -149,7 +155,7 @@
             Mock Invoke-RestMethod {
                 $script:EqualTimestampCall++
                 $previous = if ($script:EqualTimestampCall -lt 3) {
-                    New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token "page$($script:EqualTimestampCall + 1)"
+                    New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token "page$($script:EqualTimestampCall + 1)" -PageSize 1
                 }
                 else {
                     $null
@@ -209,7 +215,7 @@
                 [PSCustomObject]@{
                     Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:30:00Z'; Id = 1 })
                     PartialResponseReasons = @()
-                    Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'repeated'
+                    Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'repeated' -PageSize 1
                     Next = $null
                 }
             }
@@ -262,6 +268,162 @@
             $result.Error | Should -BeLike '*invalid pagination URI*'
             Should -Invoke Invoke-RestMethod -Times 1 -Exactly
             Test-Path -LiteralPath (Join-Path $TestRoot 'invalid-prev.ndjson') | Should -BeFalse
+        }
+    }
+
+    It 'rejects a continuation whose invariant value changes: <Name>' -TestCases @(
+        @{ Name = 'generate identity events'; QueryKey = 'generateIdentityEvents'; InvalidValue = 'false' },
+        @{ Name = 'include identity events'; QueryKey = 'includeIdentityEvents'; InvalidValue = 'false' },
+        @{ Name = 'MDI-only support'; QueryKey = 'supportMdiOnlyEvents'; InvalidValue = 'false' },
+        @{ Name = 'range start'; QueryKey = 'fromDate'; InvalidValue = '2026-01-01T00:00:00.001Z' },
+        @{ Name = 'malformed range start'; QueryKey = 'fromDate'; InvalidValue = 'not-a-date' },
+        @{ Name = 'page boundary'; QueryKey = 'toDate'; InvalidValue = '2026-01-01T00:30:00.0000000Z' },
+        @{ Name = 'malformed page boundary'; QueryKey = 'toDate'; InvalidValue = 'not-a-date' },
+        @{ Name = 'do-not-use-cache'; QueryKey = 'doNotUseCache'; InvalidValue = 'true' },
+        @{ Name = 'force-use-cache'; QueryKey = 'forceUseCache'; InvalidValue = 'true' },
+        @{ Name = 'page size'; QueryKey = 'pageSize'; InvalidValue = '500' },
+        @{ Name = 'Sentinel inclusion'; QueryKey = 'includeSentinelEvents'; InvalidValue = 'true' },
+        @{ Name = 'scroll direction'; QueryKey = 'IsScrollingForward'; InvalidValue = 'true' },
+        @{ Name = 'empty scrolling report ID'; QueryKey = 'ReportIdForScrolling'; InvalidValue = ' ' }
+    ) {
+        param($Name, $QueryKey, $InvalidValue)
+
+        InModuleScope XDRInternals -Parameters @{
+            TestRoot = $TestDrive
+            DeviceId = $script:DeviceId
+            ChangedQueryKey = $QueryKey
+            ChangedQueryValue = $InvalidValue
+        } {
+            $validPrev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'opaque-token'
+            $separator = $validPrev.IndexOf('?')
+            $changedParts = @(
+                foreach ($part in @($validPrev.Substring($separator + 1) -split '&')) {
+                    if ($part.StartsWith("$ChangedQueryKey=", [System.StringComparison]::OrdinalIgnoreCase)) {
+                        "$ChangedQueryKey=$([uri]::EscapeDataString($ChangedQueryValue))"
+                    }
+                    else {
+                        $part
+                    }
+                }
+            )
+            $invalidPrev = "$($validPrev.Substring(0, $separator))?$($changedParts -join '&')"
+            Mock Invoke-RestMethod {
+                [PSCustomObject]@{
+                    Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:30:00Z'; Id = 1 })
+                    PartialResponseReasons = @()
+                    Prev = $invalidPrev
+                    Next = $null
+                }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'changed-prev-value.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.Error | Should -BeLike '*invalid pagination URI*'
+            Should -Invoke Invoke-RestMethod -Times 1 -Exactly
+            Test-Path -LiteralPath (Join-Path $TestRoot 'changed-prev-value.ndjson') | Should -BeFalse
+        }
+    }
+
+    It 'accepts matching Sentinel continuation values' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:SentinelContinuationCall = 0
+            Mock Invoke-RestMethod {
+                $script:SentinelContinuationCall++
+                if ($script:SentinelContinuationCall -eq 1) {
+                    return [PSCustomObject]@{
+                        Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:30:00Z'; Id = 2 })
+                        PartialResponseReasons = @()
+                        Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'sentinel' -IncludeSentinelEvents $true
+                        Next = $null
+                    }
+                }
+                [PSCustomObject]@{
+                    Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:20:00Z'; Id = 1 })
+                    PartialResponseReasons = @()
+                    Prev = $null
+                    Next = $null
+                }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'sentinel-continuation.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $true; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeTrue
+            $result.PageCount | Should -Be 2
+            $result.EventCount | Should -Be 2
+        }
+    }
+
+    It 'follows a valid continuation from an empty page' {
+        InModuleScope XDRInternals -Parameters @{ TestRoot = $TestDrive; DeviceId = $script:DeviceId } {
+            $script:EmptyPageCall = 0
+            Mock Invoke-RestMethod {
+                $script:EmptyPageCall++
+                if ($script:EmptyPageCall -eq 1) {
+                    return [PSCustomObject]@{
+                        Items = @()
+                        PartialResponseReasons = @()
+                        Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'after-empty'
+                        Next = $null
+                    }
+                }
+                [PSCustomObject]@{
+                    Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:20:00Z'; Id = 1 })
+                    PartialResponseReasons = @()
+                    Prev = $null
+                    Next = $null
+                }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'empty-page-prev.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeTrue
+            $result.PageCount | Should -Be 2
+            $result.EventCount | Should -Be 1
+        }
+    }
+
+    It 'rejects an out-of-window continuation from an empty page: <Name>' -TestCases @(
+        @{ Name = 'before lower bound'; CursorToDate = [datetime]'2025-12-31T23:59:59.9999999Z' },
+        @{ Name = 'at exclusive upper bound'; CursorToDate = [datetime]'2026-01-01T01:00:00Z' }
+    ) {
+        param($Name, $CursorToDate)
+
+        InModuleScope XDRInternals -Parameters @{
+            TestRoot = $TestDrive
+            DeviceId = $script:DeviceId
+            InvalidCursorToDate = $CursorToDate
+        } {
+            Mock Invoke-RestMethod {
+                [PSCustomObject]@{
+                    Items = @()
+                    PartialResponseReasons = @()
+                    Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'empty-outside' -CursorToDate $InvalidCursorToDate
+                    Next = $null
+                }
+            }
+            $worker = New-XdrEndpointTimelineExportWorker
+            $chunk = [PSCustomObject]@{ Index = 0; FromDate = [datetime]'2026-01-01T00:00:00Z'; ToDate = [datetime]'2026-01-01T01:00:00Z'; FileName = 'empty-page-outside.ndjson' }
+            $shared = @{ PartsPath = $TestRoot; BaseUrl = 'https://security.microsoft.com'; DeviceId = $DeviceId; CookieData = @(); HeadersData = @{}; PageSize = 1000; IncludeSentinelEvents = $false; MaxPagesPerChunk = 10; MaxRetries = 1; RequestTimeoutSeconds = 30 }
+            $status = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
+
+            $result = & $worker $chunk $shared $status
+
+            $result.Success | Should -BeFalse
+            $result.Error | Should -BeLike '*invalid pagination URI*'
+            Should -Invoke Invoke-RestMethod -Times 1 -Exactly
         }
     }
 
@@ -436,7 +598,7 @@
                     return [PSCustomObject]@{
                         Items = @([PSCustomObject]@{ ActionTimeIsoString = '2026-01-01T00:40:00Z'; Id = 'valid-first-page' })
                         PartialResponseReasons = @()
-                        Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'partial'
+                        Prev = New-TestEndpointTimelinePrev -DeviceId $DeviceId -Token 'partial' -CursorToDate ([datetime]'2026-01-01T00:39:59.9999999Z') -PageSize 1
                         Next = $null
                     }
                 }

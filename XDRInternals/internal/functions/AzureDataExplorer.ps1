@@ -11,6 +11,34 @@
     }
 }
 
+function Test-XdrAzureDataExplorerServiceUri {
+    [OutputType([bool])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [uri]$Uri
+    )
+
+    if (-not $Uri.IsAbsoluteUri -or $Uri.Scheme -ne 'https' -or -not $Uri.IsDefaultPort) {
+        return $false
+    }
+
+    $hostName = $Uri.DnsSafeHost
+    foreach ($suffix in @(
+            '.kusto.windows.net',
+            '.kustodev.windows.net',
+            '.kusto.usgovcloudapi.net',
+            '.kusto.chinacloudapi.cn',
+            '.kusto.cloudapi.de'
+        )) {
+        if ($hostName.EndsWith($suffix, [System.StringComparison]::OrdinalIgnoreCase) -and $hostName.Length -gt $suffix.Length) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Resolve-XdrAzureDataExplorerUris {
     [CmdletBinding()]
     param(
@@ -21,6 +49,9 @@ function Resolve-XdrAzureDataExplorerUris {
     )
 
     $normalizedClusterUri = [uri]$ClusterUri.GetLeftPart([System.UriPartial]::Authority)
+    if (-not (Test-XdrAzureDataExplorerServiceUri -Uri $normalizedClusterUri)) {
+        throw "Azure Data Explorer cluster URI must use HTTPS on a trusted Azure Data Explorer service host."
+    }
     $clusterHost = $normalizedClusterUri.DnsSafeHost
     $port = if ($normalizedClusterUri.IsDefaultPort) { -1 } else { $normalizedClusterUri.Port }
 
@@ -40,6 +71,10 @@ function Resolve-XdrAzureDataExplorerUris {
     }
     else {
         $normalizedIngestionUri = [uri]([System.UriBuilder]::new($normalizedClusterUri.Scheme, $ingestionHost, $port).Uri.GetLeftPart([System.UriPartial]::Authority))
+    }
+
+    if (-not (Test-XdrAzureDataExplorerServiceUri -Uri $normalizedIngestionUri)) {
+        throw "Azure Data Explorer ingestion URI must use HTTPS on a trusted Azure Data Explorer service host."
     }
 
     [pscustomobject]@{
@@ -369,6 +404,10 @@ function Invoke-XdrAzureDataExplorerRestRequest {
         [int]$RetryCount = 10
     )
 
+    if (-not (Test-XdrAzureDataExplorerServiceUri -Uri $BaseUri)) {
+        throw "Refusing to send an Azure Data Explorer bearer token to an untrusted endpoint."
+    }
+
     $requestUri = [uri]::new($BaseUri, $Path)
     $headers = @{
         'Accept'                 = 'application/json'
@@ -432,6 +471,13 @@ function Invoke-XdrAzureResourceManagerRequest {
     }
     else {
         [uri]::new([uri]'https://management.azure.com/', $Path)
+    }
+
+    if (-not $requestUri.IsAbsoluteUri -or
+        $requestUri.Scheme -ne 'https' -or
+        -not $requestUri.IsDefaultPort -or
+        $requestUri.DnsSafeHost -ne 'management.azure.com') {
+        throw "Refusing to send an Azure Resource Manager bearer token to an untrusted endpoint."
     }
 
     $headers = @{

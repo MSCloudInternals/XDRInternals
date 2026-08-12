@@ -15,6 +15,22 @@
             }
         }
 
+        It 'rejects non-HTTPS Azure Data Explorer endpoints before storing credentials' {
+            InModuleScope XDRInternals {
+                {
+                    Set-XdrAzureDataExplorerConnection -ClusterUri 'http://contoso.westeurope.kusto.windows.net' -Database 'Investigations' -Confirm:$false
+                } | Should -Throw '*must use HTTPS*'
+            }
+        }
+
+        It 'rejects non-Azure Data Explorer hosts before storing credentials' {
+            InModuleScope XDRInternals {
+                {
+                    Set-XdrAzureDataExplorerConnection -ClusterUri 'https://attacker.example' -Database 'Investigations' -AccessToken 'token' -Confirm:$false
+                } | Should -Throw '*trusted Azure Data Explorer service host*'
+            }
+        }
+
         It 'discovers clusters and prompts for cluster selection when multiple matches are available' {
             $script:adxSelections = @('2')
             $script:adxSelectionIndex = 0
@@ -897,6 +913,17 @@
     }
 
     Describe 'Invoke-XdrAzureDataExplorerRestRequest' {
+        It 'does not attach bearer tokens to untrusted hosts' {
+            Mock Invoke-RestMethod { throw 'must not be called' } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                {
+                    Invoke-XdrAzureDataExplorerRestRequest -BaseUri 'https://attacker.example' -Path '/v2/rest/query' -Token 'token'
+                } | Should -Throw '*Refusing to send an Azure Data Explorer bearer token*'
+            }
+            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
         It 'retries transient transport EOF failures' {
             $script:restAttempts = 0
 
@@ -926,6 +953,17 @@
     }
 
     Describe 'Invoke-XdrAzureResourceManagerRequest' {
+        It 'does not attach ARM bearer tokens to untrusted hosts' {
+            Mock Invoke-RestMethod { throw 'must not be called' } -ModuleName XDRInternals
+
+            InModuleScope XDRInternals {
+                {
+                    Invoke-XdrAzureResourceManagerRequest -Uri 'https://attacker.example/subscriptions' -Token 'token'
+                } | Should -Throw '*Refusing to send an Azure Resource Manager bearer token*'
+            }
+            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
         It 'retries transient transport EOF failures' {
             $script:armRestAttempts = 0
 

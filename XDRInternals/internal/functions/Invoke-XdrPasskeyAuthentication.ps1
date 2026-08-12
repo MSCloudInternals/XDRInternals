@@ -106,7 +106,9 @@ function New-XdrPasskeySignature {
     if ($KeyVaultInfo -and $KeyVaultToken) {
         Write-Verbose "Signing with Azure Key Vault ($($KeyVaultInfo.vaultName)/$($KeyVaultInfo.keyName), api-version=$KeyVaultApiVersion)"
         $dataBase64Url = ConvertTo-XdrBase64Url -Bytes $dataHash
-        $signUri = "https://$($KeyVaultInfo.vaultName).vault.azure.net/keys/$($KeyVaultInfo.keyName)/sign?api-version=$KeyVaultApiVersion"
+        $escapedKeyName = [uri]::EscapeDataString([string]$KeyVaultInfo.keyName)
+        $escapedApiVersion = [uri]::EscapeDataString($KeyVaultApiVersion)
+        $signUri = "https://$($KeyVaultInfo.vaultName).vault.azure.net/keys/$escapedKeyName/sign?api-version=$escapedApiVersion"
         $kvHeaders = @{ "Authorization" = "Bearer $KeyVaultToken"; "Content-Type" = "application/json" }
         $body = @{ alg = "ES256"; value = $dataBase64Url } | ConvertTo-Json
 
@@ -305,10 +307,19 @@ function Invoke-XdrPasskeyAuthentication {
     $signCount = [int]$signCount
 
     if ($useKeyVault) {
+        $vaultName = [string]$keyData.keyVault.vaultName
+        $keyName = [string]$keyData.keyVault.keyName
+        if ($vaultName -notmatch '^[A-Za-z0-9](?:[A-Za-z0-9-]{1,22}[A-Za-z0-9])?$') {
+            throw "Credential file contains an invalid Azure Key Vault name."
+        }
+        if ($keyName -notmatch '^[A-Za-z0-9-]{1,127}$') {
+            throw "Credential file contains an invalid Azure Key Vault key name."
+        }
+
         Write-Verbose "Key Vault passkey detected (vault: $($keyData.keyVault.vaultName), key: $($keyData.keyVault.keyName))"
         $kvInfo = @{
-            vaultName = $keyData.keyVault.vaultName
-            keyName   = $keyData.keyVault.keyName
+            vaultName = $vaultName
+            keyName   = $keyName
             keyId     = $keyData.keyVault.keyId
         }
         Write-Verbose "Obtaining Key Vault access token..."

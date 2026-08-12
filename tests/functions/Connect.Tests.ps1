@@ -359,6 +359,44 @@ InModuleScope XDRInternals {
             Get-XdrDefaultUserAgent | Should -Be 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0'
         }
 
+        It 'rejects a Key Vault passkey file that can change the token destination host' {
+            $keyPath = Join-Path $TestDrive 'host-injection.passkey'
+            @{
+                username      = 'user@contoso.com'
+                relyingParty  = 'login.microsoft.com'
+                userHandle    = 'dXNlcg'
+                credentialId  = 'Y3JlZGVudGlhbA'
+                keyVault      = @{
+                    vaultName = 'trusted.vault.azure.net@attacker'
+                    keyName   = 'passkey'
+                }
+            } | ConvertTo-Json | Set-Content -LiteralPath $keyPath
+            Mock Get-XdrKeyVaultAccessToken { 'must-not-be-requested' } -ModuleName XDRInternals
+
+            { Invoke-XdrPasskeyAuthentication -KeyFilePath $keyPath } |
+                Should -Throw '*invalid Azure Key Vault name*'
+            Should -Invoke Get-XdrKeyVaultAccessToken -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
+        It 'rejects a Key Vault key name that can alter the signing path' {
+            $keyPath = Join-Path $TestDrive 'path-injection.passkey'
+            @{
+                username      = 'user@contoso.com'
+                relyingParty  = 'login.microsoft.com'
+                userHandle    = 'dXNlcg'
+                credentialId  = 'Y3JlZGVudGlhbA'
+                keyVault      = @{
+                    vaultName = 'trusted-vault'
+                    keyName   = '../other-key'
+                }
+            } | ConvertTo-Json | Set-Content -LiteralPath $keyPath
+            Mock Get-XdrKeyVaultAccessToken { 'must-not-be-requested' } -ModuleName XDRInternals
+
+            { Invoke-XdrPasskeyAuthentication -KeyFilePath $keyPath } |
+                Should -Throw '*invalid Azure Key Vault key name*'
+            Should -Invoke Get-XdrKeyVaultAccessToken -ModuleName XDRInternals -Times 0 -Exactly
+        }
+
         It 'uses select_account for browser auth when Username is omitted' {
             $startUrl = Get-XdrBrowserInteractiveStartUrl -TenantId '8612f621-73ca-4c12-973c-0da732bc44c2'
 

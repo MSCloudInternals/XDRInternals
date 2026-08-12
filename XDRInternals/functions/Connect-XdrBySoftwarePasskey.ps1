@@ -80,6 +80,7 @@
 
         [string]$KeyVaultTenantId,
         [string]$KeyVaultClientId,
+        [ValidatePattern('^(?:[0-9]+(?:\.[0-9]+){1,2}|[0-9]{4}-[0-9]{2}-[0-9]{2})(?:-preview)?$')]
         [string]$KeyVaultApiVersion = '7.4',
 
         [string]$UserAgent = (Get-XdrDefaultUserAgent)

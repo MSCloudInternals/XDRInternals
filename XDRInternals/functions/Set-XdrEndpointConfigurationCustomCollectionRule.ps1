@@ -191,7 +191,7 @@
                             $result
                         }
                     } catch {
-                        Write-Error "Failed to update custom collection rule from file '$($resolvedPath.Path)': $($_.Exception.Message)"
+                        Write-Error "Failed to update custom collection rule from file '$($resolvedPath.Path)': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
             }
@@ -258,7 +258,7 @@
                     $result
                 }
             } catch {
-                Write-Error "Failed to update custom collection rule '$($InputObject.ruleName)': $($_.Exception.Message)"
+                Write-Error "Failed to update custom collection rule '$($InputObject.ruleName)': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

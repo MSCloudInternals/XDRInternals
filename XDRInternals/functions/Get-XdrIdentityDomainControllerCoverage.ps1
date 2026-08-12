@@ -58,7 +58,7 @@
             Set-XdrCache -CacheKey "XdrIdentityDomainControllerCoverage" -Value $XdrIdentityDomainControllerCoverage -TTLMinutes 30
             return $XdrIdentityDomainControllerCoverage
         } catch {
-            Write-Error "Failed to retrieve Identity domain controller coverage: $_"
+            Write-Error "Failed to retrieve Identity domain controller coverage: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

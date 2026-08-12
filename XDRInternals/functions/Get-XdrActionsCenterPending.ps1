@@ -94,7 +94,7 @@
             $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers | Select-Object -ExpandProperty Results
             return $result
         } catch {
-            Write-Error "Failed to retrieve Action Center pending actions: $_"
+            Write-Error "Failed to retrieve Action Center pending actions: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

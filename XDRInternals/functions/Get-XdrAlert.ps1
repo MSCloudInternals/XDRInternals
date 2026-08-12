@@ -179,7 +179,7 @@
                         $hasMorePages = $false
                     }
                 } catch {
-                    Write-Error "Failed to retrieve alerts on page $currentPage : $($_.Exception.Message)"
+                    Write-Error "Failed to retrieve alerts on page $currentPage : $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     $hasMorePages = $false
                 }
             } while ($hasMorePages)
@@ -220,7 +220,7 @@
                     return @()
                 }
             } catch {
-                Write-Error "Failed to retrieve alerts: $($_.Exception.Message)"
+                Write-Error "Failed to retrieve alerts: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

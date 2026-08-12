@@ -74,7 +74,7 @@
         try {
             $currentCacheValue = Get-XdrCache -CacheKey $cacheKey -ErrorAction SilentlyContinue
         } catch {
-            Write-Verbose "Cache retrieval failed: $_"
+            Write-Verbose "Cache retrieval failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
         if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
             Write-Verbose "Using cached XSPM hunting query results"
@@ -121,7 +121,7 @@
             Set-XdrCache -CacheKey $cacheKey -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to execute XSPM hunting query: $_"
+            Write-Error "Failed to execute XSPM hunting query: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             throw
         }
     }

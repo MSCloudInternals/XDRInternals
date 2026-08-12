@@ -56,7 +56,7 @@
             Set-XdrCache -CacheKey "XdrStreamingApiConfiguration" -Value $streamingApiConfig -TTLMinutes 30
             return $streamingApiConfig
         } catch {
-            Write-Error "Failed to retrieve Streaming API configuration: $_"
+            Write-Error "Failed to retrieve Streaming API configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

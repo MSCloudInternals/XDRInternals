@@ -232,11 +232,10 @@
                     $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $mdiHeaders
                     $pageData = $result | Select-Object -ExpandProperty data
                 } catch {
-                    Write-Error -Exception $_.Exception `
-                        -ErrorId 'XdrIdentityIdentityRequestFailed' `
+                    Write-Error -ErrorId 'XdrIdentityIdentityRequestFailed' `
                         -Category ConnectionError `
                         -TargetObject $body `
-                        -Message "Failed to retrieve identities: $($_.Exception.Message)"
+                        -Message "Failed to retrieve identities: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     return
                 }
 
@@ -312,11 +311,10 @@
             $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $mdiHeaders
             $result = $result | Select-Object -ExpandProperty data
         } catch {
-            Write-Error -Exception $_.Exception `
-                -ErrorId 'XdrIdentityIdentityRequestFailed' `
+            Write-Error -ErrorId 'XdrIdentityIdentityRequestFailed' `
                 -Category ConnectionError `
                 -TargetObject $body `
-                -Message "Failed to retrieve identities: $($_.Exception.Message)"
+                -Message "Failed to retrieve identities: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             return
         }
 

@@ -120,7 +120,7 @@
             Write-Verbose "Successfully uploaded '$fileName'"
             return $result
         } catch {
-            Write-Error "Failed to upload '$FilePath' to Live Response library: $_"
+            Write-Error "Failed to upload '$FilePath' to Live Response library: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

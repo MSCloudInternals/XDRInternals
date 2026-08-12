@@ -239,7 +239,7 @@
                 Set-XdrCache -CacheKey $CacheKey -Value $result -TTLMinutes 15
                 return $result
             } catch {
-                Write-Error "Failed to retrieve policy settings: $_"
+                Write-Error "Failed to retrieve policy settings: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
             return
         }
@@ -272,7 +272,7 @@
                 Set-XdrCache -CacheKey $CacheKey -Value $result -TTLMinutes 15
                 return $result
             } catch {
-                Write-Error "Failed to retrieve $Type policy actions: $_"
+                Write-Error "Failed to retrieve $Type policy actions: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
             return
         }
@@ -302,7 +302,7 @@
                 Set-XdrCache -CacheKey $CacheKey -Value $result -TTLMinutes 15
                 return $result
             } catch {
-                Write-Error "Failed to retrieve file policy limits: $_"
+                Write-Error "Failed to retrieve file policy limits: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
             return
         }
@@ -336,7 +336,7 @@
                     Set-XdrCache -CacheKey $CacheKey -Value $result -TTLMinutes 5
                     return $result | Add-XdrCloudAppsTypeName -TypeName $typeName
                 } catch {
-                    Write-Error "Failed to retrieve $Type policy '$PolicyId': $_"
+                    Write-Error "Failed to retrieve $Type policy '$PolicyId': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
                 return
             } else {
@@ -399,7 +399,7 @@
                 Set-XdrCache -CacheKey $CacheKey -Value $result -TTLMinutes 15
                 return $result
             } catch {
-                Write-Error "Failed to retrieve $Type policy metadata: $_"
+                Write-Error "Failed to retrieve $Type policy metadata: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
             return
         }
@@ -471,7 +471,7 @@
             return $result | Add-XdrCloudAppsTypeName -TypeName $typeName
         } catch {
             $policyType = if ($Type) { "$Type " } else { "" }
-            Write-Error "Failed to retrieve ${policyType}policies: $_"
+            Write-Error "Failed to retrieve ${policyType}policies: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 }

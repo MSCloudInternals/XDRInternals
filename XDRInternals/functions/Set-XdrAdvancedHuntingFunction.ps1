@@ -177,7 +177,7 @@
                 $result
             }
         } catch {
-            Write-Error "Failed to update Advanced Hunting function with ID '$Id': $($_.Exception.Message)"
+            Write-Error "Failed to update Advanced Hunting function with ID '$Id': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 }

@@ -51,7 +51,7 @@
             Set-XdrCache -CacheKey $CacheKey -Value $result -TTLMinutes 15
             return $result
         } catch {
-            Write-Error "Failed to retrieve Live Response library: $_"
+            Write-Error "Failed to retrieve Live Response library: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

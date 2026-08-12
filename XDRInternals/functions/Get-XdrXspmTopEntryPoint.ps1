@@ -65,7 +65,7 @@ AttackPathsV2
                 return @()
             }
         } catch {
-            Write-Error "Failed to retrieve top entry points: $_"
+            Write-Error "Failed to retrieve top entry points: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             throw
         }
     }

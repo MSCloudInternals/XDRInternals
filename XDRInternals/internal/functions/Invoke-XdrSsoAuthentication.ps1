@@ -397,7 +397,7 @@ function Invoke-XdrSsoAuthentication {
 
                 $cookies = @(Get-XdrBrowserCookieJar -WebSocketUrl $targetContext.WebSocketUrl)
             } catch {
-                Write-Verbose "Cookie polling failed: $($_.Exception.Message)"
+                Write-Verbose "Cookie polling failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 continue
             }
 
@@ -440,7 +440,7 @@ function Invoke-XdrSsoAuthentication {
                     throw
                 }
 
-                Write-Verbose "Tenant selection skipped: $($_.Exception.Message)"
+                Write-Verbose "Tenant selection skipped: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
 

@@ -125,7 +125,7 @@
             Set-XdrCache -CacheKey $cacheKey -Value $serviceAccounts -TTLMinutes 10
             return $serviceAccounts
         } catch {
-            Write-Error "Failed to retrieve Identity service accounts: $_"
+            Write-Error "Failed to retrieve Identity service accounts: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

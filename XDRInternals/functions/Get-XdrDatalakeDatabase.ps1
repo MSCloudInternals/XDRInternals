@@ -51,7 +51,7 @@
             Set-XdrCache -CacheKey "XdrDatalakeDatabases" -Value $XdrDatalakeDatabases -TTLMinutes 5
             return $XdrDatalakeDatabases
         } catch {
-            Write-Error "Failed to retrieve datalake databases: $_"
+            Write-Error "Failed to retrieve datalake databases: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

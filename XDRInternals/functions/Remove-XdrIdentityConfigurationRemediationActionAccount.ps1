@@ -78,7 +78,7 @@
 
                 Write-Verbose "Successfully removed remediation action account: $Id"
             } catch {
-                Write-Error "Failed to remove remediation action account '$Id': $($_.Exception.Message)"
+                Write-Error "Failed to remove remediation action account '$Id': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

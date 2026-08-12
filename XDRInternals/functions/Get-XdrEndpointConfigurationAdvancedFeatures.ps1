@@ -53,7 +53,7 @@
             Set-XdrCache -CacheKey "GetXdrEndpointConfigurationAdvancedFeatures" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve endpoint advanced features configuration: $_"
+            Write-Error "Failed to retrieve endpoint advanced features configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

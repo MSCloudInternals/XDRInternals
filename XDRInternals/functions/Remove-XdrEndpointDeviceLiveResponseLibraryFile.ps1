@@ -98,7 +98,7 @@
                 Write-Verbose "Successfully deleted '$resolvedFileName'"
             }
         } catch {
-            Write-Error "Failed to delete '$resolvedFileName' from Live Response library: $_"
+            Write-Error "Failed to delete '$resolvedFileName' from Live Response library: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

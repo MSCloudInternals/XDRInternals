@@ -149,7 +149,7 @@
 
                 Set-XdrCache -CacheKey $CacheKey -Value $criticalAssetRules -TTLMinutes 30
             } catch {
-                Write-Error "Failed to retrieve critical asset management configuration: $_"
+                Write-Error "Failed to retrieve critical asset management configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 return
             }
         }
@@ -188,7 +188,7 @@
                         $assetsResult = Invoke-RestMethod -Uri $assetsUri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                         $rule | Add-Member -NotePropertyName 'affectedAssets' -NotePropertyValue $assetsResult.assets -Force
                     } catch {
-                        Write-Verbose "Failed to retrieve affected assets for rule '$($rule.ruleName)': $_"
+                        Write-Verbose "Failed to retrieve affected assets for rule '$($rule.ruleName)': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         $rule | Add-Member -NotePropertyName 'affectedAssets' -NotePropertyValue @() -Force
                     }
                 } else {

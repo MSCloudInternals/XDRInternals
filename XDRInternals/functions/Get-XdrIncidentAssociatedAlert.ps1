@@ -86,7 +86,7 @@
                 }
 
             } catch {
-                Write-Error "Failed to retrieve associated alerts for incident $IncidentId on page $pageIndex : $($_.Exception.Message)"
+                Write-Error "Failed to retrieve associated alerts for incident $IncidentId on page $pageIndex : $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 $hasMorePages = $false
             }
 

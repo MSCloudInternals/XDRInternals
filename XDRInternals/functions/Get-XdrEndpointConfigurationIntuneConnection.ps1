@@ -51,7 +51,7 @@
             Set-XdrCache -CacheKey "GetXdrEndpointConfigurationIntuneConnection" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve Intune connection configuration: $_"
+            Write-Error "Failed to retrieve Intune connection configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

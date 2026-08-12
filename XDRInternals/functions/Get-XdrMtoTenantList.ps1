@@ -71,7 +71,7 @@
             Set-XdrConnectionSettings -ResetWebSession
             return $XdrTenants
         } catch {
-            throw "Failed to retrieve XDR Tenants: $($_.Exception.Message)"
+            throw "Failed to retrieve XDR Tenants: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

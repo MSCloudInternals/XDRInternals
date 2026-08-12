@@ -222,7 +222,7 @@ function Get-XdrEstsAuthorityTenant {
             }
         }
         catch {
-            Write-Verbose "Could not read the cached tenant ID while preparing token acquisition for ${ResourceDisplayName}: $($_.Exception.Message)"
+            Write-Verbose "Could not read the cached tenant ID while preparing token acquisition for ${ResourceDisplayName}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 
@@ -298,7 +298,7 @@ function Invoke-XdrEstsAuthTokenRequest {
         return $tokenResponse.access_token
     }
     catch {
-        Write-Verbose "Silent token acquisition failed for ${ResourceDisplayName}: $($_.Exception.Message)"
+        Write-Verbose "Silent token acquisition failed for ${ResourceDisplayName}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
     }
 }
 
@@ -387,7 +387,7 @@ function Invoke-XdrEstsCliBridgeTokenRequest {
         return $resourceTokenResponse.access_token
     }
     catch {
-        Write-Verbose "Azure CLI-style token bridging failed for ${ResourceDisplayName}: $($_.Exception.Message)"
+        Write-Verbose "Azure CLI-style token bridging failed for ${ResourceDisplayName}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
     }
 }
 
@@ -454,7 +454,7 @@ function Invoke-XdrAzAccessTokenRequest {
         return $tokenValue
     }
     catch {
-        Write-Verbose "Az.Accounts token attempt failed for ${ResourceDisplayName}: $($_.Exception.Message)"
+        Write-Verbose "Az.Accounts token attempt failed for ${ResourceDisplayName}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
     }
 }
 
@@ -492,7 +492,7 @@ function Invoke-XdrAzureCliAccessTokenRequest {
         Write-Verbose "Azure CLI token attempt failed for ${ResourceDisplayName}: $azCliOutput"
     }
     catch {
-        Write-Verbose "Azure CLI token attempt failed for ${ResourceDisplayName}: $($_.Exception.Message)"
+        Write-Verbose "Azure CLI token attempt failed for ${ResourceDisplayName}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
     }
 }
 
@@ -651,7 +651,7 @@ function Get-XdrAzureAccessToken {
         return $imdsResponse.access_token
     }
     catch {
-        Write-Verbose "IMDS token attempt failed for ${ResourceDisplayName}: $($_.Exception.Message)"
+        Write-Verbose "IMDS token attempt failed for ${ResourceDisplayName}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
     }
 
     throw @"

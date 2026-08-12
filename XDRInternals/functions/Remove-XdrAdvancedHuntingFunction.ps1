@@ -88,7 +88,7 @@
                 Write-Verbose "Successfully removed function with ID: $Id"
             }
         } catch {
-            Write-Error "Failed to remove Advanced Hunting function with ID '$Id': $($_.Exception.Message)"
+            Write-Error "Failed to remove Advanced Hunting function with ID '$Id': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

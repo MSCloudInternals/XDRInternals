@@ -74,7 +74,7 @@
             $AdvancedHuntingUserHistory = Invoke-RestMethod -Uri $Uri -Method Post -Body $Body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
             return $AdvancedHuntingUserHistory
         } catch {
-            Write-Error "Failed to retrieve Advanced Hunting user history: $_"
+            Write-Error "Failed to retrieve Advanced Hunting user history: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

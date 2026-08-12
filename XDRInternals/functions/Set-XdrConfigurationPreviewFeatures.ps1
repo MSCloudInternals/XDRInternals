@@ -75,7 +75,7 @@
                     $XdrAndMdiBody = @{ "IsOptIn" = $EnableXdrAndMdi } | ConvertTo-Json
                     $null = Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting?context=MtpContext" -Method POST -Body $XdrAndMdiBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                 } catch {
-                    Write-Error "Failed to update preview features for ${target}: $_"
+                    Write-Error "Failed to update preview features for ${target}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
         }
@@ -90,7 +90,7 @@
                     $MdeBody = @{ "IsOptIn" = $EnableMde } | ConvertTo-Json
                     $null = Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mtp/settings/SavePreviewExperienceSetting?context=MdatpContext" -Method POST -Body $MdeBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                 } catch {
-                    Write-Error "Failed to update preview features for ${target}: $_"
+                    Write-Error "Failed to update preview features for ${target}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
         }
@@ -105,7 +105,7 @@
                     $MdaBody = @{ "previewFeaturesEnabled" = $EnableMda } | ConvertTo-Json
                     $null = Invoke-RestMethod -Uri "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/preview_features/update/" -Method POST -Body $MdaBody -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                 } catch {
-                    Write-Error "Failed to update preview features for ${target}: $_"
+                    Write-Error "Failed to update preview features for ${target}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
         }

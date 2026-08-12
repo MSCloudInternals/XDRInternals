@@ -56,7 +56,7 @@
             Set-XdrCache -CacheKey "XdrAssetRuleManagementConfiguration" -Value $assetRules -TTLMinutes 30
             return $assetRules
         } catch {
-            Write-Error "Failed to retrieve asset rule management configuration: $_"
+            Write-Error "Failed to retrieve asset rule management configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

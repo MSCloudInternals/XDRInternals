@@ -56,7 +56,7 @@
             Set-XdrCache -CacheKey "GetXdrEndpointLicenseReport" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve endpoint license report: $_"
+            Write-Error "Failed to retrieve endpoint license report: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

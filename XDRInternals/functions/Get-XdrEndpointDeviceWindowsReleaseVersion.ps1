@@ -51,7 +51,7 @@
             Set-XdrCache -CacheKey "XdrEndpointDeviceWindowsReleaseVersions" -Value $XdrEndpointDeviceWindowsReleaseVersions -TTLMinutes 30
             return $XdrEndpointDeviceWindowsReleaseVersions
         } catch {
-            Write-Error "Failed to retrieve endpoint device Windows release versions: $_"
+            Write-Error "Failed to retrieve endpoint device Windows release versions: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

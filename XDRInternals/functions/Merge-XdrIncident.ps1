@@ -69,7 +69,7 @@
             }
             Write-Verbose "Current user: $aadUserId"
         } catch {
-            throw "Failed to retrieve tenant context: $($_.Exception.Message)"
+            throw "Failed to retrieve tenant context: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 
@@ -96,7 +96,7 @@
                 }
             } catch {
                 $invalidIncidents += $incidentId
-                Write-Warning "Failed to validate incident ID $incidentId : $($_.Exception.Message)"
+                Write-Warning "Failed to validate incident ID $incidentId : $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
 
@@ -143,7 +143,7 @@
                 Write-Verbose "Successfully merged $($validatedIncidents.Count) incidents"
                 return $result
             } catch {
-                throw "Failed to merge incidents: $($_.Exception.Message)"
+                throw "Failed to merge incidents: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

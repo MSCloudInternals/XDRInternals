@@ -138,7 +138,7 @@
                 $result
             }
         } catch {
-            Write-Error "Failed to create Advanced Hunting function '$Name': $($_.Exception.Message)"
+            Write-Error "Failed to create Advanced Hunting function '$Name': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 }

@@ -51,7 +51,7 @@
             Set-XdrCache -CacheKey "XdrDatalakeTableSchema" -Value $XdrDatalakeTableSchema -TTLMinutes 30
             return $XdrDatalakeTableSchema
         } catch {
-            Write-Error "Failed to retrieve datalake table schema: $_"
+            Write-Error "Failed to retrieve datalake table schema: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

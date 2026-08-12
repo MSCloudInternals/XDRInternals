@@ -52,7 +52,7 @@
             Set-XdrCache -CacheKey "GetXdrEndpointConfigurationPreviewFeature" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve Preview Features configuration: $_"
+            Write-Error "Failed to retrieve Preview Features configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

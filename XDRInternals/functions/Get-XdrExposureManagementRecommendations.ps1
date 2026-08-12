@@ -336,7 +336,7 @@
             return $paginatedResult.Results
 
         } catch {
-            Write-Error "Failed to retrieve $($config.DisplayName): $_"
+            Write-Error "Failed to retrieve $($config.DisplayName): $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

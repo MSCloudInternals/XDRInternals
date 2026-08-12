@@ -62,7 +62,7 @@
                 $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
                 return $result
             } catch {
-                Write-Error "Failed to force policy sync: $_"
+                Write-Error "Failed to force policy sync: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

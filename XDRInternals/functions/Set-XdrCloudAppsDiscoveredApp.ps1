@@ -53,7 +53,7 @@
                 return $result
             }
             catch {
-                Write-Error "Failed to update note for discovered app '$AppId': $($_.Exception.Message)"
+                Write-Error "Failed to update note for discovered app '$AppId': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

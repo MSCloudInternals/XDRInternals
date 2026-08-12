@@ -85,7 +85,7 @@
                 Set-XdrCache -CacheKey $cacheKey -Value $result -TTLMinutes 30
                 return $result
             } catch {
-                Write-Error "Failed to retrieve outbreak change count: $_"
+                Write-Error "Failed to retrieve outbreak change count: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 return
             }
         }
@@ -112,7 +112,7 @@
                 Set-XdrCache -CacheKey $cacheKey -Value $result -TTLMinutes 30
                 return $result
             } catch {
-                Write-Error "Failed to retrieve threat analytics top threats: $_"
+                Write-Error "Failed to retrieve threat analytics top threats: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 return
             }
         }
@@ -136,7 +136,7 @@
             Set-XdrCache -CacheKey "XdrThreatAnalyticsOutbreaks" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve threat analytics outbreaks: $_"
+            Write-Error "Failed to retrieve threat analytics outbreaks: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

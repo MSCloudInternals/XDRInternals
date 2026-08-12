@@ -268,7 +268,7 @@
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'pending|already|conflict|concurrent') {
                             Write-Error "A scan is already pending or running on this device. Wait for it to complete or cancel it first. API: $(if ($null -ne $errorDetail.error.message) { $errorDetail.error.message } else { $errorDetail.Message })"
                         } else {
-                            Write-Error "Failed to submit $Scan scan: $_"
+                            Write-Error "Failed to submit $Scan scan: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         }
                     }
                 }
@@ -299,7 +299,7 @@
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'already isolated|pending isolation') {
                             Write-Error "Device is already isolated or has a pending isolation request. Release isolation first with -ReleaseFromIsolation. API: $(if ($null -ne $errorDetail.error.message) { $errorDetail.error.message } else { $errorDetail.Message })"
                         } else {
-                            Write-Error "Failed to isolate device: $_"
+                            Write-Error "Failed to isolate device: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         }
                     }
                 }
@@ -329,7 +329,7 @@
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'not isolated|not in isolation') {
                             Write-Error "Device is not currently isolated. API: $($errorDetail.Message)"
                         } else {
-                            Write-Error "Failed to release isolation: $_"
+                            Write-Error "Failed to release isolation: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         }
                     }
                 }
@@ -360,7 +360,7 @@
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'already restricted|pending') {
                             Write-Error "App execution restriction is already active or pending. Remove restriction first with -RemoveAppExecutionRestriction. API: $($errorDetail.Message)"
                         } else {
-                            Write-Error "Failed to restrict app execution: $_"
+                            Write-Error "Failed to restrict app execution: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         }
                     }
                 }
@@ -391,7 +391,7 @@
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'not restricted|no restriction') {
                             Write-Error "App execution is not currently restricted. API: $($errorDetail.Message)"
                         } else {
-                            Write-Error "Failed to remove app restriction: $_"
+                            Write-Error "Failed to remove app restriction: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         }
                     }
                 }
@@ -420,7 +420,7 @@
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists') {
                             Write-Error "An investigation package collection is already in progress on this device. Wait for it to complete first. API: $($errorDetail.error.message)"
                         } else {
-                            Write-Error "Failed to collect investigation package: $_"
+                            Write-Error "Failed to collect investigation package: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         }
                     }
                 }
@@ -449,7 +449,7 @@
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists') {
                             Write-Error "A support log collection is already in progress on this device. Wait for it to complete first. API: $($errorDetail.error.message)"
                         } else {
-                            Write-Error "Failed to collect support logs: $_"
+                            Write-Error "Failed to collect support logs: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         }
                     }
                 }
@@ -485,7 +485,7 @@
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'already|active|enabled') {
                             Write-Error "Troubleshoot mode is already active. Stop it first with -StopTroubleshoot. API: $(if ($null -ne $errorDetail.error.message) { $errorDetail.error.message } else { $errorDetail.Message })"
                         } else {
-                            Write-Error "Failed to start troubleshoot mode: $_"
+                            Write-Error "Failed to start troubleshoot mode: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         }
                     }
                 }
@@ -518,7 +518,7 @@
                         if ($errorDetail.error.code -eq 'ActiveRequestAlreadyExists' -or $errorDetail.Message -match 'not active|not enabled') {
                             Write-Error "Troubleshoot mode is not currently active on this device. API: $(if ($null -ne $errorDetail.error.message) { $errorDetail.error.message } else { $errorDetail.Message })"
                         } else {
-                            Write-Error "Failed to stop troubleshoot mode: $_"
+                            Write-Error "Failed to stop troubleshoot mode: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         }
                     }
                 }

@@ -51,7 +51,7 @@
         try {
             $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
         } catch {
-            Write-Error "Failed to retrieve alert service settings: $_"
+            Write-Error "Failed to retrieve alert service settings: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             return
         }
 

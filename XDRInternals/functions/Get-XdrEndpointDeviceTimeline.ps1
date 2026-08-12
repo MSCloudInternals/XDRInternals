@@ -555,7 +555,7 @@
                             if ($streamWriter) {
                                 try { $streamWriter.Close(); $streamWriter.Dispose() } catch {
                                     # Log disposal error but don't override the original error
-                                    Write-Warning "Failed to dispose stream writer for chunk $chunkIndex`: $_"
+                                    Write-Warning "Failed to dispose stream writer for chunk $chunkIndex`: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                                 }
                             }
                             if ($chunkStopwatch) { $chunkStopwatch.Stop() }
@@ -808,7 +808,7 @@
                         if ($streamWriter) {
                             try { $streamWriter.Close(); $streamWriter.Dispose() } catch {
                                 # Log disposal error but don't override the original error
-                                Write-Warning "Failed to dispose stream writer for chunk $chunkIndex`: $_"
+                                Write-Warning "Failed to dispose stream writer for chunk $chunkIndex`: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                             }
                         }
                         if ($chunkStopwatch) { $chunkStopwatch.Stop() }
@@ -886,7 +886,7 @@
                             $result = $job.PowerShell.EndInvoke($job.Handle)
                             $results += $result
                         } catch {
-                            Write-Warning "Chunk $($job.Chunk.Index) failed: $_"
+                            Write-Warning "Chunk $($job.Chunk.Index) failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                             $results += @{
                                 ChunkIndex = $job.Chunk.Index
                                 Success    = $false
@@ -1051,10 +1051,10 @@
                         }
                         catch {
                             if (-not $AllowPartial) {
-                                throw "Device timeline chunk file '$($file.Name)' could not be read: $($_.Exception.Message). Re-run with -AllowPartial to skip unreadable completed chunks."
+                                throw "Device timeline chunk file '$($file.Name)' could not be read: $(Get-XdrSafeErrorDescription -ErrorRecord $_). Re-run with -AllowPartial to skip unreadable completed chunks."
                             }
 
-                            Write-Warning "Skipping unreadable device timeline chunk file '$($file.Name)': $($_.Exception.Message)"
+                            Write-Warning "Skipping unreadable device timeline chunk file '$($file.Name)': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                             continue
                         }
                         finally {
@@ -1113,10 +1113,10 @@
                 }
                 catch {
                     if (-not $AllowPartial) {
-                        throw "Device timeline chunk file '$($file.Name)' could not be read: $($_.Exception.Message). Re-run with -AllowPartial to skip unreadable completed chunks."
+                        throw "Device timeline chunk file '$($file.Name)' could not be read: $(Get-XdrSafeErrorDescription -ErrorRecord $_). Re-run with -AllowPartial to skip unreadable completed chunks."
                     }
 
-                    Write-Warning "Skipping unreadable device timeline chunk file '$($file.Name)': $($_.Exception.Message)"
+                    Write-Warning "Skipping unreadable device timeline chunk file '$($file.Name)': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     continue
                 }
 

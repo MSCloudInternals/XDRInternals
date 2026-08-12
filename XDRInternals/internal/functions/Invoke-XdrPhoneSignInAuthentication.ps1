@@ -10,14 +10,14 @@
     try {
         return $Response.Content | ConvertFrom-Json -Depth 30
     } catch {
-        Write-Verbose "Response content was not a plain JSON payload: $($_.Exception.Message)"
+        Write-Verbose "Response content was not a plain JSON payload: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
     }
 
     if ($Response.Content -match '{(.*)}') {
         try {
             return $Matches[0] | ConvertFrom-Json -Depth 30
         } catch {
-            Write-Verbose "Embedded JSON payload could not be parsed: $($_.Exception.Message)"
+            Write-Verbose "Embedded JSON payload could not be parsed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 
@@ -784,7 +784,7 @@ function Invoke-XdrPhoneSignInAuthentication {
     try {
         $credentialType = Invoke-XdrPhoneSignInGetCredentialType -Username $Username -AuthState $authState -Session $session -AuthorizeUri $authorizeUri
     } catch {
-        throw "GetCredentialType failed: $($_.Exception.Message)"
+        throw "GetCredentialType failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
     }
 
     # --- RemoteNGC / GetOneTimeCode → DeviceCodeStatus flow (preferred) ---

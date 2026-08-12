@@ -136,7 +136,7 @@
             Write-Verbose "Retrieving XDR Endpoint devices (Page: $PageIndex, Size: $PageSize, Sort: $SortByField $SortOrder$(if ($MachineSearchPrefix) { ", Search: $MachineSearchPrefix" }))"
             $result = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
         } catch {
-            Write-Error "Failed to retrieve endpoint devices: $_"
+            Write-Error "Failed to retrieve endpoint devices: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             return
         }
 

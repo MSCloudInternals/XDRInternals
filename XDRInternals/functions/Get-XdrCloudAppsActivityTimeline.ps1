@@ -21,7 +21,7 @@
     }
     catch {
         if ($AllowPartial) {
-            Write-Warning "Skipping unreadable Cloud Apps activity chunk file '$($File.Name)': $($_.Exception.Message)"
+            Write-Warning "Skipping unreadable Cloud Apps activity chunk file '$($File.Name)': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             return $null
         }
 
@@ -542,7 +542,7 @@ function Get-XdrCloudAppsActivityTimeline {
                             $delay = [math]::Min(300, [int]($Params.RetryDelaySeconds * [math]::Pow(2, $attempt - 1)))
                             if ($statusCode -eq 429 -or $statusCode -eq 403) { $delay = [math]::Max($delay, 30) }
                             $delay += Get-Random -Minimum 0 -Maximum 5
-                            $retryErrors.Add("Page $pagesRetrieved attempt $attempt failed: $($_.Exception.Message)")
+                            $retryErrors.Add("Page $pagesRetrieved attempt $attempt failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)")
                             Start-Sleep -Seconds $delay
                         }
                     }
@@ -604,7 +604,7 @@ function Get-XdrCloudAppsActivityTimeline {
                         $writer.Dispose()
                     }
                     catch {
-                        Write-Verbose "Failed to dispose Cloud Apps activity chunk writer: $($_.Exception.Message)"
+                        Write-Verbose "Failed to dispose Cloud Apps activity chunk writer: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
                 $chunkStopwatch.Stop()
@@ -799,7 +799,7 @@ function Get-XdrCloudAppsActivityTimeline {
                         }
                     }
                     catch {
-                        Write-Warning "Failed to enrich Cloud Apps activity threat scores: $($_.Exception.Message)"
+                        Write-Warning "Failed to enrich Cloud Apps activity threat scores: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
             }

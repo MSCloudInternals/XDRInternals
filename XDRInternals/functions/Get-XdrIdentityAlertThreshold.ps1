@@ -80,7 +80,7 @@
             Write-Verbose "Retrieving XDR Identity alert threshold configuration"
             $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
         } catch {
-            Write-Error "Failed to retrieve Identity alert threshold configuration: $_"
+            Write-Error "Failed to retrieve Identity alert threshold configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             return
         }
 

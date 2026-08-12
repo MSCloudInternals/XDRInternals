@@ -166,7 +166,7 @@
 
                 return $incident
             } catch {
-                throw "Failed to retrieve incident with ID $IncidentId : $($_.Exception.Message)"
+                throw "Failed to retrieve incident with ID $IncidentId : $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
 
@@ -235,7 +235,7 @@
                     Set-XdrCache -CacheKey $cacheKey -Value $incidents -TTLMinutes 10
                     Write-Verbose "Found $($incidents.Count) incidents on page $currentPageIndex"
                 } catch {
-                    throw "Failed to retrieve XDR Incidents: $($_.Exception.Message)"
+                    throw "Failed to retrieve XDR Incidents: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
 

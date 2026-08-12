@@ -159,7 +159,7 @@
                         $result
                     }
                 } catch {
-                    Write-Error "Failed to create custom collection rule from file '$($resolvedPath.Path)': $($_.Exception.Message)"
+                    Write-Error "Failed to create custom collection rule from file '$($resolvedPath.Path)': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
         }

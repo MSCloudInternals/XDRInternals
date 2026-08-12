@@ -52,7 +52,7 @@
             Set-XdrCache -CacheKey "GetXdrEndpointConfigurationLiveResponse" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve Live Response configuration: $_"
+            Write-Error "Failed to retrieve Live Response configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

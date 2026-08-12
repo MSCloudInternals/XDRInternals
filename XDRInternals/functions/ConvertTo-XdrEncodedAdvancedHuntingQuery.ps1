@@ -62,7 +62,7 @@
             Write-Verbose "Query successfully encoded"
             return $result
         } catch {
-            Write-Error "Failed to encode Advanced Hunting query: $_"
+            Write-Error "Failed to encode Advanced Hunting query: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             return $null
         }
     }

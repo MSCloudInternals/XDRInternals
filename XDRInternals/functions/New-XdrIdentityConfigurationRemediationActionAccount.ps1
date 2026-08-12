@@ -83,7 +83,7 @@
                 Write-Verbose "Successfully registered remediation action account"
                 return $result
             } catch {
-                Write-Error "Failed to register remediation action account: $_"
+                Write-Error "Failed to register remediation action account: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

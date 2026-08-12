@@ -147,7 +147,7 @@
                 }
             }
             catch {
-                Write-Verbose "Could not read the cached tenant ID while preparing Azure Data Explorer discovery: $($_.Exception.Message)"
+                Write-Verbose "Could not read the cached tenant ID while preparing Azure Data Explorer discovery: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
 
@@ -167,7 +167,7 @@
                     }
                     catch {
                         & $addDiscoveryFailure 'AzureResourceManager' "Subscription $currentSubscriptionId metadata" $_
-                        Write-Verbose "Could not retrieve metadata for subscription '$currentSubscriptionId' before Azure Data Explorer discovery: $($_.Exception.Message)"
+                        Write-Verbose "Could not retrieve metadata for subscription '$currentSubscriptionId' before Azure Data Explorer discovery: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         [pscustomobject]@{
                             subscriptionId = $currentSubscriptionId
                             displayName    = $null
@@ -183,7 +183,7 @@
         }
         catch {
             & $addDiscoveryFailure 'AzureResourceManager' 'Subscription discovery' $_
-            Write-Verbose "Azure Resource Manager discovery setup failed: $($_.Exception.Message)"
+            Write-Verbose "Azure Resource Manager discovery setup failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 
@@ -208,7 +208,7 @@
             }
             catch {
                 & $addDiscoveryFailure 'AzureResourceManager' "Subscription $currentSubscriptionId token acquisition" $_
-                Write-Verbose "Azure Resource Manager token acquisition failed for subscription '$currentSubscriptionId': $($_.Exception.Message)"
+                Write-Verbose "Azure Resource Manager token acquisition failed for subscription '$currentSubscriptionId': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 continue
             }
 
@@ -218,7 +218,7 @@
             }
             catch {
                 & $addDiscoveryFailure 'AzureResourceManager' "Subscription $currentSubscriptionId cluster enumeration" $_
-                Write-Verbose "Azure Data Explorer cluster enumeration failed for subscription '$currentSubscriptionId': $($_.Exception.Message)"
+                Write-Verbose "Azure Data Explorer cluster enumeration failed for subscription '$currentSubscriptionId': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 continue
             }
 
@@ -293,7 +293,7 @@
                         catch {
                             $databaseEnumerationFailed = $true
                             & $addDiscoveryFailure 'AzureResourceManager' "Cluster $($clusterRecord.ClusterName) database enumeration" $_
-                            Write-Verbose "Azure Data Explorer database enumeration failed for cluster '$($clusterRecord.ClusterName)': $($_.Exception.Message)"
+                            Write-Verbose "Azure Data Explorer database enumeration failed for cluster '$($clusterRecord.ClusterName)': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         }
                     }
 
@@ -433,7 +433,7 @@
                         catch {
                             $databaseEnumerationFailed = $true
                             & $addDiscoveryFailure 'FreeCluster' "Cluster $($clusterRecord.ClusterName) database enumeration" $_
-                            Write-Verbose "Azure Data Explorer database enumeration failed for free cluster '$($clusterRecord.ClusterName)': $($_.Exception.Message)"
+                            Write-Verbose "Azure Data Explorer database enumeration failed for free cluster '$($clusterRecord.ClusterName)': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         }
 
                         if ($databaseEnumerationFailed -and $databaseFilterRequested) {
@@ -450,7 +450,7 @@
             }
             catch {
                 & $addDiscoveryFailure 'FreeCluster' 'Cluster discovery' $_
-                Write-Verbose "Azure Data Explorer free-cluster discovery failed: $($_.Exception.Message)"
+                Write-Verbose "Azure Data Explorer free-cluster discovery failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
 

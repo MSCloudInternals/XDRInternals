@@ -51,7 +51,7 @@
                 $result = (Invoke-RestMethod -Uri $Uri -Method PUT -ContentType "application/json" -Body ($GroupObject | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $script:headers).items
                 return $result
             } catch {
-                Write-Error "Failed to update DeviceRbacGroups: $_"
+                Write-Error "Failed to update DeviceRbacGroups: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

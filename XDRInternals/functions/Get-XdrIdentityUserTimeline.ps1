@@ -351,7 +351,7 @@
                 } catch {
                     $PSCmdlet.ThrowTerminatingError(
                         [System.Management.Automation.ErrorRecord]::new(
-                            [System.ArgumentException]::new("InputObject does not contain usable identity identifiers: $($_.Exception.Message)"),
+                            [System.ArgumentException]::new("InputObject does not contain usable identity identifiers: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"),
                             'InvalidInputObject',
                             [System.Management.Automation.ErrorCategory]::InvalidArgument,
                             $InputObject
@@ -538,8 +538,8 @@
                 $eventTypeResults
                 return
             } catch {
-                Write-Warning "Failed to retrieve filter options: $($_.Exception.Message)"
-                Write-Verbose "Full error: $($_.Exception.ToString())"
+                Write-Warning "Failed to retrieve filter options: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
+                Write-Verbose "Full error: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 return
             }
         }
@@ -1275,8 +1275,8 @@
                             Write-Verbose "No Sentinel anomaly events found for this time range"
                         }
                     } catch {
-                        Write-Warning "Failed to retrieve Sentinel events: $($_.Exception.Message)"
-                        Write-Verbose "Full error: $($_.Exception.ToString())"
+                        Write-Warning "Failed to retrieve Sentinel events: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
+                        Write-Verbose "Full error: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 } else {
                     Write-Verbose "Could not parse armId for Sentinel API call: $armId"
@@ -1329,8 +1329,8 @@
             return $sortedEvents
 
         } catch {
-            Write-Error -Exception $_.Exception -Message "Failed to retrieve user timeline: $($_.Exception.Message)"
-            Write-Verbose "Full error: $($_.Exception.ToString())"
+            Write-Error -Message "Failed to retrieve user timeline: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
+            Write-Verbose "Full error: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
 
             # Cleanup on error
             if (-not $KeepTempFiles -and (Test-Path $runTempPath)) {
@@ -1339,7 +1339,6 @@
         }
     }
 }
-
 
 
 

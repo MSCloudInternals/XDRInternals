@@ -64,7 +64,7 @@
                 Write-Verbose "Successfully configured remediation account type"
                 return $result
             } catch {
-                Write-Error "Failed to configure remediation account type: $_"
+                Write-Error "Failed to configure remediation account type: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

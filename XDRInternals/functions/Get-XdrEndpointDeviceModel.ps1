@@ -51,7 +51,7 @@
             Set-XdrCache -CacheKey "XdrEndpointDeviceModels" -Value $XdrEndpointDeviceModels -TTLMinutes 30
             return $XdrEndpointDeviceModels
         } catch {
-            Write-Error "Failed to retrieve endpoint device models: $_"
+            Write-Error "Failed to retrieve endpoint device models: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

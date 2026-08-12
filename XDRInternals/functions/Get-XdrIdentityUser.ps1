@@ -180,7 +180,10 @@
             } catch {
                 $fqid = [string]$_.FullyQualifiedErrorId
                 if ($fqid -like 'XdrIdentityUserNotFound*' -or $fqid -like '*XdrIdentityUserNotFound*') {
-                    Write-Error -ErrorRecord $_
+                    Write-Error -ErrorId 'XdrIdentityUserNotFound' `
+                        -Category ObjectNotFound `
+                        -TargetObject $userIdentifiers `
+                        -Message (Get-XdrSafeErrorDescription -ErrorRecord $_)
                     return
                 }
 
@@ -202,11 +205,10 @@
                     $errorCategory = [System.Management.Automation.ErrorCategory]::InvalidOperation
                 }
 
-                Write-Error -Exception $_.Exception `
-                    -ErrorId $errorId `
+                Write-Error -ErrorId $errorId `
                     -Category $errorCategory `
                     -TargetObject $userIdentifiers `
-                    -Message "Failed to resolve user identity. Status: $statusCode. $($_.Exception.Message)"
+                    -Message "Failed to resolve user identity. Status: $statusCode. $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 return
             }
         }
@@ -241,7 +243,7 @@
             $user | Add-Member -NotePropertyName 'accounts' -NotePropertyValue $accountsResponse.results -Force
             $user | Add-Member -NotePropertyName 'accountsWorkloads' -NotePropertyValue $accountsResponse.workloads -Force
         } catch {
-            Write-Warning "Failed to retrieve accounts: $_"
+            Write-Warning "Failed to retrieve accounts: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
 
         # Enrichment: Activity Period
@@ -286,7 +288,7 @@
                     $user.lastSeen = $activityResponse.results.lastSeen
                 }
             } catch {
-                Write-Warning "Failed to retrieve activity period: $_"
+                Write-Warning "Failed to retrieve activity period: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
 
@@ -311,7 +313,7 @@
 
             $user | Add-Member -NotePropertyName 'devicesCount' -NotePropertyValue $devicesResponse.results -Force
         } catch {
-            Write-Warning "Failed to retrieve devices count: $_"
+            Write-Warning "Failed to retrieve devices count: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
 
         # Enrichment: Manager
@@ -338,7 +340,7 @@
                     $user | Add-Member -NotePropertyName 'managerInfo' -NotePropertyValue $managerResponse.results -Force
                 }
             } catch {
-                Write-Warning "Failed to retrieve manager: $_"
+                Write-Warning "Failed to retrieve manager: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
 

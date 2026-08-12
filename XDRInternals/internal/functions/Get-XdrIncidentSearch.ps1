@@ -60,7 +60,7 @@
                 return @()
             }
         } catch {
-            Write-Error "Failed to search for incidents with term '$Term': $($_.Exception.Message)"
+            Write-Error "Failed to search for incidents with term '$Term': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             throw
         }
     }

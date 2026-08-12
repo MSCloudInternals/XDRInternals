@@ -82,7 +82,7 @@
                 $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $bodyJson -WebSession $script:session -Headers $script:headers
                 return $result
             } catch {
-                Write-Error "Failed to set exclusion state: $_"
+                Write-Error "Failed to set exclusion state: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

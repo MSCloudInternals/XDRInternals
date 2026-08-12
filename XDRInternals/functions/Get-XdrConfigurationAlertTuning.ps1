@@ -52,7 +52,7 @@
             Set-XdrCache -CacheKey "XdrConfigurationAlertTuning" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve alert tuning configuration: $_"
+            Write-Error "Failed to retrieve alert tuning configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

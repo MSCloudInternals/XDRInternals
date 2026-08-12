@@ -153,7 +153,7 @@ try {
                 try {
                     & $BatchStartedScript -BatchNumber $batchNumber -TotalBatches $totalBatches -Items $batch
                 } catch {
-                    Write-Verbose "BatchStartedScript failed for $OperationName batch ${batchNumber}: $_"
+                    Write-Verbose "BatchStartedScript failed for $OperationName batch ${batchNumber}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
 
@@ -179,7 +179,7 @@ try {
                             try {
                                 & $ItemCompletedScript -BatchNumber $job.BatchNumber -TotalBatches $totalBatches -Result $result
                             } catch {
-                                Write-Verbose "ItemCompletedScript failed for $OperationName batch $($job.BatchNumber): $_"
+                                Write-Verbose "ItemCompletedScript failed for $OperationName batch $($job.BatchNumber): $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                             }
                         }
                     }

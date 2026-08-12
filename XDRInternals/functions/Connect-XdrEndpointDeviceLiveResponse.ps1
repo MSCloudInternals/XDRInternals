@@ -134,7 +134,7 @@
         try {
             $device = Get-XdrEndpointDevice -DeviceId $DeviceId
         } catch {
-            Write-Error "Failed to retrieve device details: $_"
+            Write-Error "Failed to retrieve device details: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             return
         }
         $deviceName = $device.ComputerDnsName
@@ -153,7 +153,7 @@
             $createUri = "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/create_session?useV3Api=true&tenantIds=undefined"
             $sessionResponse = Invoke-RestMethod -Uri $createUri -Method Post -ContentType "application/json" -Body $createBody -WebSession $script:session -Headers $script:headers
         } catch {
-            Write-Error "Failed to create Live Response session: $_"
+            Write-Error "Failed to create Live Response session: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             return
         }
 
@@ -191,7 +191,7 @@
                 return
             }
         } catch {
-            Write-Verbose "Initial session poll error: $_"
+            Write-Verbose "Initial session poll error: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
 
         # Discover the auto-created command from the session's command list
@@ -228,7 +228,7 @@
                         }
                     }
                 } catch {
-                    Write-Verbose "Could not fetch command list (retrying): $_"
+                    Write-Verbose "Could not fetch command list (retrying): $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
 
@@ -270,7 +270,7 @@
                                 $linkData = $Matches[1] | ConvertFrom-Json
                                 $existingSessionId = $linkData.id
                             } catch {
-                                Write-Verbose "Failed to parse existing session portal link details: $_"
+                                Write-Verbose "Failed to parse existing session portal link details: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                             }
                             $deviceUser = if ($errText -match 'created by\s+(?:another user:\s*)?(\S+@\S+|\S+)') { $Matches[1] } else { 'another user' }
 
@@ -290,12 +290,12 @@
                         try {
                             Disconnect-XdrEndpointDeviceLiveResponse -SessionId $sessionId -ErrorAction SilentlyContinue
                         } catch {
-                            Write-Verbose "Failed to disconnect session $sessionId after connection failure: $_"
+                            Write-Verbose "Failed to disconnect session $sessionId after connection failure: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                         }
                         return
                     }
                 } catch {
-                    Write-Verbose "Command polling error (retrying): $_"
+                    Write-Verbose "Command polling error (retrying): $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
 
@@ -309,13 +309,13 @@
                     return
                 }
             } catch {
-                Write-Verbose "Session polling error (retrying): $_"
+                Write-Verbose "Session polling error (retrying): $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
 
         if (-not $connected) {
             Write-Error "Session connection timed out after $maxWait seconds"
-            try { Disconnect-XdrEndpointDeviceLiveResponse -SessionId $sessionId } catch { Write-Verbose "Cleanup disconnect failed: $_" }
+            try { Disconnect-XdrEndpointDeviceLiveResponse -SessionId $sessionId } catch { Write-Verbose "Cleanup disconnect failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)" }
             return
         }
 
@@ -331,7 +331,7 @@
                 $availableCommands = $knownCommands
             }
         } catch {
-            Write-Verbose "Could not fetch command definitions, using built-in list: $_"
+            Write-Verbose "Could not fetch command definitions, using built-in list: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             $availableCommands = $knownCommands
         }
 
@@ -432,7 +432,7 @@
                     try {
                         Disconnect-XdrEndpointDeviceLiveResponse -SessionId $sessionId
                     } catch {
-                        Write-Warning "Error closing session: $_"
+                        Write-Warning "Error closing session: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                     $running = $false
                     break
@@ -647,7 +647,7 @@
                             [System.IO.File]::WriteAllBytes($savePath, $dlResponse.RawContentStream.ToArray())
                             Write-Host "Saved to: $savePath" -ForegroundColor Green
                         } catch {
-                            Write-Host "Download failed: $_" -ForegroundColor Red
+                            Write-Host "Download failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)" -ForegroundColor Red
                         }
                     }
 
@@ -667,7 +667,7 @@
                         Write-Host "  [$('{0:N2}' -f $cmdResult.duration_seconds)s]" -ForegroundColor DarkGray
                     }
                 } catch {
-                    Write-Host "Error executing command: $_" -ForegroundColor Red
+                    Write-Host "Error executing command: $(Get-XdrSafeErrorDescription -ErrorRecord $_)" -ForegroundColor Red
                 }
 
                 Write-Host ""
@@ -902,7 +902,7 @@
                 if ($_.Exception.Message -like 'Session failed to create*') {
                     throw
                 }
-                Write-Verbose "Initial worker session poll error for device ${deviceId}: $_"
+                Write-Verbose "Initial worker session poll error for device ${deviceId}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
 
             $autoCommandId = $null
@@ -926,7 +926,7 @@
                             }
                         }
                     } catch {
-                        Write-Verbose "Worker command discovery retry for device ${deviceId}: $_"
+                        Write-Verbose "Worker command discovery retry for device ${deviceId}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
 
@@ -960,7 +960,7 @@
                                     $linkData = $Matches[1] | ConvertFrom-Json
                                     $existingSessionId = $linkData.id
                                 } catch {
-                                    Write-Verbose "Failed to parse existing session portal link details for device ${deviceId}: $_"
+                                    Write-Verbose "Failed to parse existing session portal link details for device ${deviceId}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                                 }
                                 $deviceUser = if ($errText -match 'created by\s+(?:another user:\s*)?(\S+@\S+|\S+)') { $Matches[1] } else { 'another user' }
                                 if ($existingSessionId) {
@@ -979,7 +979,7 @@
                                     $closeUri = "$baseUrl/apiproxy/mtp/liveResponseApi/close_session?useV2Api=false&useV3Api=true"
                                     Invoke-RestMethod -Uri $closeUri -Method Post -ContentType 'application/json' -Body $closeBody -WebSession $webSession -Headers $headers | Out-Null
                                 } catch {
-                                    Write-Verbose "Failed to close unsuccessful worker session ${sessionId} for device ${deviceId}: $_"
+                                    Write-Verbose "Failed to close unsuccessful worker session ${sessionId} for device ${deviceId}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                                 }
                             }
                             throw
@@ -998,7 +998,7 @@
                     if ($_.Exception.Message -like 'Session failed while waiting*') {
                         throw
                     }
-                    Write-Verbose "Worker session status retry for device ${deviceId}: $_"
+                    Write-Verbose "Worker session status retry for device ${deviceId}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
 
                 if (-not $definitionsFetched) {
@@ -1012,7 +1012,7 @@
                         $connected = $true
                         break
                     } catch {
-                        Write-Verbose "Worker command definitions retry for device ${deviceId}: $_"
+                        Write-Verbose "Worker command definitions retry for device ${deviceId}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
             }
@@ -1023,7 +1023,7 @@
                     $closeUri = "$baseUrl/apiproxy/mtp/liveResponseApi/close_session?useV2Api=false&useV3Api=true"
                     Invoke-RestMethod -Uri $closeUri -Method Post -ContentType 'application/json' -Body $closeBody -WebSession $webSession -Headers $headers | Out-Null
                 } catch {
-                    Write-Verbose "Failed to close timed-out worker session ${sessionId} for device ${deviceId}: $_"
+                    Write-Verbose "Failed to close timed-out worker session ${sessionId} for device ${deviceId}: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
                 throw "Session connection timed out after $maxWait seconds"
             }

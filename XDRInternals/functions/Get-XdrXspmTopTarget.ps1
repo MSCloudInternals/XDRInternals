@@ -69,7 +69,7 @@ AttackPathsV2
                 return @()
             }
         } catch {
-            Write-Error "Failed to retrieve top targets: $_"
+            Write-Error "Failed to retrieve top targets: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             throw
         }
     }

@@ -52,7 +52,7 @@
             Write-Host "Live Response session closed." -ForegroundColor Yellow
             return $result
         } catch {
-            Write-Error "Failed to close Live Response session: $_"
+            Write-Error "Failed to close Live Response session: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

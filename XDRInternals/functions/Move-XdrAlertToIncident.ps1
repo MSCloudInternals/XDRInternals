@@ -107,7 +107,7 @@
                 $response = Invoke-XdrRestMethod -Uri $Uri -Method POST -Body ($body | ConvertTo-Json -Depth 10) -ErrorAction Stop
                 return $response
             } catch {
-                Write-Error "Failed to move alerts: $_"
+                Write-Error "Failed to move alerts: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

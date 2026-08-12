@@ -902,6 +902,22 @@ InModuleScope XDRInternals {
             Get-XdrSafeUriDescription -Uri 'ms-appx-web://callback?code=secret' | Should -Be 'ms-appx-web:'
         }
 
+        It 'redacts sensitive exception details and bounds diagnostic length' {
+            $longText = 'x' * 400
+            $errorRecord = [System.Management.Automation.ErrorRecord]::new(
+                [System.InvalidOperationException]::new("Request https://security.microsoft.com/path?code=url-secret failed token=field-secret Authorization: Bearer bearer-secret $longText"),
+                'SensitiveTest',
+                [System.Management.Automation.ErrorCategory]::InvalidOperation,
+                $null
+            )
+
+            $result = Get-XdrSafeErrorDescription -ErrorRecord $errorRecord
+
+            $result | Should -Match 'https://security.microsoft.com/path'
+            $result | Should -Not -Match 'url-secret|field-secret|bearer-secret|\?code='
+            $result.Length | Should -BeLessOrEqual 303
+        }
+
         It 'returns the macOS SSO default profile path' {
             if (-not $IsMacOS) {
                 Set-ItResult -Skipped -Because 'macOS-specific path assertion.'

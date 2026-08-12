@@ -44,7 +44,7 @@
 
             return $response
         } catch {
-            Write-Error "Failed to search for alert: $_"
+            Write-Error "Failed to search for alert: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 }

@@ -54,7 +54,7 @@
                 $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                 return $result
             } catch {
-                Write-Error "Failed to cancel device action: $_"
+                Write-Error "Failed to cancel device action: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

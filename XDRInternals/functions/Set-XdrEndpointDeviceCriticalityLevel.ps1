@@ -76,7 +76,7 @@
                 $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
                 return $result
             } catch {
-                Write-Error "Failed to set criticality level: $_"
+                Write-Error "Failed to set criticality level: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

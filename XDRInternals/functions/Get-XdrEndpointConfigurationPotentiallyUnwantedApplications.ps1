@@ -53,7 +53,7 @@
             Set-XdrCache -CacheKey "GetXdrEndpointConfigurationPotentiallyUnwantedApplications" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve Potentially Unwanted Applications configuration: $_"
+            Write-Error "Failed to retrieve Potentially Unwanted Applications configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

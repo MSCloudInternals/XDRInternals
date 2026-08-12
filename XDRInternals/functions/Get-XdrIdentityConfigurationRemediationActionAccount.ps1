@@ -75,7 +75,7 @@
                 $credentialsUri = "https://security.microsoft.com/apiproxy/aatp/odata/EntityRemediatorCredentials"
                 $credentials = Invoke-RestMethod -Uri $credentialsUri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
             } catch {
-                Write-Error "Failed to retrieve remediation action account details: $_"
+                Write-Error "Failed to retrieve remediation action account details: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 return
             }
             

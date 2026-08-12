@@ -128,12 +128,12 @@ function New-XdrPasskeySignature {
                 Write-Verbose "Key Vault signing succeeded (DER: $($sigBytes.Length) bytes)"
                 break
             } catch {
-                Write-Warning "Key Vault sign attempt $attempt failed: $($_.Exception.Message)"
+                Write-Warning "Key Vault sign attempt $attempt failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 if ($attempt -lt $maxRetries) {
                     Start-Sleep -Milliseconds $retryDelay
                     $retryDelay *= 2
                 } else {
-                    throw "Key Vault signing failed after $maxRetries attempts: $($_.Exception.Message)"
+                    throw "Key Vault signing failed after $maxRetries attempts: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
         }
@@ -358,7 +358,7 @@ function Invoke-XdrPasskeyAuthentication {
         try {
             $privateKeyPem = ConvertTo-XdrPEMPrivateKey -PrivateKey $privateKeySource
         } catch {
-            throw "Failed to parse private key from credential file: $($_.Exception.Message)"
+            throw "Failed to parse private key from credential file: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     #endregion
@@ -413,7 +413,7 @@ function Invoke-XdrPasskeyAuthentication {
     try {
         $crypto = New-XdrPasskeySignature @cryptoParams
     } catch {
-        throw "Passkey assertion generation failed: $($_.Exception.Message)"
+        throw "Passkey assertion generation failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
     }
 
     $fidoPayload = [ordered]@{
@@ -456,7 +456,7 @@ function Invoke-XdrPasskeyAuthentication {
         $responseInfo = $Matches[0] | ConvertFrom-Json
         Write-Verbose "Pre-verification completed"
     } catch {
-        throw "Pre-verification request failed: $($_.Exception.Message)"
+        throw "Pre-verification request failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
     }
     #endregion
 

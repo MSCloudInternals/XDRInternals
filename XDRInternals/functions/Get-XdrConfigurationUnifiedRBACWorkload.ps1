@@ -50,7 +50,7 @@
         try {
             $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
         } catch {
-            Write-Error "Failed to retrieve Unified RBAC workload configuration: $_"
+            Write-Error "Failed to retrieve Unified RBAC workload configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             return
         }
 

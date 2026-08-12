@@ -50,7 +50,7 @@
             Set-XdrCache -CacheKey "XdrAdvancedHuntingTableSchema" -Value $XdrAdvancedHuntingTableSchema -TTLMinutes 30
             return $XdrAdvancedHuntingTableSchema
         } catch {
-            Write-Error "Failed to retrieve Advanced Hunting table schema: $_"
+            Write-Error "Failed to retrieve Advanced Hunting table schema: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

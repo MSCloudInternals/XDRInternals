@@ -56,7 +56,7 @@
             Set-XdrCache -CacheKey "XdrIdentityStatistic" -Value $result -TTLMinutes 10
             return $result
         } catch {
-            Write-Error "Failed to retrieve identity statistics: $_"
+            Write-Error "Failed to retrieve identity statistics: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

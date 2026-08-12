@@ -71,7 +71,7 @@
                     if ($_.Exception.Message -match 'Session information is not sufficient for single-sign-on') {
                         Write-Verbose 'ESTS bootstrap was not sufficient for Defender SSO. Falling back to the captured Defender portal session cookies.'
                     } else {
-                        Write-Verbose "ESTS bootstrap failed: $($_.Exception.Message). Falling back to the captured Defender portal session cookies."
+                        Write-Verbose "ESTS bootstrap failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_). Falling back to the captured Defender portal session cookies."
                     }
 
                     continue
@@ -90,7 +90,7 @@
                         throw
                     }
 
-                    Write-Verbose "Defender portal bootstrap failed: $($_.Exception.Message). Falling back to ESTS cookie bootstrap."
+                    Write-Verbose "Defender portal bootstrap failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_). Falling back to ESTS cookie bootstrap."
                     continue
                 }
             }

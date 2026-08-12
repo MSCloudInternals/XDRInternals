@@ -967,7 +967,7 @@
                     Write-XdrLiveResponseCommandOutput -CommandResult $singleResult -Request $pendingRequests[0]
                 }
             } catch {
-                Write-Error "Failed to execute Live Response command: $_"
+                Write-Error "Failed to execute Live Response command: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
             return
         }

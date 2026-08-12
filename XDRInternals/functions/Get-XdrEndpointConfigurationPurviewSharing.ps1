@@ -52,7 +52,7 @@
             Set-XdrCache -CacheKey "GetXdrEndpointConfigurationPurviewSharing" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve Purview Sharing configuration: $_"
+            Write-Error "Failed to retrieve Purview Sharing configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

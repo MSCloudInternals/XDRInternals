@@ -53,7 +53,7 @@
             Set-XdrCache -CacheKey "XdrTenantContext" -Value $XdrTenantContext -TTLMinutes 30
             return $XdrTenantContext
         } catch {
-            throw "Failed to retrieve XDR Tenant Context: $($_.Exception.Message)"
+            throw "Failed to retrieve XDR Tenant Context: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

@@ -62,7 +62,7 @@
                 $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
                 return $result
             } catch {
-                Write-Error "Failed to set asset value: $_"
+                Write-Error "Failed to set asset value: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

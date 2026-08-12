@@ -173,7 +173,7 @@
                     return Get-XdrConfigurationCriticalAssetManagementClassification -RuleId $RuleId -Force
                 }
             } catch {
-                Write-Error "Failed to update critical asset management rule '$ruleName' ($RuleId): $_"
+                Write-Error "Failed to update critical asset management rule '$ruleName' ($RuleId): $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

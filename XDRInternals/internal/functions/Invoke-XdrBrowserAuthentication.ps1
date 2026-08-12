@@ -650,7 +650,7 @@ function Stop-XdrBrowserProcess {
         try {
             $null = Invoke-XdrBrowserCdpCommand -WebSocketUrl $BrowserWebSocketUrl -Method 'Browser.close'
         } catch {
-            Write-Verbose "Graceful browser shutdown failed: $($_.Exception.Message)"
+            Write-Verbose "Graceful browser shutdown failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
 
         if (Wait-XdrBrowserProcessExit -Process $Process -TimeoutMilliseconds $CloseTimeoutMilliseconds) {
@@ -1137,7 +1137,7 @@ function Invoke-XdrBrowserAuthentication {
 
                 $cookies = @(Get-XdrBrowserCookieJar -WebSocketUrl $targetContext.WebSocketUrl)
             } catch {
-                Write-Verbose "Cookie polling failed: $($_.Exception.Message)"
+                Write-Verbose "Cookie polling failed: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 continue
             }
 

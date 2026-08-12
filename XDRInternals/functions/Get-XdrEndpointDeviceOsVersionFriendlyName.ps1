@@ -51,7 +51,7 @@
             Set-XdrCache -CacheKey "XdrEndpointDeviceOsVersionFriendlyNames" -Value $XdrEndpointDeviceOsVersionFriendlyNames -TTLMinutes 30
             return $XdrEndpointDeviceOsVersionFriendlyNames
         } catch {
-            Write-Error "Failed to retrieve endpoint device OS version friendly names: $_"
+            Write-Error "Failed to retrieve endpoint device OS version friendly names: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

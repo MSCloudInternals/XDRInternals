@@ -362,7 +362,7 @@
                     $null = Invoke-RestMethod -Uri $uri -Method $method -Body $body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                     Write-Host "Advanced Features configuration updated successfully"
                 } catch {
-                    Write-Error "Failed to update Advanced Features configuration: $_"
+                    Write-Error "Failed to update Advanced Features configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
         }
@@ -402,7 +402,7 @@
                     $null = Invoke-RestMethod -Uri $uri -Method $method -Body $body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                     Write-Host "Live Response configuration updated successfully"
                 } catch {
-                    Write-Error "Failed to update Live Response configuration: $_"
+                    Write-Error "Failed to update Live Response configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
         }
@@ -427,7 +427,7 @@
                     $null = Invoke-RestMethod -Uri $uri -Method $method -Body $body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                     Write-Host "Preview Features configuration updated successfully"
                 } catch {
-                    Write-Error "Failed to update Preview Features configuration: $_"
+                    Write-Error "Failed to update Preview Features configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
         }
@@ -452,7 +452,7 @@
                         $null = Invoke-RestMethod -Uri $uri -Method $method -Body $body -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                         Write-Host "Purview Sharing configuration updated successfully"
                     } catch {
-                        Write-Error "Failed to update Purview Sharing configuration: $_"
+                        Write-Error "Failed to update Purview Sharing configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
             }
@@ -484,7 +484,7 @@
                         $null = Invoke-RestMethod -Uri $uri -Method $method -Body ($body | ConvertTo-Json -Depth 10) -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                         Write-Host "Microsoft Intune Connection configuration updated successfully"
                     } catch {
-                        Write-Error "Failed to update Microsoft Intune Connection configuration: $_"
+                        Write-Error "Failed to update Microsoft Intune Connection configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
             }
@@ -511,7 +511,7 @@
                         $null = Invoke-RestMethod -Uri $uri -Method $method -Body ($body | ConvertTo-Json -Depth 10) -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                         Write-Host "Authenticated Telemetry configuration updated successfully"
                     } catch {
-                        Write-Error "Failed to update Authenticated Telemetry configuration: $_"
+                        Write-Error "Failed to update Authenticated Telemetry configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
             }

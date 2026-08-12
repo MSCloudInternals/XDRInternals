@@ -110,7 +110,7 @@
             Set-XdrCache -CacheKey "XdrEndpointDeviceTags" -Value $XdrEndpointDeviceTags -TTLMinutes 30
             return $XdrEndpointDeviceTags
         } catch {
-            Write-Error "Failed to retrieve endpoint device tags: $_"
+            Write-Error "Failed to retrieve endpoint device tags: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

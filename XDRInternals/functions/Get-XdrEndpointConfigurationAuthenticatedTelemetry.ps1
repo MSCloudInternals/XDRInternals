@@ -51,7 +51,7 @@
             Set-XdrCache -CacheKey "GetXdrEndpointConfigurationAuthenticatedTelemetry" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve authenticated telemetry configuration: $_"
+            Write-Error "Failed to retrieve authenticated telemetry configuration: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

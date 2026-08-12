@@ -352,7 +352,7 @@
                     }
                     return $result
                 } catch {
-                    Write-Error "Failed to retrieve Cloud Apps discovery categories: $_"
+                    Write-Error "Failed to retrieve Cloud Apps discovery categories: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
 
@@ -404,7 +404,7 @@
                         }
                         $result
                     } catch {
-                        Write-Error "Failed to retrieve Cloud Apps discovery category statistics for stream '$currentStreamName': $_"
+                        Write-Error "Failed to retrieve Cloud Apps discovery category statistics for stream '$currentStreamName': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
             }
@@ -434,7 +434,7 @@
                     }
                     return $result
                 } catch {
-                    Write-Error "Failed to retrieve Cloud Apps discovery constants: $_"
+                    Write-Error "Failed to retrieve Cloud Apps discovery constants: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
 
@@ -530,7 +530,7 @@
                         }
                         $result
                     } catch {
-                        Write-Error "Failed to retrieve Cloud Apps discovery ${EntityType}s for stream '$currentStreamName': $_"
+                        Write-Error "Failed to retrieve Cloud Apps discovery ${EntityType}s for stream '$currentStreamName': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
             }
@@ -562,7 +562,7 @@
                     }
                     return $result
                 } catch {
-                    Write-Error "Failed to retrieve Cloud Apps discovery locations: $_"
+                    Write-Error "Failed to retrieve Cloud Apps discovery locations: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 }
             }
 
@@ -618,7 +618,7 @@
                                 }
                                 $result
                             } catch {
-                                Write-Error "Failed to retrieve Cloud Apps discovery top apps for stream '$currentStreamName': $_"
+                                Write-Error "Failed to retrieve Cloud Apps discovery top apps for stream '$currentStreamName': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                             }
                         }
                     }
@@ -664,7 +664,7 @@
                                 }
                                 $result
                             } catch {
-                                Write-Error "Failed to retrieve Cloud Apps discovery top categories for stream '$currentStreamName': $_"
+                                Write-Error "Failed to retrieve Cloud Apps discovery top categories for stream '$currentStreamName': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                             }
                         }
                     }
@@ -704,7 +704,7 @@
                                 }
                                 $result
                             } catch {
-                                Write-Error "Failed to retrieve Cloud Apps discovery top entities for stream '$currentStreamName': $_"
+                                Write-Error "Failed to retrieve Cloud Apps discovery top entities for stream '$currentStreamName': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                             }
                         }
                     }
@@ -759,7 +759,7 @@
                         }
                         $result
                     } catch {
-                        Write-Error "Failed to retrieve Cloud Apps discovery unsanctioned apps for stream '$currentStreamName': $_"
+                        Write-Error "Failed to retrieve Cloud Apps discovery unsanctioned apps for stream '$currentStreamName': $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
             }

@@ -166,7 +166,7 @@ function Send-XdrSentinelBatch {
         }
     }
     catch {
-        Write-Warning "Failed to send $($Records.Count) records to ${LogType}_CL: $($_.Exception.Message)"
+        Write-Warning "Failed to send $($Records.Count) records to ${LogType}_CL: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         return 0
     }
 

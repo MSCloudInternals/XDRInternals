@@ -74,7 +74,7 @@
                 return $content
             }
         } catch {
-            Write-Error "Failed to download '$FileName' from Live Response library: $_"
+            Write-Error "Failed to download '$FileName' from Live Response library: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

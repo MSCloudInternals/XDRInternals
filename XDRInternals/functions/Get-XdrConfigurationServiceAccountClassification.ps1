@@ -52,7 +52,7 @@
             Set-XdrCache -CacheKey "XdrConfigurationServiceAccountClassification" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve service account classification rules: $_"
+            Write-Error "Failed to retrieve service account classification rules: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

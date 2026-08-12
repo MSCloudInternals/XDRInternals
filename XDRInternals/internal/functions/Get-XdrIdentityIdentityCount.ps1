@@ -47,11 +47,10 @@
             Write-Verbose "Retrieving XDR identity count (SearchText: '$SearchText')"
             $response = Invoke-RestMethod -Uri $uri -Method Post -ContentType 'application/json' -Body ($body | ConvertTo-Json -Depth 10) -WebSession $script:session -Headers $mdiHeaders -ErrorAction Stop
         } catch {
-            Write-Error -Exception $_.Exception `
-                -ErrorId 'XdrIdentityIdentityCountRequestFailed' `
+            Write-Error -ErrorId 'XdrIdentityIdentityCountRequestFailed' `
                 -Category ConnectionError `
                 -TargetObject $body `
-                -Message "Failed to retrieve XDR identity count: $($_.Exception.Message)"
+                -Message "Failed to retrieve XDR identity count: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             throw
         }
 
@@ -85,5 +84,4 @@
         return $count
     }
 }
-
 

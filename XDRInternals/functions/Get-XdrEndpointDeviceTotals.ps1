@@ -64,7 +64,7 @@
             Set-XdrCache -CacheKey $cacheKey -Value $XdrEndpointDeviceTotals -TTLMinutes 10
             return $XdrEndpointDeviceTotals
         } catch {
-            Write-Error "Failed to retrieve endpoint device totals: $_"
+            Write-Error "Failed to retrieve endpoint device totals: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

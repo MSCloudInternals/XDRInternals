@@ -98,7 +98,7 @@
                         break
                     }
                 } catch {
-                    Write-Error "Failed to retrieve attack paths at skip position $currentSkip : $_"
+                    Write-Error "Failed to retrieve attack paths at skip position $currentSkip : $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     throw
                 }
             } while ($true)
@@ -119,7 +119,7 @@
                     return @()
                 }
             } catch {
-                Write-Error "Failed to retrieve attack paths: $_"
+                Write-Error "Failed to retrieve attack paths: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 throw
             }
         }

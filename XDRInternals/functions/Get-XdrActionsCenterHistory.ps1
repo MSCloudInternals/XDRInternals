@@ -134,7 +134,7 @@
             $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers | Select-Object -ExpandProperty Results
             return $result
         } catch {
-            Write-Error "Failed to retrieve Action Center history: $_"
+            Write-Error "Failed to retrieve Action Center history: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

@@ -868,7 +868,7 @@ function Clear-XdrAzureDataExplorerExportState {
             $tableState.writer.Dispose()
         }
         catch {
-            Write-Warning "Could not close an Azure Data Explorer staging writer: $($_.Exception.Message)"
+            Write-Warning "Could not close an Azure Data Explorer staging writer: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
         finally {
             $tableState.writer = $null

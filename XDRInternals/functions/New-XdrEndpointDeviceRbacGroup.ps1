@@ -64,7 +64,7 @@
                     Set-XdrCache -CacheKey "GetXdrEndpointDeviceRbacGroup" -Value $result -TTLMinutes 30
                 }
             } catch {
-                Write-Error "Failed to update DeviceRbacGroups: $_"
+                Write-Error "Failed to update DeviceRbacGroups: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
 

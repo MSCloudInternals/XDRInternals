@@ -51,7 +51,7 @@
             Set-XdrCache -CacheKey "XdrEndpointDeviceVendors" -Value $XdrEndpointDeviceVendors -TTLMinutes 30
             return $XdrEndpointDeviceVendors
         } catch {
-            Write-Error "Failed to retrieve endpoint device vendors: $_"
+            Write-Error "Failed to retrieve endpoint device vendors: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

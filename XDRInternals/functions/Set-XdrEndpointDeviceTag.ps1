@@ -104,7 +104,7 @@
                         $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
                         return $result
                     } catch {
-                        Write-Error "Failed to set device tags: $_"
+                        Write-Error "Failed to set device tags: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
             }
@@ -158,7 +158,7 @@
                             $result
                         }
                     } catch {
-                        Write-Error "Failed to update tags on device $machineId`: $_"
+                        Write-Error "Failed to update tags on device $machineId`: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     }
                 }
             }

@@ -51,7 +51,7 @@
             Set-XdrCache -CacheKey "XdrEndpointDeviceRbacGroupScope" -Value $XdrEndpointDeviceRbacGroupScope -TTLMinutes 30
             return $XdrEndpointDeviceRbacGroupScope
         } catch {
-            Write-Error "Failed to retrieve endpoint device RBAC groups: $_"
+            Write-Error "Failed to retrieve endpoint device RBAC groups: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

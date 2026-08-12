@@ -65,7 +65,7 @@
         
             return $result
         } catch {
-            Write-Error "Failed to validate Advanced Hunting query: $_"
+            Write-Error "Failed to validate Advanced Hunting query: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             throw
         }
     }

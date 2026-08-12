@@ -110,7 +110,7 @@ AttackPathDiscovery
                         break
                     }
                 } catch {
-                    Write-Error "Failed to retrieve choke points at skip position $currentSkip : $_"
+                    Write-Error "Failed to retrieve choke points at skip position $currentSkip : $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     throw
                 }
             } while ($true)
@@ -131,7 +131,7 @@ AttackPathDiscovery
                     return @()
                 }
             } catch {
-                Write-Error "Failed to retrieve choke points: $_"
+                Write-Error "Failed to retrieve choke points: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                 throw
             }
         }

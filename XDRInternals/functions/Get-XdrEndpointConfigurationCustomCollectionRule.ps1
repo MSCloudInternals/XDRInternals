@@ -128,7 +128,7 @@
             Write-Verbose "Retrieving XDR Endpoint custom collection rules"
             $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
         } catch {
-            Write-Error "Failed to retrieve custom collection rules: $_"
+            Write-Error "Failed to retrieve custom collection rules: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             return
         }
 

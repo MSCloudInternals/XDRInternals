@@ -49,7 +49,7 @@
                 $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers
                 return $result
             } catch {
-                Write-Error "Failed to start automated investigation: $_"
+                Write-Error "Failed to start automated investigation: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             }
         }
     }

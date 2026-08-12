@@ -264,7 +264,7 @@
                 return $null
             }
         } catch {
-            Write-Error "Failed to execute MTO Advanced Hunting query: $_"
+            Write-Error "Failed to execute MTO Advanced Hunting query: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

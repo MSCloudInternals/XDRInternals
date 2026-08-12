@@ -91,7 +91,7 @@
                     $Uri = "https://security.microsoft.com/apiproxy/aatp/odata/directoryServices?`$count=true&`$top=$pageSizeForAll&`$skip=$currentSkip"
                     $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                 } catch {
-                    Write-Error "Failed to retrieve directory service accounts: $_"
+                    Write-Error "Failed to retrieve directory service accounts: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
                     return
                 }
 
@@ -147,7 +147,7 @@
             Write-Verbose "Retrieving XDR Identity directory service accounts (PageSize: $PageSize, Skip: $Skip)"
             $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
         } catch {
-            Write-Error "Failed to retrieve directory service accounts: $_"
+            Write-Error "Failed to retrieve directory service accounts: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
             return
         }
 

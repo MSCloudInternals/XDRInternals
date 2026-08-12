@@ -91,7 +91,7 @@
             Set-XdrCache -CacheKey "XdrSuppressionRule" -Value $XdrSuppressionRules -TTLMinutes 30
             return $XdrSuppressionRules
         } catch {
-            throw "Failed to retrieve XDR Suppression Rules: $($_.Exception.Message)"
+            throw "Failed to retrieve XDR Suppression Rules: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
     

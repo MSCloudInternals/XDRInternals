@@ -59,7 +59,7 @@
             Set-XdrCache -CacheKey "XdrIdentityOnboardingStatus" -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve Identity onboarding status: $_"
+            Write-Error "Failed to retrieve Identity onboarding status: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

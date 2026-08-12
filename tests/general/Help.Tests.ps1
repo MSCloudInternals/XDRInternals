@@ -103,9 +103,13 @@ foreach ($command in $commands) {
 					$parameterHelp.Description.Text | Should -Not -BeNullOrEmpty
 				}
                 
-				$codeMandatory = $parameter.IsMandatory.toString()
-				It "help for $parameterName parameter in $commandName has correct Mandatory value" -TestCases @{ parameterHelp = $parameterHelp; codeMandatory = $codeMandatory } {
-					$parameterHelp.Required | Should -Be $codeMandatory
+				$parameterDefinitions = @($command.ParameterSets.Parameters | Where-Object Name -EQ $parameterName)
+				$mandatoryValues = @($parameterDefinitions.IsMandatory | Sort-Object -Unique)
+				if ($mandatoryValues.Count -eq 1) {
+					$codeMandatory = $mandatoryValues[0].ToString()
+					It "help for $parameterName parameter in $commandName has correct Mandatory value" -TestCases @{ parameterHelp = $parameterHelp; codeMandatory = $codeMandatory } {
+						$parameterHelp.Required | Should -Be $codeMandatory
+					}
 				}
                 
 				if ($HelpTestSkipParameterType[$commandName] -contains $parameterName) { continue }

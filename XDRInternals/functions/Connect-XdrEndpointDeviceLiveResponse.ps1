@@ -46,6 +46,9 @@
         Suppresses the live status table shown during multi-device non-interactive session
         creation. Returned session objects are unchanged.
 
+    .PARAMETER Force
+        Allows an existing local file to be overwritten by an interactive getfile download.
+
     .EXAMPLE
         Connect-XdrEndpointDeviceLiveResponse -DeviceId "980dddb7036eae7e38d30dee7f11b51e573a6fc2"
         Opens an interactive Live Response session to the specified device.
@@ -101,7 +104,9 @@
         [switch]$NonInteractive,
 
         [Parameter()]
-        [switch]$NoStatusTable
+        [switch]$NoStatusTable,
+
+        [switch]$Force
     )
 
     begin {
@@ -641,6 +646,7 @@
                         if ([string]::IsNullOrWhiteSpace($savePath)) { $savePath = $defaultLocal }
 
                         try {
+                            $savePath = Resolve-XdrDownloadOutputPath -SuggestedFileName $defaultName -OutputPath $savePath -Force:$Force
                             $dlUri = "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/download_file?token=$([System.Uri]::EscapeDataString($downloadToken))&session_id=$sessionId&useV2Api=false&useV3Api=true"
                             Write-Host "Downloading..." -ForegroundColor Cyan
                             $dlResponse = Invoke-WebRequest -Uri $dlUri -Method Get -WebSession $script:session -Headers $script:headers

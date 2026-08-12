@@ -29,6 +29,13 @@
         results to the matching request. When used with -DownloadInvestigationPackage or
         -DownloadSupportLogs, specifies the completed request to download results for.
 
+    .PARAMETER OutputPath
+        Optional destination file or existing directory for a downloaded package. The current
+        directory and service-provided file name are used by default.
+
+    .PARAMETER Force
+        Allows an existing download destination file to be overwritten.
+
     .EXAMPLE
         Get-XdrEndpointDeviceActionResult -DeviceId "55a5db7b474470725e0131dec38c07b2f54bf2ad"
         Gets the latest action results for the specified device.
@@ -86,7 +93,19 @@
         [Parameter(ParameterSetName = 'List')]
         [Parameter(Mandatory = $true, ParameterSetName = 'DownloadInvestigationPackageByRequest')]
         [Parameter(Mandatory = $true, ParameterSetName = 'DownloadSupportLogsByRequest')]
-        [string]$RequestGuid
+        [string]$RequestGuid,
+
+        [Parameter(ParameterSetName = 'DownloadInvestigationPackageByDevice')]
+        [Parameter(ParameterSetName = 'DownloadInvestigationPackageByRequest')]
+        [Parameter(ParameterSetName = 'DownloadSupportLogsByDevice')]
+        [Parameter(ParameterSetName = 'DownloadSupportLogsByRequest')]
+        [string]$OutputPath,
+
+        [Parameter(ParameterSetName = 'DownloadInvestigationPackageByDevice')]
+        [Parameter(ParameterSetName = 'DownloadInvestigationPackageByRequest')]
+        [Parameter(ParameterSetName = 'DownloadSupportLogsByDevice')]
+        [Parameter(ParameterSetName = 'DownloadSupportLogsByRequest')]
+        [switch]$Force
     )
 
     begin {
@@ -123,7 +142,7 @@
                     $downloadUri = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                     $fileName = [System.IO.Path]::GetFileName(([System.Uri]$downloadUri).LocalPath)
                     if (-not $fileName) { $fileName = "InvestigationPackage-$RequestGuid.zip" }
-                    $outFile = Join-Path $PWD $fileName
+                    $outFile = Resolve-XdrDownloadOutputPath -SuggestedFileName $fileName -OutputPath $OutputPath -Force:$Force
                     Write-Verbose "Downloading from $(Get-XdrSafeUriDescription -Uri $downloadUri)"
                     Invoke-WebRequest -Uri $downloadUri -OutFile $outFile
                     return Get-Item $outFile
@@ -145,14 +164,14 @@
                     $downloadUri = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
                     $fileName = [System.IO.Path]::GetFileName(([System.Uri]$downloadUri).LocalPath)
                     if (-not $fileName) { $fileName = "SupportLogs-$RequestGuid.zip" }
-                    $outFile = Join-Path $PWD $fileName
+                    $outFile = Resolve-XdrDownloadOutputPath -SuggestedFileName $fileName -OutputPath $OutputPath -Force:$Force
                     Write-Verbose "Downloading from $(Get-XdrSafeUriDescription -Uri $downloadUri)"
                     Invoke-WebRequest -Uri $downloadUri -OutFile $outFile
                     return Get-Item $outFile
                 }
             }
         } catch {
-            Write-Error 'Failed to retrieve the requested action result.'
+            Write-Error "Failed to retrieve the requested action result: $(Get-XdrSafeErrorDescription -ErrorRecord $_)"
         }
     }
 

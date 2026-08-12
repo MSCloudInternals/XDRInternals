@@ -16,6 +16,9 @@
     .PARAMETER OutputPath
         Optional file path to save the downloaded content. If omitted, the content is returned as a string.
 
+    .PARAMETER Force
+        Allows an existing output file to be overwritten.
+
     .EXAMPLE
         Get-XdrEndpointDeviceLiveResponseLibraryFile -FileName 'PasskeyLogin.ps1'
         Returns the content of PasskeyLogin.ps1 as a string.
@@ -39,7 +42,9 @@
         [string]$FileName,
 
         [Parameter()]
-        [string]$OutputPath
+        [string]$OutputPath,
+
+        [switch]$Force
     )
 
     begin {
@@ -68,8 +73,9 @@
             }
 
             if ($OutputPath) {
-                [System.IO.File]::WriteAllText($OutputPath, $content, [System.Text.Encoding]::UTF8)
-                Write-Verbose "Saved '$FileName' to '$OutputPath'"
+                $resolvedOutputPath = Resolve-XdrDownloadOutputPath -SuggestedFileName $FileName -OutputPath $OutputPath -Force:$Force
+                [System.IO.File]::WriteAllText($resolvedOutputPath, $content, [System.Text.Encoding]::UTF8)
+                Write-Verbose "Saved '$FileName' to '$resolvedOutputPath'"
             } else {
                 return $content
             }

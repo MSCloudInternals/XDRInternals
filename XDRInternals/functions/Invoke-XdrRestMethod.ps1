@@ -78,8 +78,14 @@
                 Invoke-RestMethod -Uri $Uri -Method $Method -ContentType $ContentType -WebSession $WebSession -Headers $Headers
             }
         } catch {
-            Write-Error "Failed to invoke XDR REST method: $_"
-            throw
+            $statusCode = if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+                [int]$_.Exception.Response.StatusCode
+            }
+            if ($statusCode) {
+                throw "The Defender XDR REST request failed with HTTP status $statusCode."
+            }
+
+            throw 'The Defender XDR REST request failed before a response was returned.'
         }
     }
 

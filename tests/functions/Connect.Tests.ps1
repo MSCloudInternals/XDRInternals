@@ -768,10 +768,15 @@ InModuleScope XDRInternals {
             $result.WebSocketUrl | Should -Be 'ws://defender-target'
         }
 
-        It 'formats a browser target description from title and URL' {
-            $result = Format-XdrBrowserTargetDescription -Title 'Microsoft Defender' -Url 'https://security.microsoft.com/'
+        It 'formats a browser target description without query, fragment, credentials, or title' {
+            $result = Format-XdrBrowserTargetDescription -Url 'https://user:password@security.microsoft.com/path?code=secret#id_token=secret'
 
-            $result | Should -Be 'Microsoft Defender [https://security.microsoft.com/]'
+            $result | Should -Be 'https://security.microsoft.com/path'
+            $result | Should -Not -Match 'user|password|code|secret|id_token'
+        }
+
+        It 'describes a native callback by scheme only' {
+            Get-XdrSafeUriDescription -Uri 'ms-appx-web://callback?code=secret' | Should -Be 'ms-appx-web:'
         }
 
         It 'returns the macOS SSO default profile path' {

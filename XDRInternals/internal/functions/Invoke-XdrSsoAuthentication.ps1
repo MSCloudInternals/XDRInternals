@@ -389,7 +389,7 @@ function Invoke-XdrSsoAuthentication {
 
             try {
                 $targetContext = Get-XdrBrowserPreferredTargetContext -Port $debugPort -FallbackWebSocketUrl $versionInfo.webSocketDebuggerUrl
-                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url -Title $targetContext.Title
+                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url
                 if ($currentTargetDescription -and $currentTargetDescription -ne $lastObservedTargetDescription) {
                     $lastObservedTargetDescription = $currentTargetDescription
                     Write-Verbose "Observed browser page: $currentTargetDescription"

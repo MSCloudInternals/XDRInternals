@@ -188,7 +188,7 @@ function Get-XdrEstsAuthorizationCode {
         }
 
         if ($callbackParameters.ContainsKey('error')) {
-            Write-Verbose "$FlowDescription failed for ${ResourceDisplayName}: $($callbackParameters['error']) $($callbackParameters['error_description'])"
+            Write-Verbose "$FlowDescription failed for $ResourceDisplayName after the authorization service returned an OAuth error."
             return $null
         }
 
@@ -200,7 +200,7 @@ function Get-XdrEstsAuthorizationCode {
         return [string]$callbackParameters['code']
     }
     catch {
-        Write-Verbose "$FlowDescription failed for ${ResourceDisplayName}: $($_.Exception.Message)"
+        Write-Verbose "$FlowDescription failed for $ResourceDisplayName before an authorization code was returned."
     }
 }
 

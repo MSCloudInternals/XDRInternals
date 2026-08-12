@@ -838,20 +838,14 @@ function Format-XdrBrowserTargetDescription {
     [OutputType([string])]
     [CmdletBinding()]
     param(
-        [string]$Url,
-
-        [string]$Title
+        [string]$Url
     )
 
     if ([string]::IsNullOrWhiteSpace($Url)) {
         return $null
     }
 
-    if ([string]::IsNullOrWhiteSpace($Title)) {
-        return $Url
-    }
-
-    return "$Title [$Url]"
+    return Get-XdrSafeUriDescription -Uri $Url
 }
 
 function Invoke-XdrBrowserCdpCommand {
@@ -1134,7 +1128,7 @@ function Invoke-XdrBrowserAuthentication {
 
             try {
                 $targetContext = Get-XdrBrowserPreferredTargetContext -Port $debugPort -FallbackWebSocketUrl $versionInfo.webSocketDebuggerUrl
-                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url -Title $targetContext.Title
+                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url
                 if ($currentTargetDescription -and $currentTargetDescription -ne $lastObservedTargetDescription) {
                     $lastObservedTargetDescription = $currentTargetDescription
                     Write-Verbose "Observed browser page: $currentTargetDescription"

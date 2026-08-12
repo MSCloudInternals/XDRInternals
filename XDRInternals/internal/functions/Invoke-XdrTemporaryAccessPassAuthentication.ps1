@@ -145,7 +145,7 @@
             }
 
             if ($parsedState -and $parsedState.sErrorCode) {
-                throw "TAP authentication failed ($($parsedState.sErrorCode)): $($parsedState.sErrTxt)"
+                throw "TAP authentication failed with service error code '$($parsedState.sErrorCode)'."
             }
 
             break
@@ -168,7 +168,7 @@
             }
 
             if ($resolvedLocation -match 'error=') {
-                throw "TAP authentication failed: $resolvedLocation"
+                throw 'TAP authentication failed after the service returned an OAuth error redirect.'
             }
 
             $currentUrl = $resolvedLocation

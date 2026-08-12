@@ -421,11 +421,11 @@ function Resolve-XdrAuthenticationResponse {
 
         $nextUri = [uri]::new($baseUri, $location)
         if ($nextUri.Scheme -notin @('http', 'https')) {
-            Write-Verbose "Authentication redirect reached native callback URI $nextUri; stopping redirect resolution."
+            Write-Verbose "Authentication redirect reached native callback scheme '$($nextUri.Scheme)'; stopping redirect resolution."
             break
         }
 
-        Write-Verbose "Following authentication redirect to $nextUri"
+        Write-Verbose "Following authentication redirect to $(Get-XdrSafeUriDescription -Uri $nextUri)"
         $currentResponse = Invoke-WebRequest -UseBasicParsing -Method Get -Uri $nextUri -WebSession $Session -MaximumRedirection 10 -SkipHttpErrorCheck -Verbose:$false
     }
 
@@ -698,7 +698,7 @@ function Invoke-XdrCredentialAuthentication {
             'PhoneAppOTP' {
                 if ($TotpSecret) {
                     $verificationCode = Get-XdrTotpCode -Secret $TotpSecret
-                    Write-Verbose "Computed TOTP code: $verificationCode"
+                    Write-Verbose 'Computed a TOTP code for inline MFA.'
                 } else {
                     Write-Host "Enter the code from your authenticator app:"
                     $verificationCode = Read-Host "Code"

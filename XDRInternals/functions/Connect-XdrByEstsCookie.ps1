@@ -123,9 +123,7 @@
         # Check if all required fields are present in returned input fields
         foreach ($field in $requiredFields) {
             if (-not ($SecurityPortal.InputFields.name -contains $field)) {
-                $SecurityPortal.Content -match '{(.*)}' | Out-Null
-                $SessionInformation = $Matches[0] | ConvertFrom-Json
-                Write-Verbose "Session information received: $($SessionInformation | ConvertTo-Json -Depth 5)"
+                Write-Verbose "Authentication response was missing required field '$field'."
                 throw "Required field '$field' is missing from the response."
             }
         }

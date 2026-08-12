@@ -49,10 +49,10 @@
         [string]$ContentType = "application/json",
 
         [Parameter(Mandatory = $false)]
-        $WebSession = $script:session,
+        $WebSession,
 
         [Parameter(Mandatory = $false)]
-        [Hashtable]$Headers = $script:headers,
+        [Hashtable]$Headers,
 
         [Parameter()]
         $Body
@@ -68,6 +68,13 @@
         }
 
         Update-XdrConnectionSettings
+
+        if (-not $PSBoundParameters.ContainsKey('WebSession')) {
+            $WebSession = $script:session
+        }
+        if (-not $PSBoundParameters.ContainsKey('Headers')) {
+            $Headers = $script:headers
+        }
     }
 
     process {

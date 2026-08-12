@@ -100,6 +100,62 @@ Describe 'Defender authenticated request boundaries' {
             Get-XdrCache -CacheKey 'PrincipalScopedResult' -TenantId $tenantId | Should -BeNullOrEmpty
         }
     }
+
+    It 'refreshes the XSRF header without dropping tenant or caller headers' {
+        Mock Invoke-WebRequest {
+            $updatedCookie = [System.Net.Cookie]::new('XSRF-TOKEN', 'updated-xsrf', '/', 'security.microsoft.com')
+            $updatedCookie.Secure = $true
+            $WebSession.Cookies.Add($updatedCookie)
+        } -ModuleName XDRInternals
+
+        InModuleScope XDRInternals {
+            $tenantId = '8612f621-73ca-4c12-973c-0da732bc44c2'
+            $script:XdrCacheStore = @{}
+            $script:session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            $script:session.Cookies.Add([System.Net.Cookie]::new('sccauth', 'sccauth-value', '/', 'security.microsoft.com'))
+            $script:session.Cookies.Add([System.Net.Cookie]::new('XSRF-TOKEN', 'previous-xsrf', '/', 'security.microsoft.com'))
+            $script:headers = @{
+                'X-XSRF-TOKEN' = 'previous-xsrf'
+                'x-tid'        = $tenantId
+                'tenant-id'    = $tenantId
+                'x-caller'     = 'preserve-me'
+            }
+            Set-XdrCache -CacheKey 'XdrTenantId' -Value $tenantId -TTLMinutes 30
+            Set-XdrCache -CacheKey 'XsrfToken' -Value 'previous-xsrf' -TTLMinutes -1 -TenantId $tenantId
+
+            Update-XdrConnectionSettings
+
+            $script:headers['X-XSRF-TOKEN'] | Should -Be 'updated-xsrf'
+            $script:headers['x-tid'] | Should -Be $tenantId
+            $script:headers['tenant-id'] | Should -Be $tenantId
+            $script:headers['x-caller'] | Should -Be 'preserve-me'
+            (Get-XdrCache -CacheKey 'XsrfToken' -TenantId $tenantId).Value | Should -Be 'updated-xsrf'
+        }
+    }
+
+    It 'binds default REST session state after the refresh completes' {
+        InModuleScope XDRInternals {
+            Mock Update-XdrConnectionSettings {
+                $script:session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+                $script:headers = @{ 'X-XSRF-TOKEN' = 'refreshed-xsrf' }
+            }
+            Mock Invoke-RestMethod {
+                [pscustomobject]@{
+                    WebSession = $WebSession
+                    Headers    = $Headers
+                }
+            }
+
+            $result = Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/test'
+
+            $result.Headers['X-XSRF-TOKEN'] | Should -Be 'refreshed-xsrf'
+            $result.WebSession | Should -Not -BeNullOrEmpty
+            Should -Invoke Update-XdrConnectionSettings -Times 1 -Exactly
+            Should -Invoke Invoke-RestMethod -Times 1 -Exactly -ParameterFilter {
+                $Headers['X-XSRF-TOKEN'] -eq 'refreshed-xsrf'
+            }
+        }
+    }
 }
 
 Describe 'Connect-XdrByPhoneSignIn' {

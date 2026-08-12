@@ -55,6 +55,7 @@ Get-XdrTenantContext -Force
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encodes an Advanced Hunting query for use in Microsoft Defender XDR. |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
 | Export-XdrAzureDataExplorer                                     | Exports pipeline data to Azure Data Explorer using queued ingestion. |
+| Export-XdrEndpointDeviceTimeline                                | Exports a Microsoft Defender XDR device timeline to NDJSON. |
 | Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |
 | Get-XdrActionsCenterHistory                                     | Retrieves historical actions from the Microsoft Defender XDR Action Center. |
 | Get-XdrActionsCenterPending                                     | Retrieves pending actions from the Microsoft Defender XDR Action Center. |
@@ -323,6 +324,77 @@ Get-XdrCloudAppsConfiguration -Type DiscoveryStream
 Get-XdrCloudAppsGovernance
 Get-XdrCloudAppsPolicy -Type OAuth -Metadata
 ```
+
+#### Large endpoint timeline exports
+
+Use `Export-XdrEndpointDeviceTimeline` for long incident-response exports. It writes
+newline-delimited JSON (NDJSON) to disk instead of retaining the complete timeline in
+memory:
+
+```powershell
+$from = (Get-Date).ToUniversalTime().AddDays(-90)
+$to = (Get-Date).ToUniversalTime()
+
+Export-XdrEndpointDeviceTimeline `
+    -DeviceId $deviceId `
+    -FromDate $from `
+    -ToDate $to `
+    -Path '.\timeline-90d.ndjson' `
+    -IncludeSentinelEvents
+```
+
+The export is resumable. If the process, connection, or computer stops during the
+download, run the same command again with the same `Path`; completed parts are validated
+by length and SHA-256 and only incomplete windows are downloaded again. Use `-Force` only
+when intentionally discarding the resumable state.
+
+The cmdlet currently uses four-hour windows, four concurrent workers, and 1,000 records
+per API page. These are deliberately internal implementation choices; `ChunkHours` and
+`ThrottleLimit` are not public parameters. Benchmarking showed that smaller windows and
+more workers can be faster for some short ranges, but they also increased API retries,
+window restarts, or memory use during long exports. More time-range and tenant-specific
+research is needed before exposing tuning options.
+
+The cmdlet emits progress updates and a 30-second informational heartbeat containing
+time coverage, completed windows, event count, bytes written, active/queued work, elapsed
+time, and a rough ETA.
+
+See [Timeline export functions](docs/export-functions.md) for the export lifecycle,
+correctness guarantees, resume behavior, and implementation rationale.
+
+The following physical-disk benchmarks used the same device and a 90-day range. Counts
+can vary slightly because the portal's historical response is not immutable between runs:
+
+| Configuration | Total time | Peak working set | Retries / window restarts |
+| --- | ---: | ---: | ---: |
+| 4-hour / 4 workers | 41m 49s | 1.75 GiB | 0 / 0 |
+| 2-hour / 4 workers | 44m 16s | 1.65 GiB | 20 / 8 |
+| 2-hour / 6 workers | 41m 08s | 2.17 GiB | 50 / 26 |
+
+The 4-hour/four-worker balance is therefore the initial release default: it completed the
+90-day export without retries or restarts while remaining competitive on elapsed time and
+memory. A later fixed-UTC seven-day matrix exercised all 36 combinations of 250, 500, or
+1,000 records per page; two-, four-, or eight-hour windows; and 2, 4, 8, or 16 workers.
+Only 16 combinations completed. The current 1,000/4-hour/4-worker configuration completed
+in 176 seconds with no retries or restarts and a 1.40 GiB peak working set. The nearest
+clean challenger, 1,000/8-hour/4-worker, was only 2% faster and used about 12% more peak
+memory, so it did not meet the 10% speed and memory gates. The defaults remain unchanged
+and can be revisited as more devices, tenants, and time ranges are available for testing.
+
+The baseline and two strongest valid challengers were then run twice over the same fixed
+30-day UTC range, first in baseline/8-hour/2-hour order and then in reverse:
+
+| Configuration | Elapsed pair | Peak working-set pair | Retries / restarts pair |
+| --- | ---: | ---: | ---: |
+| 1,000 / 4-hour / 4 workers | 919s / 924s | 1.47 / 1.48 GiB | 1/0 / 1/0 |
+| 1,000 / 8-hour / 4 workers | 696s / 947s | 1.76 / 1.77 GiB | 0/0 / 1/0 |
+| 1,000 / 2-hour / 4 workers | 787s / 927s | 1.50 / 1.57 GiB | 21/9 / 6/2 |
+
+Each run independently validated 805,109–805,115 lines, 853–998 pages, 4.37 GB, and the
+final SHA-256. The 8-hour challenger exceeded the memory gate in both runs and was slower
+in the reverse comparison. The 2-hour challenger added retries and restarts in both runs
+and was also slower in the reverse comparison. Neither challenger qualified to replace
+the defaults.
 
 #### Azure Data Explorer export
 

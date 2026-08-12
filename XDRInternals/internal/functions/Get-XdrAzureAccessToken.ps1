@@ -437,11 +437,16 @@ function Invoke-XdrAzAccessTokenRequest {
 
         $azToken = Get-AzAccessToken @azParams -ErrorAction Stop
         $tokenValue = if ($azToken.Token -is [System.Security.SecureString]) {
-            [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR(
-                [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($azToken.Token)
-            )
-        }
-        else {
+            $tokenPointer = [System.IntPtr]::Zero
+            try {
+                $tokenPointer = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($azToken.Token)
+                [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($tokenPointer)
+            } finally {
+                if ($tokenPointer -ne [System.IntPtr]::Zero) {
+                    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($tokenPointer)
+                }
+            }
+        } else {
             $azToken.Token
         }
 

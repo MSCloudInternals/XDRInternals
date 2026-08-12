@@ -71,6 +71,7 @@
         "Connect-XdrByTemporaryAccessPass",
         "Connect-XdrEndpointDeviceLiveResponse",
         "ConvertTo-XdrEncodedAdvancedHuntingQuery",
+        "Disconnect-Xdr",
         "Disconnect-XdrEndpointDeviceLiveResponse",
         "Export-XdrAzureDataExplorer",
         "Export-XdrToSentinel",

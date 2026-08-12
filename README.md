@@ -53,6 +53,7 @@ Get-XdrTenantContext -Force
 | Connect-XdrByTemporaryAccessPass                                | Authenticates to Microsoft Defender XDR using a Temporary Access Pass (TAP). |
 | Connect-XdrEndpointDeviceLiveResponse                           | Opens a Live Response session to an endpoint device in Microsoft Defender XDR. |
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encodes an Advanced Hunting query for use in Microsoft Defender XDR. |
+| Disconnect-Xdr                                                  | Clears authentication and export credentials held by the current XDRInternals module session. |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
 | Export-XdrAzureDataExplorer                                     | Exports pipeline data to Azure Data Explorer using queued ingestion. |
 | Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |

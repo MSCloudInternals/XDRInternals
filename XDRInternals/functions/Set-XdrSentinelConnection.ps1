@@ -17,8 +17,8 @@
         The primary or secondary shared key for the workspace.
 
     .PARAMETER DceEndpoint
-        Optional Data Collection Endpoint URI. When set, uses the DCR/DCE ingestion API
-        instead of the legacy HTTP Data Collector API. Not required for most use cases.
+        Reserved for future Data Collection Rule ingestion support. Supplying this parameter
+        currently throws because Export-XdrToSentinel uses the legacy HTTP Data Collector API.
 
     .PARAMETER Confirm
         Prompts for confirmation before updating the module's Sentinel connection settings.
@@ -46,12 +46,13 @@
     )
 
     process {
+        if ($PSBoundParameters.ContainsKey('DceEndpoint')) {
+            throw 'DCE ingestion is not implemented. Omit -DceEndpoint to use the supported HTTP Data Collector API.'
+        }
+
         if ($PSCmdlet.ShouldProcess($WorkspaceId, 'Configure Sentinel connection settings')) {
             $script:SentinelWorkspaceId = $WorkspaceId
             $script:SentinelSharedKey = $SharedKey
-            if ($DceEndpoint) {
-                $script:SentinelDceEndpoint = $DceEndpoint
-            }
 
             Write-Verbose "Configured Sentinel connection for workspace: $WorkspaceId"
         }

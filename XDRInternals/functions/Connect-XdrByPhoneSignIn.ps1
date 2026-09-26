@@ -52,12 +52,19 @@
         }
 
         if (-not $resolvedUsername) {
-            throw 'No username provided.'
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod PhoneSignIn -Stage InputValidation -DefaultCode RequestInvalid
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
-        $estsAuth = Invoke-XdrPhoneSignInAuthentication -Username $resolvedUsername -TimeoutSeconds $TimeoutSeconds -UserAgent $UserAgent
+        try {
+            $estsAuth = Invoke-XdrPhoneSignInAuthentication -Username $resolvedUsername -TimeoutSeconds $TimeoutSeconds -UserAgent $UserAgent
+        } catch {
+            $failure = Get-XdrAuthenticationFailure -ErrorRecord $_ -AuthenticationMethod PhoneSignIn -Stage SignIn
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $_)
+        }
         if (-not $estsAuth) {
-            throw 'Phone sign-in failed - no ESTS cookie was returned.'
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod PhoneSignIn -Stage ArtifactCapture -DefaultCode NoAuthenticationArtifact
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         Connect-XdrAuthArtifactSet -EstsAuthCookieValue $estsAuth -TenantId $TenantId -UserAgent $UserAgent -FailureLabel 'Phone sign-in'

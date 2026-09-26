@@ -290,7 +290,7 @@ function Invoke-XdrPasskeyAuthentication {
     $credentialId = ($credentialId.TrimEnd('=') -replace '\+', '-' -replace '/', '_') | ForEach-Object { ConvertFrom-XdrUuidToBase64Url $_ }
 
     Write-Verbose "User: $targetUser | RP ID: $rpId | Origin: $origin"
-    Write-Verbose "Credential ID: $($credentialId.Substring(0, [Math]::Min(20, $credentialId.Length)))..."
+    Write-Verbose 'Loaded a passkey credential identifier.'
     #endregion
 
     #region Determine signing mode and prepare credentials
@@ -533,12 +533,9 @@ function Invoke-XdrPasskeyAuthentication {
     }
 
     if ($authFailed) {
-        $hint = if ($useKeyVault) {
-            "Key Vault signature validation failed. Verify Key Vault permissions (Crypto User / Sign), key name, and vault name."
-        } else {
-            "Passkey signature validation failed. Verify the credential ID and private key in the credential file."
-        }
-        throw "Authentication failed during passkey validation. $hint"
+        $failureCode = if ($useKeyVault) { 'KeyVaultAccessFailed' } else { 'PasskeyAssertionFailed' }
+        $failure = Get-XdrAuthenticationFailure -AuthenticationMethod SoftwarePasskey -Stage AssertionValidation -DefaultCode $failureCode
+        throw (New-XdrAuthenticationErrorRecord -Failure $failure)
     }
     #endregion
 
@@ -550,7 +547,8 @@ function Invoke-XdrPasskeyAuthentication {
 
     $estsCookies = $allCookies | Where-Object Name -Like "ESTS*"
     if (-not $estsCookies) {
-        throw "Authentication flow completed but no ESTS authentication cookie was obtained. The passkey credentials may be invalid or expired."
+        $failure = Get-XdrAuthenticationFailure -AuthenticationMethod SoftwarePasskey -Stage ArtifactCapture -DefaultCode NoAuthenticationArtifact
+        throw (New-XdrAuthenticationErrorRecord -Failure $failure)
     }
 
     # Pick the longest cookie (ESTSAUTHPERSISTENT is preferred when available)

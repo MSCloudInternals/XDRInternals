@@ -221,6 +221,54 @@ Describe 'Authentication artifact fallback diagnostics' {
             ($metadata.SafeEvidence | Where-Object Name -EQ Attempt).Value | Should -Be 'ESTS:BootstrapFailed; Portal:BootstrapFailed'
             (($caught.ErrorDetails.Message, $caught.ErrorDetails.RecommendedAction, ($metadata | ConvertTo-Json -Depth 8)) -join "`n") | Should -Not -Match 'secret-cookie|secret-token|secret-xsrf|secret-portal-cookie'
         }
+
+        It 'retains the structured ESTS reason when portal fallback also fails' {
+            Mock Connect-XdrByEstsCookie {
+                $failure = Get-XdrAuthenticationFailure -AuthState @{ sErrorCode = '50058' } -AuthenticationMethod EstsCookie -Stage PortalAuthorize
+                throw (New-XdrAuthenticationErrorRecord -Failure $failure)
+            }
+
+            $caught = try {
+                Connect-XdrAuthArtifactSet -EstsAuthCookieValue 'secret-cookie' -SccAuthCookieValue 'secret-portal-cookie' -ConnectionPreference PreferEsts -FallbackToPortalOnEstsBootstrapFailure -FailureLabel Browser
+            } catch { $_ }
+
+            $caught.FullyQualifiedErrorId | Should -BeLike 'XdrAuthentication.BootstrapFailed*'
+            ($caught.Exception.Data['XdrAuthenticationFailure'].SafeEvidence | Where-Object Name -EQ Attempt).Value |
+                Should -Be 'ESTS:SessionUnavailable; Portal:BootstrapFailed'
+        }
+
+        It 'creates an aggregate record when the last fallback error is structured' {
+            Mock Connect-XdrByEstsCookie {
+                $failure = Get-XdrAuthenticationFailure -AuthState @{ sErrorCode = '50058' } -AuthenticationMethod EstsCookie -Stage PortalAuthorize
+                throw (New-XdrAuthenticationErrorRecord -Failure $failure)
+            }
+
+            $caught = try {
+                Connect-XdrAuthArtifactSet -EstsAuthCookieValue 'secret-cookie' -SccAuthCookieValue 'secret-portal-cookie' -ConnectionPreference PreferPortal -FailureLabel Browser
+            } catch { $_ }
+
+            $caught.FullyQualifiedErrorId | Should -BeLike 'XdrAuthentication.BootstrapFailed*'
+            ($caught.Exception.Data['XdrAuthenticationFailure'].SafeEvidence | Where-Object Name -EQ Attempt).Value |
+                Should -Be 'Portal:BootstrapFailed; ESTS:SessionUnavailable'
+            $caught.Exception.InnerException.Data['XdrAuthenticationFailure'].Code | Should -Be 'SessionUnavailable'
+        }
+    }
+}
+
+Describe 'Phone sign-in terminal denial' {
+    InModuleScope XDRInternals {
+        It 'returns a structured denial for terminal AuthorizationState 1' {
+            $caught = try { Test-XdrPhoneSignInApproved -PollResponse @{ AuthorizationState = 1 } } catch { $_ }
+
+            $caught.FullyQualifiedErrorId | Should -BeLike 'XdrAuthentication.MfaDenied*'
+            $caught.Exception.Data['XdrAuthenticationFailure'].Stage | Should -Be 'PhoneApproval'
+        }
+
+        It 'does not echo malformed response content in verbose parser output' {
+            $output = @(Get-XdrPhoneSignInJsonResponseObject -Response @{ Content = '{"token":"secret-token", invalid }' } -Verbose 4>&1)
+
+            ($output | Out-String) | Should -Not -Match 'secret-token'
+        }
     }
 }
 

@@ -333,14 +333,14 @@ function Invoke-XdrRedirectCapturingWebRequest {
         }
 
         if ($errorRecord.Exception -and $errorRecord.Exception.Message -match 'maximum redirection count has been exceeded') {
-            Write-Verbose "Captured redirect response from $Method $Uri after PowerShell reported the redirection limit."
+            Write-Verbose "Captured authentication redirect response from $Method after PowerShell reported the redirection limit."
             continue
         }
 
         throw $errorRecord
     }
 
-    throw "Web request to '$Uri' did not return a usable response."
+    throw 'Authentication web request did not return a usable response.'
 }
 
 function Test-XdrSecurityPortalFormPostResponse {
@@ -421,11 +421,11 @@ function Resolve-XdrAuthenticationResponse {
 
         $nextUri = [uri]::new($baseUri, $location)
         if ($nextUri.Scheme -notin @('http', 'https')) {
-            Write-Verbose "Authentication redirect reached native callback URI $nextUri; stopping redirect resolution."
+            Write-Verbose 'Authentication redirect reached a native callback URI; stopping redirect resolution.'
             break
         }
 
-        Write-Verbose "Following authentication redirect to $nextUri"
+        Write-Verbose 'Following authentication redirect.'
         $currentResponse = Invoke-WebRequest -UseBasicParsing -Method Get -Uri $nextUri -WebSession $Session -MaximumRedirection 10 -SkipHttpErrorCheck -Verbose:$false
     }
 

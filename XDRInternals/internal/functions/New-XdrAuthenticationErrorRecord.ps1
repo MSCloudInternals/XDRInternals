@@ -16,6 +16,9 @@
     .PARAMETER TargetObject
         An optional safe target object associated with the failure.
 
+    .PARAMETER ForceNewRecord
+        Creates a new aggregate error even when ErrorRecord is already structured.
+
     .EXAMPLE
         New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $_
 
@@ -31,7 +34,8 @@
         [Parameter(Mandatory)]
         [object]$Failure,
         [System.Management.Automation.ErrorRecord]$ErrorRecord,
-        [object]$TargetObject
+        [object]$TargetObject,
+        [switch]$ForceNewRecord
     )
 
     $hasAuthenticationMetadata = (
@@ -40,7 +44,7 @@
         $ErrorRecord.Exception.Data -and
         $ErrorRecord.Exception.Data.Contains('XdrAuthenticationFailure')
     )
-    if ($ErrorRecord -and ($ErrorRecord.FullyQualifiedErrorId -like 'XdrAuthentication.*' -or $hasAuthenticationMetadata)) {
+    if (-not $ForceNewRecord -and $ErrorRecord -and ($ErrorRecord.FullyQualifiedErrorId -like 'XdrAuthentication.*' -or $hasAuthenticationMetadata)) {
         return $ErrorRecord
     }
 

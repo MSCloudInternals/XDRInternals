@@ -114,5 +114,5 @@
 
     $attemptSummary = @($attemptFailures.GetEnumerator() | ForEach-Object { "$($_.Key):$($_.Value)" }) -join '; '
     $failure = Get-XdrAuthenticationFailure -AuthenticationMethod $FailureLabel -Stage Bootstrap -DefaultCode BootstrapFailed -SafeEvidence @{ Attempt = $attemptSummary }
-    throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $lastError)
+    throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $lastError -ForceNewRecord)
 }

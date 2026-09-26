@@ -266,6 +266,31 @@ Describe 'Authentication error record contract' {
             [object]::ReferenceEquals($secondRecord, $firstRecord) | Should -BeTrue
         }
 
+        It 'retains a structured classification when preparing fallback diagnostics' {
+            $original = Get-XdrAuthenticationFailure -AuthState @{ sErrorCode = '50058' } -AuthenticationMethod EstsCookie -Stage PortalAuthorize
+            $record = New-XdrAuthenticationErrorRecord -Failure $original
+
+            $normalized = Get-XdrAuthenticationFailure -ErrorRecord $record -AuthenticationMethod Browser -Stage EstsBootstrap -DefaultCode BootstrapFailed
+
+            $normalized.Code | Should -Be 'SessionUnavailable'
+            $normalized.ProviderCode | Should -Be '50058'
+        }
+
+        It 'classifies a standard OAuth JSON error by its numeric Entra code' {
+            $nativeRecord = [System.Management.Automation.ErrorRecord]::new(
+                [System.Exception]::new('HTTP 400'), 'NativeFailure', 'InvalidOperation', $null
+            )
+            $nativeRecord.ErrorDetails = [System.Management.Automation.ErrorDetails]::new(
+                '{"error":"invalid_grant","error_description":"AADSTS50126: secret provider text","error_codes":[50126],"access_token":"secret-token"}'
+            )
+
+            $failure = Get-XdrAuthenticationFailure -ErrorRecord $nativeRecord -Response @{ StatusCode = 400 }
+
+            $failure.Code | Should -Be 'InvalidCredentials'
+            $failure.ProviderCode | Should -Be '50126'
+            ($failure | ConvertTo-Json -Depth 8) | Should -Not -Match 'secret provider text|secret-token'
+        }
+
         It 'keeps secrets out of displayed details, remediation, and metadata' {
             $original = [System.Exception]::new('redirect https://localhost/?code=secret-code&session_id=secret-session')
             $nativeRecord = [System.Management.Automation.ErrorRecord]::new($original, 'NativeFailure', 'AuthenticationError', $null)

@@ -10,14 +10,14 @@
     try {
         return $Response.Content | ConvertFrom-Json -Depth 30
     } catch {
-        Write-Verbose "Response content was not a plain JSON payload: $($_.Exception.Message)"
+        Write-Verbose 'Response content was not a plain JSON payload.'
     }
 
     if ($Response.Content -match '{(.*)}') {
         try {
             return $Matches[0] | ConvertFrom-Json -Depth 30
         } catch {
-            Write-Verbose "Embedded JSON payload could not be parsed: $($_.Exception.Message)"
+            Write-Verbose 'Embedded JSON payload could not be parsed.'
         }
     }
 
@@ -576,7 +576,10 @@ function Test-XdrPhoneSignInApproved {
         2 { return $true }
         3 { return $false }
         6 { return $false }
-        1 { throw 'Phone sign-in was denied.' }
+        1 {
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod PhoneSignIn -Stage PhoneApproval -DefaultCode MfaDenied
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
+        }
         default { throw "Phone sign-in polling returned unexpected AuthorizationState '$($PollResponse.AuthorizationState)'." }
     }
 }

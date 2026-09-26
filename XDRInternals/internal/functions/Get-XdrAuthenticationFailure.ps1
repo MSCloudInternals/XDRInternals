@@ -82,15 +82,26 @@
     }
 
     $parsedError = if ($ErrorRecord) { Get-XdrParsedErrorDetail -ErrorRecord $ErrorRecord } else { $null }
-    $sources = @($AuthState, $SasResult, $Response, $parsedError) | Where-Object { $null -ne $_ }
+    $structuredFailure = if ($ErrorRecord -and $ErrorRecord.Exception) {
+        $ErrorRecord.Exception.Data['XdrAuthenticationFailure']
+    } else { $null }
+    $sources = @($AuthState, $SasResult, $Response, $structuredFailure, $parsedError) | Where-Object { $null -ne $_ }
 
     $providerCode = $null
     foreach ($source in $sources) {
-        $candidate = & $getValue $source @('sErrorCode', 'iErrorCode', 'ErrCode', 'errorCode', 'code')
+        $candidate = & $getValue $source @('sErrorCode', 'iErrorCode', 'ErrCode', 'errorCode', 'ProviderCode', 'code')
         if (-not $candidate) {
             $nestedError = & $getValue $source @('error')
             if ($nestedError -and $nestedError -isnot [string]) {
                 $candidate = & $getValue $nestedError @('code')
+            }
+        }
+        if (-not $candidate) {
+            foreach ($errorCode in @(& $getValue $source @('error_codes'))) {
+                if ([string]$errorCode -match '^\d{5,8}$') {
+                    $candidate = [string]$errorCode
+                    break
+                }
             }
         }
         if ($candidate) {
@@ -121,6 +132,10 @@
             # An invalid redirect URI is classified by the caller's fallback.
             $oauthError = $null
         }
+    }
+    if (-not $oauthError) {
+        $parsedOAuthError = & $getValue $parsedError @('error')
+        if ($parsedOAuthError -is [string]) { $oauthError = $parsedOAuthError }
     }
 
     if (-not $providerCode -and $oauthError) { $providerCode = $oauthError }
@@ -156,7 +171,10 @@
     }
 
     $code = $null
-    if ($providerCode -and $entraMappings.ContainsKey($providerCode)) {
+    $structuredCode = & $getValue $structuredFailure @('Code')
+    if ($structuredFailure -and $ErrorRecord.FullyQualifiedErrorId -like 'XdrAuthentication.*' -and $structuredCode) {
+        $code = [string]$structuredCode
+    } elseif ($providerCode -and $entraMappings.ContainsKey($providerCode)) {
         $code = $entraMappings[$providerCode]
     } elseif ($oauthError) {
         $code = switch -Regex ($oauthError) {
@@ -245,6 +263,8 @@
         ProviderRejected = @('The authentication provider rejected the sign-in.', 'Review the Entra sign-in logs using the diagnostic identifiers, then retry after resolving the reported cause.', 'AuthenticationError', $false)
         UnknownFailure = @('Authentication failed for an unclassified reason.', 'Retry once; if the failure persists, use the safe diagnostic identifiers when reporting the issue.', 'NotSpecified', $false)
     }
+
+    if (-not $definitions.ContainsKey($code)) { $code = 'UnknownFailure' }
 
     $definition = $definitions[$code]
     $retryable = [bool]$definition[3]

@@ -28,6 +28,7 @@
 
     .PARAMETER Raw
         Returns the raw Kusto REST response instead of row objects.
+        The caller is responsible for checking the response for partial failures or cancellation.
 
     .EXAMPLE
         Invoke-XdrKustainerQuery -Query 'XDRAlerts | take 10'
@@ -123,6 +124,24 @@
 
         if ($Raw) {
             return $response
+        }
+
+        if (-not $isManagementCommand) {
+            foreach ($completion in @($response | Where-Object { $_.FrameType -eq 'DataSetCompletion' })) {
+                if ($completion.HasErrors -or $completion.Cancelled) {
+                    $details = @(
+                        foreach ($entry in $completion.OneApiErrors) {
+                            $message = if ($entry.error.'@message') { $entry.error.'@message' } else { $entry.error.message }
+                            if ($message) { $message }
+                        }
+                    ) -join '; '
+                    if ([string]::IsNullOrWhiteSpace($details)) {
+                        $details = if ($completion.Cancelled) { 'The query was cancelled.' } else { 'The server reported a partial query failure.' }
+                    }
+
+                    throw "Kustainer query failed: $details"
+                }
+            }
         }
 
         $tableResponse = if ($isManagementCommand) {

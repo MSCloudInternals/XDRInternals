@@ -2861,6 +2861,77 @@
             }
         }
 
+        It 'rejects partial query results before emitting rows (<AsJson>)' -TestCases @(
+            @{ AsJson = $false }
+            @{ AsJson = $true }
+        ) {
+            param($AsJson)
+            InModuleScope XDRInternals -Parameters @{ AsJson = $AsJson } {
+                param($AsJson)
+                $script:failedQueryResponse = @(
+                    @{ FrameType = 'DataTable'; TableKind = 'PrimaryResult'; Columns = @(
+                            @{ ColumnName = 'Value'; ColumnType = 'long' }
+                        ); Rows = @(, @(1))
+                    },
+                    @{ FrameType = 'DataSetCompletion'; HasErrors = $true; Cancelled = $false; OneApiErrors = @(
+                            @{ error = @{ message = 'Request failed'; '@message' = 'E_QUERY_RESULT_SET_TOO_LARGE: results exceeded the limit.' } }
+                        )
+                    }
+                )
+                if ($AsJson) {
+                    $script:failedQueryResponse = ConvertTo-Json -InputObject $script:failedQueryResponse -Depth 10
+                }
+                Mock Invoke-XdrAzureDataExplorerRestRequest { $script:failedQueryResponse }
+                $rows = [System.Collections.Generic.List[object]]::new()
+
+                {
+                    Invoke-XdrKustainerQuery -Query 'Events' | ForEach-Object { $rows.Add($_) }
+                } | Should -Throw '*E_QUERY_RESULT_SET_TOO_LARGE*'
+                $rows.Count | Should -Be 0
+            }
+        }
+
+        It 'rejects unsuccessful completion without detailed errors (<Cancelled>)' -TestCases @(
+            @{ Cancelled = $true; HasErrors = $false; Expected = '*cancelled*' }
+            @{ Cancelled = $false; HasErrors = $true; Expected = '*partial query failure*' }
+        ) {
+            param($Cancelled, $HasErrors, $Expected)
+            InModuleScope XDRInternals -Parameters @{ Cancelled = $Cancelled; HasErrors = $HasErrors; Expected = $Expected } {
+                param($Cancelled, $HasErrors, $Expected)
+                $script:failedQueryResponse = @(
+                    @{ FrameType = 'DataSetCompletion'; HasErrors = $HasErrors; Cancelled = $Cancelled }
+                )
+                Mock Invoke-XdrAzureDataExplorerRestRequest { $script:failedQueryResponse }
+
+                { Invoke-XdrKustainerQuery -Query 'Events' } | Should -Throw $Expected
+            }
+        }
+
+        It 'uses the standard server error message when extended details are absent' {
+            InModuleScope XDRInternals {
+                Mock Invoke-XdrAzureDataExplorerRestRequest {
+                    @{ FrameType = 'DataSetCompletion'; HasErrors = $true; OneApiErrors = @(
+                            @{ error = @{ message = 'Query memory limit exceeded.' } }
+                        )
+                    }
+                }
+
+                { Invoke-XdrKustainerQuery -Query 'Events' } | Should -Throw '*Query memory limit exceeded*'
+            }
+        }
+
+        It 'preserves failed response details in raw mode' {
+            InModuleScope XDRInternals {
+                Mock Invoke-XdrAzureDataExplorerRestRequest {
+                    @{ FrameType = 'DataSetCompletion'; HasErrors = $true; Cancelled = $true }
+                }
+
+                $result = Invoke-XdrKustainerQuery -Query 'Events' -Raw
+                $result.HasErrors | Should -BeTrue
+                $result.Cancelled | Should -BeTrue
+            }
+        }
+
         It 'parses large emulator responses returned as JSON text' {
             InModuleScope XDRInternals {
                 Mock Invoke-XdrAzureDataExplorerRestRequest {

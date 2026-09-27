@@ -260,7 +260,7 @@ Invoke-XdrKustainerQuery `
 Invoke-XdrKustainerQuery -Query '.show tables'
 ```
 
-Use `-Raw` for the complete Kusto REST response envelope. `-ClusterUri` and `-Database` can also be supplied directly without first calling `Set-XdrKustainer`.
+Regular queries raise an error before returning rows when Kusto reports a partial failure or cancellation, including truncated results. Use `-Raw` for the complete Kusto REST response envelope; in this mode, the caller must check the completion frame for errors or cancellation. `-ClusterUri` and `-Database` can also be supplied directly without first calling `Set-XdrKustainer`.
 
 ### HTTPS, mounted files, and deduplication
 

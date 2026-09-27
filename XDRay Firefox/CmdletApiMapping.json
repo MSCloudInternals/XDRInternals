@@ -274,8 +274,16 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/GetAdvancedFeaturesSetting"
   },
   {
+    "Cmdlet": "Get-XdrEndpointConfigurationAttackDisruptionExclusion",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/disrupt/api/exclusions/{path}"
+  },
+  {
     "Cmdlet": "Get-XdrEndpointConfigurationAuthenticatedTelemetry",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationCustomCollectionModel",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdeCustomCollection/model"
   },
   {
     "Cmdlet": "Get-XdrEndpointConfigurationCustomCollectionRule",

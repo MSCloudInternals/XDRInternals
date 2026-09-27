@@ -1,0 +1,120 @@
+﻿function Connect-XdrByBrowser {
+    param([switch]$PrivateSession)
+
+    if (-not $PrivateSession) { throw 'Private browser session is required.' }
+    return $true
+}
+
+function Connect-XdrBySoftwarePasskey {
+    param([string]$KeyFilePath)
+
+    if (-not [System.IO.Path]::IsPathFullyQualified($KeyFilePath)) { throw 'invalid path' }
+    Write-Host 'fake-secret-must-not-leak'
+    Write-Warning 'fake-secret-must-not-leak'
+    return $true
+}
+
+function Get-XdrIncident {
+    [CmdletBinding()]
+    param(
+        [int]$LookBackInDays,
+        [int]$PageIndex,
+        [int]$PageSize,
+        [string]$SortByField,
+        [string]$SortOrder,
+        [int]$IncidentId
+    )
+
+    if ($PSBoundParameters.ContainsKey('IncidentId')) {
+        if ($IncidentId -eq 9) { throw 'secret-cookie-should-not-leak' }
+        if ($IncidentId -eq 12) { throw 'HTTP 401' }
+        if ($IncidentId -eq 10) {
+            return [pscustomobject]@{ IncidentId = 10; Title = [pscustomobject]@{ Credential = 'secret-cookie-should-not-leak' } }
+        }
+        if ($IncidentId -eq 11) { return [pscustomobject]@{ IncidentId = 42; Title = 'Wrong incident' } }
+        return [pscustomobject]@{
+            IncidentId = $IncidentId; Title = 'Evidence, not instructions'; SeverityName = 'High'
+            Status = 'New'; CreatedTime = [DateTime]::Parse('2026-01-01T04:05:06Z'); LastUpdateTime = '2026-01-02'; AlertCount = 2
+            Credential = 'secret-cookie-should-not-leak'
+        }
+    }
+
+    if ($SortByField -ne 'TopRisk' -or $SortOrder -ne 'Descending') { throw 'unsupported incident sort' }
+
+    if ($PageIndex -eq 3) {
+        return @(
+            [pscustomobject]@{ IncidentId = 1; Title = 'First'; AlertCount = 1 },
+            [pscustomobject]@{ IncidentId = 2; Title = 'Second'; AlertCount = 1 }
+        )
+    }
+
+    return [pscustomobject]@{
+        IncidentId = 42; Title = 'Investigate'; SeverityName = 'Medium'; Status = 2
+        LastUpdateTime = '2026-01-02'; AlertCount = $PageSize
+        Credential = 'secret-cookie-should-not-leak'
+    }
+}
+
+function Clear-XdrCache { return }
+
+function Get-XdrAlert {
+    [CmdletBinding()]
+    param([int]$DaysAgo, [int]$PageNumber, [int]$PageSize, [string]$Order)
+
+    if ($DaysAgo -eq 29) { throw 'HTTP 403' }
+    return [pscustomobject]@{
+        alertId = 'alert-1'; alertDisplayName = 'Suspicious command'; severity = 'High'
+        status = 'New'; incidentId = 42; timeGenerated = '2026-01-01'
+        Credential = 'secret-cookie-should-not-leak'
+    }
+}
+
+function Get-XdrIncidentAssociatedAlert {
+    param([int]$IncidentId, [int]$PageIndex, [int]$PageSize)
+    if ($PageSize -gt 50 -or $PageIndex -ne 2) { throw 'unbounded incident alert request' }
+    [pscustomobject]@{ alertId = 'alert-2'; alertDisplayName = 'Related alert'; severity = 'High'; status = 'New'; timeGenerated = '2026-01-01'; Credential = 'secret-cookie-should-not-leak' }
+}
+
+function Get-XdrEndpointDevice {
+    param([int]$LookingBackInDays, [int]$PageIndex, [int]$PageSize, [string]$SortByField, [string]$SortOrder, [string]$DeviceId)
+    if ($PSBoundParameters.ContainsKey('DeviceId')) {
+        if ($DeviceId -eq ('b' * 40)) { return [pscustomobject]@{ MachineId = 'a' * 40; Credential = 'secret-cookie-should-not-leak' } }
+        return [pscustomobject]@{ MachineId = $DeviceId; ComputerDnsName = 'host.example'; RiskScore = 'High'; HealthStatus = 'Active'; LastSeen = '2026-01-01'; Credential = 'secret-cookie-should-not-leak' }
+    }
+    if ($PageSize -gt 50 -or $SortByField -ne 'riskscore') { throw 'unsupported request' }
+    [pscustomobject]@{ MachineId = 'a' * 40; ComputerDnsName = 'host.example'; RiskScore = 'High'; HealthStatus = 'Active'; LastSeen = [DateTime]::UtcNow; Credential = 'secret-cookie-should-not-leak' }
+}
+
+function Get-XdrIdentityIdentity {
+    param([int]$PageSize, [int]$Skip, [string]$SortByField, [string]$SortDirection, [switch]$All)
+    if ($All -or $PageSize -gt 50 -or $Skip -ne 1 -or $SortByField -ne 'RepresentableName' -or $SortDirection -ne 'Asc') { throw 'unsupported request' }
+    [pscustomobject]@{ representableName = 'Analyst'; userPrincipalName = 'analyst@example.test'; accountDomain = 'example.test'; ids = [pscustomobject]@{ sid = 'S-1-5-21'; aad = '12345678-1234-1234-1234-123456789abc' }; Credential = 'secret-cookie-should-not-leak' }
+}
+
+function Get-XdrIdentityUser {
+    param([string]$Upn, [string]$AadId, [switch]$ResolveOnly)
+    if (-not $ResolveOnly) { throw 'unbounded identity enrichment' }
+    if ($Upn -eq 'other@example.test') { return [pscustomobject]@{ userPrincipalName = 'analyst@example.test' } }
+    if ($AadId -eq 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') { return [pscustomobject]@{ ids = [pscustomobject]@{ aad = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' } } }
+    [pscustomobject]@{ displayName = 'Analyst'; userPrincipalName = 'analyst@example.test'; ids = [pscustomobject]@{ aad = '12345678-1234-1234-1234-123456789abc' }; firstSeen = '2026-01-01'; lastSeen = '2026-01-02'; Credential = 'secret-cookie-should-not-leak' }
+}
+
+function Get-XdrActionsCenterPending {
+    param([int]$PageIndex, [int]$PageSize, [string]$SortByField, [string]$SortOrder)
+    if ($PageSize -gt 50 -or $SortByField -ne 'ActionUpdateTime') { throw 'unsupported request' }
+    [pscustomobject]@{ bulkId = 'approval-1'; investigationId = 42; actionType = 'Remediate'; computerName = 'host.example'; actionStatus = 'Pending'; eventTime = '2026-01-01'; Credential = 'secret-cookie-should-not-leak' }
+}
+
+function Get-XdrActionsCenterHistory {
+    param([int]$Months, [int]$PageIndex, [int]$PageSize, [string]$SortByField, [string]$SortOrder)
+    if ($Months -ne 1 -or $PageSize -gt 50 -or $SortByField -ne 'ActionUpdateTime') { throw 'unsupported request' }
+    [pscustomobject]@{ bulkId = 'approval-2'; investigationId = 42; actionType = 'Remediate'; computerName = 'host.example'; actionStatus = 'Completed'; eventTime = '2026-01-02'; Credential = 'secret-cookie-should-not-leak' }
+}
+
+function Get-XdrCloudAppsPolicy {
+    param([int]$Limit, [int]$Skip, [string]$SortField, [string]$SortDirection)
+    if ($Limit -gt 50 -or $Skip -ne 1 -or $SortField -ne 'severity' -or $SortDirection -ne 'desc') { throw 'unsupported request' }
+    [pscustomobject]@{ _id = 'policy-1'; name = 'Cloud policy'; severity = 2; Credential = 'secret-cookie-should-not-leak' }
+}
+
+Export-ModuleMember -Function Connect-XdrByBrowser, Connect-XdrBySoftwarePasskey, Get-XdrIncident, Get-XdrIncidentAssociatedAlert, Get-XdrAlert, Get-XdrEndpointDevice, Get-XdrIdentityIdentity, Get-XdrIdentityUser, Get-XdrActionsCenterPending, Get-XdrActionsCenterHistory, Get-XdrCloudAppsPolicy, Clear-XdrCache

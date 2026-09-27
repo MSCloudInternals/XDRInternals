@@ -5,8 +5,8 @@
 
     .DESCRIPTION
         Gets all alerts associated with a specific incident ID from Microsoft Defender XDR.
-        This cmdlet automatically handles pagination to retrieve all associated alerts.
-        The results are cached to improve performance.
+        By default, this cmdlet automatically handles pagination and caches the result.
+        With -PageIndex and -PageSize, it retrieves exactly one page without using the all-pages cache.
 
     .PARAMETER IncidentId
         The ID of the incident to retrieve associated alerts for.
@@ -14,9 +14,21 @@
     .PARAMETER Force
         Bypasses the cache and forces a fresh retrieval from the API.
 
+    .PARAMETER PageIndex
+        Retrieves exactly one 1-based page (1-10) instead of all pages. Defaults to 1 when
+        only PageSize is supplied.
+
+    .PARAMETER PageSize
+        Number of associated alerts requested on a single page (1-50). Supplying this
+        parameter enables single-page mode even if PageIndex is omitted.
+
     .EXAMPLE
         Get-XdrIncidentAssociatedAlert -IncidentId 2824
         Retrieves all alerts associated with incident 2824.
+
+    .EXAMPLE
+        Get-XdrIncidentAssociatedAlert -IncidentId 2824 -PageIndex 2 -PageSize 25
+        Retrieves only the second page of up to 25 associated alerts.
 
     .OUTPUTS
         Object[]
@@ -29,7 +41,15 @@
         [int]$IncidentId,
 
         [Parameter()]
-        [switch]$Force
+        [switch]$Force,
+
+        [Parameter()]
+        [ValidateRange(1, 10)]
+        [int]$PageIndex = 1,
+
+        [Parameter()]
+        [ValidateRange(1, 50)]
+        [int]$PageSize = 30
     )
 
     begin {
@@ -37,6 +57,26 @@
     }
 
     process {
+        if ($PSBoundParameters.ContainsKey('PageIndex') -or $PSBoundParameters.ContainsKey('PageSize')) {
+            $Uri = "https://security.microsoft.com/apiproxy/mtp/incidents/$IncidentId/AssociatedAlerts?incidentId=$IncidentId"
+            $body = @{
+                LookBackInDays = 180
+                PageSize       = $PageSize
+                PageIndex      = $PageIndex
+                SortByField    = 'FirstEventTime'
+                SortOrder      = 0
+                GroupType      = 'GroupHash'
+            } | ConvertTo-Json
+            try {
+                $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType 'application/json' -Body $body -WebSession $script:session -Headers $script:headers -ErrorAction Stop
+                if ($null -eq $result.items) { return @() }
+                if (@($result.items).Count -gt $PageSize) { throw 'invalid_response' }
+                return @($result.items)
+            } catch {
+                throw [System.InvalidOperationException]::new("Failed to retrieve associated alerts for incident ${IncidentId}: $_", $_.Exception)
+            }
+        }
+
         $cacheKey = "XdrIncidentAssociatedAlert_$IncidentId"
         $currentCacheValue = Get-XdrCache -CacheKey $cacheKey -ErrorAction SilentlyContinue
 

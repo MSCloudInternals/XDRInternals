@@ -471,7 +471,7 @@
             return $result | Add-XdrCloudAppsTypeName -TypeName $typeName
         } catch {
             $policyType = if ($Type) { "$Type " } else { "" }
-            Write-Error "Failed to retrieve ${policyType}policies: $_"
+            Write-Error -Exception $_.Exception -Message "Failed to retrieve ${policyType}policies: $_"
         }
     }
 }

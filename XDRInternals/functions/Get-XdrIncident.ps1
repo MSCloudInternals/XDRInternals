@@ -166,7 +166,7 @@
 
                 return $incident
             } catch {
-                throw "Failed to retrieve incident with ID $IncidentId : $($_.Exception.Message)"
+                throw [System.InvalidOperationException]::new("Failed to retrieve incident with ID $IncidentId : $($_.Exception.Message)", $_.Exception)
             }
         }
 
@@ -207,7 +207,7 @@
             $sha256 = [System.Security.Cryptography.SHA256]::Create()
             try {
                 $cacheKeyHash = ($sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($cacheKeyPayload)) |
-                    ForEach-Object { $_.ToString('x2') }) -join ''
+                        ForEach-Object { $_.ToString('x2') }) -join ''
             } finally {
                 $sha256.Dispose()
             }
@@ -235,7 +235,7 @@
                     Set-XdrCache -CacheKey $cacheKey -Value $incidents -TTLMinutes 10
                     Write-Verbose "Found $($incidents.Count) incidents on page $currentPageIndex"
                 } catch {
-                    throw "Failed to retrieve XDR Incidents: $($_.Exception.Message)"
+                    throw [System.InvalidOperationException]::new("Failed to retrieve XDR Incidents: $($_.Exception.Message)", $_.Exception)
                 }
             }
 

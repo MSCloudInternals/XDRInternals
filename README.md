@@ -119,6 +119,7 @@ Get-XdrTenantContext -Force
 | Get-XdrIncident                                                 | Retrieves incidents from Microsoft Defender XDR. |
 | Get-XdrIncidentAssociatedAlert                                  | Retrieves alerts associated with a specific incident from Microsoft Defender XDR. |
 | Get-XdrMtoTenantList                                            | Retrieves the list of accessible tenants from Microsoft Defender XDR. |
+| Get-XdrSentinelConfigurationSetting                             | Retrieves a Microsoft Sentinel workspace service setting. |
 | Get-XdrStreamingApiConfiguration                                | Retrieves Streaming API configuration from Microsoft Defender XDR. |
 | Get-XdrSuppressionRule                                          | Retrieves alert suppression rules from Microsoft Defender XDR. |
 | Get-XdrTenantContext                                            | Retrieves the tenant context information from Microsoft Defender XDR. |

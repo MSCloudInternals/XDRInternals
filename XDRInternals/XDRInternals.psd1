@@ -73,6 +73,7 @@
         "ConvertTo-XdrEncodedAdvancedHuntingQuery",
         "Disconnect-XdrEndpointDeviceLiveResponse",
         "Export-XdrAzureDataExplorer",
+        "Export-XdrKustainer",
         "Export-XdrToSentinel",
         "Get-XdrActionsCenterHistory",
         "Get-XdrActionsCenterPending",
@@ -161,6 +162,7 @@
         "Invoke-XdrEndpointDeviceLiveResponseCommand",
         "Invoke-XdrEndpointDevicePolicySync",
         "Invoke-XdrHuntingQueryValidation",
+        "Invoke-XdrKustainerQuery",
         "Invoke-XdrMtoAdvancedHunting",
         "Invoke-XdrRestMethod",
         "Invoke-XdrXspmHuntingQuery",
@@ -190,6 +192,7 @@
         "Set-XdrEndpointDeviceRbacGroup",
         "Set-XdrEndpointDeviceTag",
         "Set-XdrIdentityConfigurationRemediationActionAccount",
+        "Set-XdrKustainer",
         "Set-XdrSentinelConnection",
         "Stop-XdrEndpointDeviceAction",
         "Update-XdrConnectionSettings"

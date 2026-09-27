@@ -60,16 +60,28 @@ function Send-Response {
 
     $response = @{ id = $Id; ok = $Ok }
     if ($Ok) { $response.data = $Data } else { $response.error = $ErrorCode }
-    [Console]::Out.WriteLine(($response | ConvertTo-Json -Depth 5 -Compress))
+    $json = $response | ConvertTo-Json -Depth 5 -Compress
+    if ([System.Text.Encoding]::UTF8.GetByteCount($json + [Environment]::NewLine) -gt 256 * 1024) {
+        $json = @{ id = $Id; ok = $false; error = 'invalid_response' } | ConvertTo-Json -Compress
+    }
+    [Console]::Out.WriteLine($json)
     [Console]::Out.Flush()
 }
 
 function Get-UpstreamErrorCode {
     param($Failure)
 
-    if ($Failure.Exception.Message -match '(?<!\d)(401|403)(?!\d)|unauthoriz|forbidden') {
-        return 'not_connected'
+    $exception = $Failure.Exception
+    while ($null -ne $exception) {
+        if ($null -ne $exception.Response -and $null -ne $exception.Response.StatusCode) {
+            $statusCode = [int]$exception.Response.StatusCode
+            if ($statusCode -in @(401, 403)) { return 'not_connected' }
+            if ($statusCode -eq 404) { return 'not_found' }
+            return 'upstream_failed'
+        }
+        $exception = $exception.InnerException
     }
+    if ($Failure.FullyQualifiedErrorId -like 'XdrIdentityUserNotFound*') { return 'not_found' }
     return 'upstream_failed'
 }
 
@@ -131,7 +143,8 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
         } elseif ($request.operation -eq 'get_identity') {
             if ($parameters.Count -ne 1 -or -not (
                     ($parameters.upn -is [string] -and $parameters.upn -cmatch '^[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,189}$') -or
-                    ($parameters.objectId -is [string] -and $parameters.objectId -cmatch '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$')
+                    ($parameters.objectId -is [string] -and $parameters.objectId -cmatch '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$') -or
+                    ($parameters.sid -is [string] -and $parameters.sid -cmatch '^S-1-[0-9]{1,15}(?:-[0-9]{1,10}){1,15}$')
                 )) { throw 'invalid_arguments' }
         } elseif (-not (Test-ArgumentSet -Arguments $parameters -Limits $limits)) { throw 'invalid_arguments' }
         if (-not $connected) { throw 'not_connected' }
@@ -228,6 +241,8 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                 try {
                     if ($parameters.ContainsKey('objectId')) {
                         $item = Get-XdrIdentityUser -AadId $parameters.objectId -ResolveOnly -ErrorAction Stop
+                    } elseif ($parameters.ContainsKey('sid')) {
+                        $item = Get-XdrIdentityUser -Sid $parameters.sid -ResolveOnly -ErrorAction Stop
                     } else {
                         $item = Get-XdrIdentityUser -Upn $parameters.upn -ResolveOnly -ErrorAction Stop
                     }
@@ -235,8 +250,9 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                 if ($null -eq $item) { throw 'not_found' }
                 if ($item -is [array]) { throw 'invalid_response' }
                 if ($parameters.ContainsKey('objectId') -and $item.ids.aad -ne $parameters.objectId) { throw 'invalid_response' }
+                if ($parameters.ContainsKey('sid') -and $item.ids.sid -cne $parameters.sid) { throw 'invalid_response' }
                 if ($parameters.ContainsKey('upn') -and $item.userPrincipalName -and $item.userPrincipalName -ne $parameters.upn) { throw 'invalid_response' }
-                @{ upn = Limit-Text $item.userPrincipalName; name = Limit-Text $item.displayName; objectId = Limit-Text $item.ids.aad; firstSeen = Limit-Date $item.firstSeen; lastSeen = Limit-Date $item.lastSeen }
+                @{ upn = Limit-Text $item.userPrincipalName; name = Limit-Text $item.displayName; objectId = Limit-Text $item.ids.aad; sid = Limit-Text $item.ids.sid; firstSeen = Limit-Date $item.firstSeen; lastSeen = Limit-Date $item.lastSeen }
                 break
             }
         }

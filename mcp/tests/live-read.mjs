@@ -73,6 +73,7 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         console.log(`live status=pass phase=identities count=${identities.length}`);
         const byUpn = identities.find((item) => /^[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,189}$/.test(item.upn ?? ""));
         const byObjectId = identities.find((item) => /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(item.objectId ?? ""));
+        const bySid = identities.find((item) => /^S-1-[0-9]{1,15}(?:-[0-9]{1,10}){1,15}$/.test(item.sid ?? ""));
         if (byUpn) {
             const identity = await call("xdr_get_identity", { upn: byUpn.upn }, 70_000);
             if (!identity || (!identity.name && !identity.objectId)) throw new Error("invalid_identity_detail");
@@ -80,6 +81,10 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         } else if (byObjectId) {
             const identity = await call("xdr_get_identity", { objectId: byObjectId.objectId }, 70_000);
             if (identity?.objectId?.toLowerCase() !== byObjectId.objectId.toLowerCase()) throw new Error("invalid_identity_detail");
+            console.log("live status=pass phase=identity_detail");
+        } else if (bySid) {
+            const identity = await call("xdr_get_identity", { sid: bySid.sid }, 70_000);
+            if (identity?.sid !== bySid.sid) throw new Error("invalid_identity_detail");
             console.log("live status=pass phase=identity_detail");
         } else {
             console.log("live status=skip phase=identity_detail reason=no_identifier");

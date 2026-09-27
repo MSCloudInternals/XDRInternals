@@ -97,6 +97,62 @@ test("PowerShell requires sign-in and projects only bounded read results", () =>
     assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
 });
 
+test("oversized serialized pages fail without losing the session", () => {
+    const result = runHost([
+        { id: "1", operation: "list_incidents", args: { days: 7, page: 4, pageSize: 50 } },
+        { id: "2", operation: "list_incidents", args: { days: 7, page: 4, pageSize: 1 } },
+        { id: "3", operation: "get_incident", args: { incidentId: 42 } },
+    ]);
+    assert.equal(result[0].error, "invalid_response");
+    assert.equal(result[1].ok, true);
+    assert.equal(result[1].data.length, 1);
+    assert.equal(result[2].ok, true);
+    assert.equal(result[2].data.incidentId, 42);
+});
+
+test("identity SID lookup is bounded and verifies the resolved target", () => {
+    const sid = "S-1-5-21-111-222-333-1001";
+    const result = runHost([
+        { id: "1", operation: "get_identity", args: { sid } },
+        { id: "2", operation: "get_identity", args: { sid: "S-1-5-21-111-222-333-1002" } },
+        { id: "3", operation: "get_identity", args: { sid: `${sid};Get-Content /tmp/secret` } },
+        { id: "4", operation: "get_identity", args: { sid, upn: "analyst@example.test" } },
+    ]);
+    assert.equal(result[0].ok, true);
+    assert.equal(result[0].data.sid, sid);
+    assert.equal(result[0].data.objectId, null);
+    assert.equal(result[0].data.upn, null);
+    assert.deepEqual(result.slice(1).map((response) => response.error), ["invalid_response", "invalid_arguments", "invalid_arguments"]);
+    assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+});
+
+test("MCP accepts exactly one identity identifier including SID", async () => {
+    const sid = "S-1-5-21-111-222-333-1001";
+    const calls = [];
+    const server = createServer({
+        invoke: async (operation, args) => {
+            calls.push({ operation, args });
+            return { sid, upn: null, objectId: null, name: "Domain analyst", firstSeen: null, lastSeen: null };
+        },
+    });
+    const client = new Client({ name: "sid-test", version: "1.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    try {
+        await server.connect(serverTransport);
+        await client.connect(clientTransport);
+        const result = await client.callTool({ name: "xdr_get_identity", arguments: { sid } });
+        assert.equal(result.isError, undefined);
+        assert.equal(result.structuredContent.items.sid, sid);
+        for (const args of [{}, { sid: "invalid" }, { sid, upn: "analyst@example.test" }, { sid, objectId: "12345678-1234-1234-1234-123456789abc" }]) {
+            assert.equal((await client.callTool({ name: "xdr_get_identity", arguments: args })).isError, true);
+        }
+        assert.deepEqual(calls, [{ operation: "get_identity", args: { sid } }]);
+    } finally {
+        await client.close();
+        await server.close();
+    }
+});
+
 test("passkey startup is opt-in and authentication streams never enter stdout", () => {
     const request = [{ id: "1", operation: "get_incident", args: { incidentId: 42 } }];
     assert.equal(runHost(request, false, { XDR_MCP_AUTH: "software-passkey" })[0].error, "not_connected");
@@ -120,6 +176,17 @@ test("portal authorization rejection revokes the session before cached reads", (
     ]);
     assert.equal(alertResult[0].error, "not_connected");
     assert.equal(alertResult[1].error, "not_connected");
+});
+
+test("missing records and authorization-like text do not revoke the session", () => {
+    const result = runHost([
+        { id: "1", operation: "get_incident", args: { incidentId: 401 } },
+        { id: "2", operation: "get_incident", args: { incidentId: 403 } },
+        { id: "3", operation: "get_incident", args: { incidentId: 13 } },
+        { id: "4", operation: "get_incident", args: { incidentId: 42 } },
+    ]);
+    assert.deepEqual(result.slice(0, 3).map((response) => response.error), ["not_found", "not_found", "upstream_failed"]);
+    assert.equal(result[3].ok, true);
 });
 
 test("MCP registers only bounded read tools and rejects invalid inputs", async () => {
@@ -184,6 +251,42 @@ test("MCP fails closed on malformed bridge output and unexpected error text", as
     } finally {
         await client.close();
         await server.close();
+    }
+});
+
+test("only child startup receives the authentication deadline", async (context) => {
+    const deadlines = [];
+    const originalSetTimeout = globalThis.setTimeout;
+    context.mock.method(globalThis, "setTimeout", (callback, delay, ...args) => {
+        deadlines.push(delay);
+        return originalSetTimeout(callback, delay, ...args);
+    });
+    const bridge = new ReadOnlyBridge({ XDR_MCP_AUTH: "browser" });
+    const child = {
+        stdin: {
+            write(line, callback) {
+                const { id } = JSON.parse(line);
+                const pending = bridge.pending.get(id);
+                clearTimeout(pending.timer);
+                bridge.pending.delete(id);
+                pending.resolve({ id, ok: true, data: [] });
+                callback(null);
+            },
+        },
+        kill() { },
+    };
+    context.mock.method(bridge, "start", () => {
+        bridge.child = child;
+        return child;
+    });
+    try {
+        await bridge.invoke("list_incidents", { days: 1, page: 1, pageSize: 1 });
+        await bridge.invoke("list_incidents", { days: 1, page: 1, pageSize: 1 });
+        assert.equal(deadlines.length, 2);
+        assert.ok(deadlines[0] > 350_000 && deadlines[0] <= 360_000);
+        assert.ok(deadlines[1] > 50_000 && deadlines[1] <= 60_000);
+    } finally {
+        bridge.close();
     }
 });
 

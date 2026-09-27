@@ -1,4 +1,14 @@
-﻿function Connect-XdrByBrowser {
+﻿function Stop-FakeHttpRequest {
+    param([int]$StatusCode)
+
+    $response = [System.Net.Http.HttpResponseMessage]::new([System.Net.HttpStatusCode]$StatusCode)
+    $exception = [Microsoft.PowerShell.Commands.HttpResponseException]::new('Request failed.', $response)
+    $failure = [System.Management.Automation.ErrorRecord]::new($exception, 'SyntheticHttpFailure', 'InvalidOperation', $null)
+    $failure.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('{"error":"Access denied"}')
+    throw $failure
+}
+
+function Connect-XdrByBrowser {
     param([switch]$PrivateSession)
 
     if (-not $PrivateSession) { throw 'Private browser session is required.' }
@@ -27,7 +37,9 @@ function Get-XdrIncident {
 
     if ($PSBoundParameters.ContainsKey('IncidentId')) {
         if ($IncidentId -eq 9) { throw 'secret-cookie-should-not-leak' }
-        if ($IncidentId -eq 12) { throw 'HTTP 401' }
+        if ($IncidentId -eq 12) { Stop-FakeHttpRequest 401 }
+        if ($IncidentId -in @(401, 403)) { Stop-FakeHttpRequest 404 }
+        if ($IncidentId -eq 13) { throw 'Unrelated failure for incident 401: forbidden field' }
         if ($IncidentId -eq 10) {
             return [pscustomobject]@{ IncidentId = 10; Title = [pscustomobject]@{ Credential = 'secret-cookie-should-not-leak' } }
         }
@@ -48,6 +60,13 @@ function Get-XdrIncident {
         )
     }
 
+    if ($PageIndex -eq 4) {
+        $text = [string][char]1 * 500
+        return @(1..$PageSize | ForEach-Object {
+            [pscustomobject]@{ IncidentId = $_; Title = $text; SeverityName = $text; Status = $text; AlertCount = 1 }
+        })
+    }
+
     return [pscustomobject]@{
         IncidentId = 42; Title = 'Investigate'; SeverityName = 'Medium'; Status = 2
         LastUpdateTime = '2026-01-02'; AlertCount = $PageSize
@@ -61,7 +80,7 @@ function Get-XdrAlert {
     [CmdletBinding()]
     param([int]$DaysAgo, [int]$PageNumber, [int]$PageSize, [string]$Order)
 
-    if ($DaysAgo -eq 29) { throw 'HTTP 403' }
+    if ($DaysAgo -eq 29) { Stop-FakeHttpRequest 403 }
     return [pscustomobject]@{
         alertId = 'alert-1'; alertDisplayName = 'Suspicious command'; severity = 'High'
         status = 'New'; incidentId = 42; timeGenerated = '2026-01-01'
@@ -92,8 +111,9 @@ function Get-XdrIdentityIdentity {
 }
 
 function Get-XdrIdentityUser {
-    param([string]$Upn, [string]$AadId, [switch]$ResolveOnly)
+    param([string]$Upn, [string]$AadId, [string]$Sid, [switch]$ResolveOnly)
     if (-not $ResolveOnly) { throw 'unbounded identity enrichment' }
+    if ($Sid) { return [pscustomobject]@{ displayName = 'Domain analyst'; ids = [pscustomobject]@{ sid = 'S-1-5-21-111-222-333-1001' }; Credential = 'secret-cookie-should-not-leak' } }
     if ($Upn -eq 'other@example.test') { return [pscustomobject]@{ userPrincipalName = 'analyst@example.test' } }
     if ($AadId -eq 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') { return [pscustomobject]@{ ids = [pscustomobject]@{ aad = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' } } }
     [pscustomobject]@{ displayName = 'Analyst'; userPrincipalName = 'analyst@example.test'; ids = [pscustomobject]@{ aad = '12345678-1234-1234-1234-123456789abc' }; firstSeen = '2026-01-01'; lastSeen = '2026-01-02'; Credential = 'secret-cookie-should-not-leak' }

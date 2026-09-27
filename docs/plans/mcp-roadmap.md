@@ -16,7 +16,7 @@ The candidate ships the following workflows; excluded capabilities are not count
 | --- | --- | --- |
 | Session | One local operator; opt-in passkey or browser startup; no model-supplied secrets. | No multi-tenant selection, session control tool, or per-request HTTP authentication. |
 | Incidents and alerts | Bounded incident list/detail, alert list, and one page of incident-associated alerts. | No merges, moves, or auto-pagination through MCP. |
-| Entities | Bounded device list/detail and identity list/resolve-only detail. | No file-backed timelines or enrichment fan-out. |
+| Entities | Bounded device list/detail and identity list/resolve-only detail by UPN, Entra object ID or SID. | No file-backed timelines or enrichment fan-out. |
 | Response state | Pending approvals and one month of Action Center history, read-only. | No approval, isolation, cancellation, or other tenant mutations. |
 | Cloud Apps | One page of policy metadata. | No policy edits, activity timelines, or unbounded governance lists. |
 | Hunting and advanced | None in the candidate. | No arbitrary query execution, 10,000-record rule fetches, or attack-path calls that reset the session. |
@@ -39,5 +39,7 @@ The module exports many more commands than an analyst needs in one model session
 4. **Beyond first release:** only a separately designed, independently approved product could consider tenant writes or Live Response. Generic raw REST and exported-cmdlet runners remain non-goals.
 
 Dependency notes: `Get-XdrIncidentAssociatedAlert` has a new single-page mode used by MCP; its default all-pages mode remains unchanged for existing PowerShell users. `Get-XdrIdentityUser -ResolveOnly` skips enrichment and its cache. `Get-XdrEndpointDeviceActionResult` can write forensic files; `Invoke-XdrMtoAdvancedHunting` may default to cached multiple tenant IDs; the detection-rule cmdlet requests 10,000 items; and XSPM attack-path calls reset the web session. None is exposed through this candidate.
+
+Post-review hardening preserves HTTP status across the eleven read paths, distinguishes not-found responses from authentication failures, restricts the extended deadline to sign-in, and rejects oversized serialized pages without losing the session. SID resolution completes the existing identity lookup tool without adding another operation or enrichment request; it has offline target-validation and single-request tests, not live evidence yet.
 
 Live testing found that the portal rejects `Get-XdrIncident -SortByField LastUpdatedDate` despite the cmdlet's documented `ValidateSet`; the candidate fixes `TopRisk` descending. Incident status may be numeric. Device list results use `MachineId`, and identity list results contain a nested `ids.aad` rather than a top-level object ID. `Update-XdrConnectionSettings` uses cached tenant context but does not independently verify account and tenant after refresh. No tenant mutation or live write validation is part of this release.

@@ -15,10 +15,11 @@ Status: review draft for `1.0.0-rc.1`. Applies only to the local stdio server wi
 | --- | --- | --- |
 | Caller requests a write, raw REST call, file output, or arbitrary cmdlet | No such registered operation; exact operation and argument allowlists in the host | Offline dispatcher and MCP protocol denial tests |
 | Cmdlet fetches more data than MCP returns | Only explicit single-page paths are exposed; associated alerts use the new page mode, identity detail uses resolve-only mode | Focused Pester tests, fixture checks and sanitized live stdio calls |
-| An upstream record includes a credential or nested payload | Fixed scalar projection, bounded string length, strict TypeScript output schemas and frame limit | Fake module includes a hidden credential field; malformed-result tests |
+| An upstream record includes a credential or nested payload | Fixed scalar projection, bounded string length, strict TypeScript output schemas and frame limit checked before host emission | Hidden-credential, malformed-result and oversized serialized-page tests |
 | Error or authentication stream leaks secrets | Authentication streams suppressed; upstream failures mapped to stable error codes; stderr not forwarded as tool output | Fixture auth/error tests |
-| Stale credentials continue serving cached data after known authorization failure | Recognized 401/403 revokes the process session and clears the cache | Authorization-revocation fixture test |
-| Confused-deputy entity lookup | Device ID and identity object ID checked against the result; UPN checked if present | Wrong-target fixture tests and live lookup checks |
+| Stale credentials continue serving cached data after known authorization failure | Structured HTTP 401/403 revokes the process session and clears the cache; error text cannot trigger revocation | Authorization-revocation fixtures and real-cmdlet status propagation tests for all eleven read paths |
+| Confused-deputy entity lookup | Device ID, identity object ID and SID checked against the result; UPN checked if present | Wrong-target fixture tests; live device and existing identity lookup checks; SID lookup is offline-tested only |
+| A stalled read occupies the serialized bridge | Six-minute deadline only for initial sign-in, 60 seconds for subsequent reads including queue time, at most eight outstanding calls | Deadline and queue regression tests |
 | Untrusted portal text becomes instructions | Tool descriptions mark results as evidence; no tool executes a command based on returned text | MCP inventory is read-only; operator must still configure client approvals and data handling |
 
 ## Residual risks and review questions

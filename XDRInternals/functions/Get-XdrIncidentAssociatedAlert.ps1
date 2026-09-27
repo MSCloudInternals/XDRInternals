@@ -73,7 +73,7 @@
                 if (@($result.items).Count -gt $PageSize) { throw 'invalid_response' }
                 return @($result.items)
             } catch {
-                throw "Failed to retrieve associated alerts for incident ${IncidentId}: $_"
+                throw [System.InvalidOperationException]::new("Failed to retrieve associated alerts for incident ${IncidentId}: $_", $_.Exception)
             }
         }
 

@@ -82,7 +82,7 @@ export class ReadOnlyBridge {
         if (this.closed) throw new BridgeError("session_lost");
         if (signal?.aborted) throw new BridgeError("request_cancelled");
         if (this.outstanding >= 8) throw new BridgeError("server_busy");
-        const login = this.outstanding === 0 && ["browser", "software-passkey"].includes(this.childEnv.XDR_MCP_AUTH ?? "");
+        const login = !this.child && this.outstanding === 0 && ["browser", "software-passkey"].includes(this.childEnv.XDR_MCP_AUTH ?? "");
         const deadline = Date.now() + (login ? 360_000 : 60_000);
         this.outstanding++;
         const run = async (): Promise<unknown> => {

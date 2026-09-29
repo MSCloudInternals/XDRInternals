@@ -110,6 +110,73 @@ test("oversized serialized pages fail without losing the session", () => {
     assert.equal(result[2].data.incidentId, 42);
 });
 
+test("device timeline requests one bounded portal page without leaking upstream fields", () => {
+    const deviceId = "a".repeat(40);
+    const result = runHost([
+        { id: "1", operation: "list_device_timeline", args: { deviceId, minutes: 60, pageSize: 1 } },
+        { id: "2", operation: "list_device_timeline", args: { deviceId, minutes: 61, pageSize: 1 } },
+        { id: "3", operation: "list_device_timeline", args: { deviceId, minutes: 60, pageSize: 51 } },
+        { id: "4", operation: "list_device_timeline", args: { deviceId: "b".repeat(40), minutes: 10, pageSize: 1 } },
+        { id: "5", operation: "list_device_timeline", args: { deviceId: "c".repeat(40), minutes: 10, pageSize: 1 } },
+        { id: "6", operation: "list_device_timeline", args: { deviceId: "e".repeat(40), minutes: 10, pageSize: 1 } },
+    ]);
+    assert.equal(result[0].data.length, 1);
+    assert.equal(result[0].data[0].deviceId, deviceId);
+    assert.deepEqual(result.slice(1).map((response) => response.error), ["invalid_arguments", "invalid_arguments", "invalid_response", "invalid_response", "invalid_response"]);
+    assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+});
+
+test("hunting schema returns only one requested table and projected columns", () => {
+    const result = runHost([
+        { id: "1", operation: "get_hunting_table_schema", args: { table: "DeviceEvents" } },
+        { id: "2", operation: "get_hunting_table_schema", args: { table: "NoSuchTable" } },
+        { id: "3", operation: "get_hunting_table_schema", args: { table: "DeviceEvents;Remove-Item" } },
+        { id: "4", operation: "get_hunting_table_schema", args: { table: "BadTable" } },
+        { id: "5", operation: "get_hunting_table_schema", args: { table: "MixedTable" } },
+    ]);
+    assert.equal(result[0].data.columns[0].name, "Timestamp");
+    assert.equal(result[0].data.truncated, false);
+    assert.deepEqual(result.slice(1).map((response) => response.error), ["not_found", "invalid_arguments", "invalid_response", "not_found"]);
+    const arrayRoot = runHost([{ id: "1", operation: "get_hunting_table_schema", args: { table: "DeviceEvents" } }], true, { XDR_MCP_TEST_SCHEMA_ARRAY: "1" });
+    assert.equal(arrayRoot[0].error, "invalid_response");
+    assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+});
+
+test("alert detail verifies its ID and projects only bounded evidence", () => {
+    const result = runHost([
+        { id: "1", operation: "get_alert", args: { alertId: "alert-2" } },
+        { id: "2", operation: "get_alert", args: { alertId: "../secret" } },
+        { id: "3", operation: "get_alert", args: { alertId: "missing" } },
+    ]);
+    assert.equal(result[0].data.alertId, "alert-2");
+    assert.deepEqual(result.slice(1).map((response) => response.error), ["invalid_arguments", "not_found"]);
+    assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+});
+
+test("new portal read revokes the session on a structured 403 but not a 404", () => {
+    for (const request of [
+        { operation: "get_alert", args: { alertId: "denied" } },
+        { operation: "list_device_timeline", args: { deviceId: "d".repeat(40), minutes: 10, pageSize: 1 } },
+    ]) {
+        const result = runHost([
+            { id: "1", ...request },
+            { id: "2", operation: "list_incidents", args: { days: 7, page: 1, pageSize: 1 } },
+        ]);
+        assert.deepEqual(result.map((response) => response.error), ["not_connected", "not_connected"]);
+    }
+    const schemaDenied = runHost([
+        { id: "1", operation: "get_hunting_table_schema", args: { table: "DeviceEvents" } },
+        { id: "2", operation: "list_incidents", args: { days: 7, page: 1, pageSize: 1 } },
+    ], true, { XDR_MCP_TEST_SCHEMA_FORBIDDEN: "1" });
+    assert.deepEqual(schemaDenied.map((response) => response.error), ["not_connected", "not_connected"]);
+    const missing = runHost([
+        { id: "1", operation: "get_alert", args: { alertId: "missing" } },
+        { id: "2", operation: "list_incidents", args: { days: 7, page: 1, pageSize: 1 } },
+    ]);
+    assert.equal(missing[0].error, "not_found");
+    assert.equal(missing[1].ok, true);
+});
+
 test("identity SID lookup is bounded and verifies the resolved target", () => {
     const sid = "S-1-5-21-111-222-333-1001";
     const result = runHost([
@@ -203,7 +270,7 @@ test("MCP registers only bounded read tools and rejects invalid inputs", async (
         await server.connect(serverTransport);
         await client.connect(clientTransport);
         const tools = await client.listTools();
-        assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), ["xdr_get_device", "xdr_get_identity", "xdr_get_incident", "xdr_list_action_history", "xdr_list_alerts", "xdr_list_cloud_policies", "xdr_list_devices", "xdr_list_identities", "xdr_list_incident_alerts", "xdr_list_incidents", "xdr_list_pending_actions"]);
+        assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), ["xdr_get_alert", "xdr_get_device", "xdr_get_hunting_table_schema", "xdr_get_identity", "xdr_get_incident", "xdr_list_action_history", "xdr_list_alerts", "xdr_list_cloud_policies", "xdr_list_device_timeline", "xdr_list_devices", "xdr_list_identities", "xdr_list_incident_alerts", "xdr_list_incidents", "xdr_list_pending_actions"]);
         assert.ok(tools.tools.every((tool) => tool.annotations.readOnlyHint === true));
         await client.callTool({ name: "xdr_list_incidents", arguments: { days: 7, page: 2, pageSize: 3 } });
         assert.deepEqual(calls, [{ operation: "list_incidents", args: { days: 7, page: 2, pageSize: 3 } }]);
@@ -221,6 +288,38 @@ test("MCP registers only bounded read tools and rejects invalid inputs", async (
         });
         assert.equal(ambiguousIdentity.isError, true);
         assert.equal(calls.length, 1);
+    } finally {
+        await client.close();
+        await server.close();
+    }
+});
+
+test("new MCP reads reject extra arguments and malformed projected results", async () => {
+    const calls = [];
+    const server = createServer({
+        invoke: async (operation, args) => {
+            calls.push({ operation, args });
+            if (operation === "get_alert") return { alertId: "alert-2", title: null, severity: null, status: null, incidentId: null, generated: null, credential: "secret" };
+            if (operation === "list_device_timeline") return [{ deviceId: args.deviceId, timestamp: null, eventType: null, title: null, credential: "secret" }];
+            return { table: args.table, truncated: false, columns: [{ name: null, type: null, description: null, credential: "secret" }] };
+        },
+    });
+    const client = new Client({ name: "new-reads-test", version: "1.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    try {
+        await server.connect(serverTransport);
+        await client.connect(clientTransport);
+        for (const { name, args } of [
+            { name: "xdr_get_alert", args: { alertId: "alert-2" } },
+            { name: "xdr_list_device_timeline", args: { deviceId: "a".repeat(40), minutes: 1, pageSize: 1 } },
+            { name: "xdr_get_hunting_table_schema", args: { table: "DeviceEvents" } },
+        ]) {
+            assert.equal((await client.callTool({ name, arguments: { ...args, OutputPath: "/tmp/unsafe" } })).isError, true);
+            const response = await client.callTool({ name, arguments: args });
+            assert.equal(response.isError, true);
+            assert.equal(response.content[0].text, "invalid_response");
+        }
+        assert.equal(calls.length, 3);
     } finally {
         await client.close();
         await server.close();

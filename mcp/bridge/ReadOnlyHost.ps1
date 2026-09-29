@@ -128,16 +128,31 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
             'get_incident' { @{ incidentId = @(1, [int]::MaxValue) }; break }
             'list_incident_alerts' { @{ incidentId = @(1, [int]::MaxValue); page = @(1, 10); pageSize = @(1, 50) }; break }
             'list_alerts' { @{ days = @(1, 30); page = @(1, 10); pageSize = @(1, 50) }; break }
+            'get_alert' { $null; break }
             'list_devices' { @{ days = @(1, 30); page = @(1, 10); pageSize = @(1, 50) }; break }
             'list_identities' { @{ page = @(1, 10); pageSize = @(1, 50) }; break }
             'list_pending_actions' { @{ page = @(1, 10); pageSize = @(1, 50) }; break }
             'list_action_history' { @{ page = @(1, 10); pageSize = @(1, 50) }; break }
             'list_cloud_policies' { @{ page = @(1, 10); pageSize = @(1, 50) }; break }
             'get_device' { $null; break }
+            'list_device_timeline' { $null; break }
+            'get_hunting_table_schema' { $null; break }
             'get_identity' { $null; break }
             default { throw 'operation_not_allowed' }
         }
-        if ($request.operation -eq 'get_device') {
+        if ($request.operation -eq 'get_alert') {
+            if ($parameters.Count -ne 1 -or $parameters.alertId -isnot [string] -or
+                $parameters.alertId -cnotmatch '^[A-Za-z0-9._:-]{1,160}$') { throw 'invalid_arguments' }
+        } elseif ($request.operation -eq 'get_hunting_table_schema') {
+            if ($parameters.Count -ne 1 -or $parameters.table -isnot [string] -or
+                $parameters.table -cnotmatch '^[A-Za-z][A-Za-z0-9_]{0,79}$') { throw 'invalid_arguments' }
+        } elseif ($request.operation -eq 'list_device_timeline') {
+            if ($parameters.Count -ne 3 -or $parameters.deviceId -isnot [string] -or
+                $parameters.deviceId -cnotmatch '^[0-9a-fA-F]{40}$' -or
+                -not (Test-ArgumentSet -Arguments @{ minutes = $parameters.minutes; pageSize = $parameters.pageSize } -Limits @{ minutes = @(1, 60); pageSize = @(1, 50) })) {
+                throw 'invalid_arguments'
+            }
+        } elseif ($request.operation -eq 'get_device') {
             if ($parameters.Count -ne 1 -or $parameters.deviceId -isnot [string] -or
                 $parameters.deviceId -cnotmatch '^[0-9a-fA-F]{40}$') { throw 'invalid_arguments' }
         } elseif ($request.operation -eq 'get_identity') {
@@ -182,6 +197,14 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                 , @($items | Select-Object -First $parameters.pageSize | ForEach-Object {
                         @{ alertId = Limit-Text $_.alertId; title = Limit-Text $_.alertDisplayName; severity = Limit-Text $_.severity; status = Limit-Text $_.status; incidentId = Limit-Integer $_.incidentId; generated = Limit-Date $_.timeGenerated }
                     })
+                break
+            }
+            'get_alert' {
+                $uri = "https://security.microsoft.com/apiproxy/mtp/alertsApiService/alerts/$([uri]::EscapeDataString($parameters.alertId))"
+                try { $item = Invoke-XdrRestMethod -Uri $uri -ErrorAction Stop } catch { throw (Get-UpstreamErrorCode $_) }
+                if ($null -eq $item) { throw 'not_found' }
+                if ($item -is [array] -or $item.alertId -cne $parameters.alertId) { throw 'invalid_response' }
+                @{ alertId = Limit-Text $item.alertId; title = Limit-Text $item.alertDisplayName; severity = Limit-Text $item.severity; status = Limit-Text $item.status; incidentId = Limit-Integer $item.incidentId; generated = Limit-Date $item.timeGenerated }
                 break
             }
             'list_devices' {
@@ -235,6 +258,49 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                 if ($null -eq $item) { throw 'not_found' }
                 if ($item -is [array] -or $item.MachineId -ne $parameters.deviceId) { throw 'invalid_response' }
                 @{ deviceId = Limit-Text $item.MachineId; name = Limit-Text $item.ComputerDnsName; risk = Limit-Status $item.RiskScore; health = Limit-Text $item.HealthStatus; lastSeen = Limit-Date $item.LastSeen }
+                break
+            }
+            'list_device_timeline' {
+                $end = [DateTime]::UtcNow
+                $start = $end.AddMinutes(-$parameters.minutes)
+                $query = @(
+                    'generateIdentityEvents=false', 'includeIdentityEvents=false', 'supportMdiOnlyEvents=false',
+                    "fromDate=$([uri]::EscapeDataString($start.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')))",
+                    "toDate=$([uri]::EscapeDataString($end.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')))",
+                    "correlationId=$([guid]::NewGuid())", 'doNotUseCache=false', 'forceUseCache=false',
+                    "pageSize=$($parameters.pageSize)", 'includeSentinelEvents=false'
+                ) -join '&'
+                $uri = "https://security.microsoft.com/apiproxy/mtp/mdeTimelineExperience/machines/$($parameters.deviceId)/events/?$query"
+                try { $result = Invoke-XdrRestMethod -Uri $uri -ErrorAction Stop } catch { throw (Get-UpstreamErrorCode $_) }
+                if ($result -isnot [pscustomobject] -or $result.Items -isnot [array]) { throw 'invalid_response' }
+                $items = @($result.Items)
+                if ($items.Count -gt $parameters.pageSize) { throw 'invalid_response' }
+                , @($items | ForEach-Object {
+                        if ($_ -isnot [pscustomobject]) { throw 'invalid_response' }
+                        foreach ($field in @('MachineId', 'SenseMachineId', 'DeviceId')) {
+                            if ($null -ne $_.$field -and $_.$field -ine $parameters.deviceId) { throw 'invalid_response' }
+                        }
+                        $eventType = if ($_.ActionType) { $_.ActionType } elseif ($_.Type) { $_.Type } else { $_.EventType }
+                        if ($eventType -isnot [string] -or [string]::IsNullOrWhiteSpace($eventType) -or $null -eq $_.Timestamp) { throw 'invalid_response' }
+                        $timestamp = Limit-Date $_.Timestamp
+                        if ($null -eq $timestamp) { throw 'invalid_response' }
+                        @{ timestamp = $timestamp; eventType = Limit-Text $eventType; title = Limit-Text $_.Title; deviceId = $parameters.deviceId }
+                    })
+                break
+            }
+            'get_hunting_table_schema' {
+                try { $result = Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/mtp/huntingService/schema' -ErrorAction Stop } catch { throw (Get-UpstreamErrorCode $_) }
+                if ($result -isnot [pscustomobject] -or $result.Tables -isnot [array]) { throw 'invalid_response' }
+                $tables = @($result.Tables | Where-Object { $_ -is [pscustomobject] -and $_.Name -is [string] -and $_.Name -ceq $parameters.table })
+                if ($tables.Count -eq 0) { throw 'not_found' }
+                if ($tables.Count -ne 1 -or $tables[0].Schema -isnot [array]) { throw 'invalid_response' }
+                $columns = @($tables[0].Schema)
+                @{ table = $parameters.table; truncated = $columns.Count -gt 50; columns = @($columns | Select-Object -First 50 | ForEach-Object {
+                            if ($_ -isnot [pscustomobject] -or $_.Name -isnot [string] -or
+                                $_.Name -cnotmatch '^[A-Za-z][A-Za-z0-9_]{0,79}$' -or
+                                $_.Type -isnot [string] -or [string]::IsNullOrWhiteSpace($_.Type)) { throw 'invalid_response' }
+                            @{ name = Limit-Text $_.Name; type = Limit-Text $_.Type; description = Limit-Text $_.Description }
+                        }) }
                 break
             }
             'get_identity' {

@@ -33,7 +33,7 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         phase = "handshake";
         await client.connect(transport);
         const tools = await client.listTools();
-        const expected = ["xdr_get_device", "xdr_get_identity", "xdr_get_incident", "xdr_list_action_history", "xdr_list_alerts", "xdr_list_cloud_policies", "xdr_list_devices", "xdr_list_identities", "xdr_list_incident_alerts", "xdr_list_incidents", "xdr_list_pending_actions"];
+        const expected = ["xdr_get_alert", "xdr_get_device", "xdr_get_hunting_table_schema", "xdr_get_identity", "xdr_get_incident", "xdr_list_action_history", "xdr_list_alerts", "xdr_list_cloud_policies", "xdr_list_device_timeline", "xdr_list_devices", "xdr_list_identities", "xdr_list_incident_alerts", "xdr_list_incidents", "xdr_list_pending_actions"];
         if (JSON.stringify(tools.tools.map((tool) => tool.name).sort()) !== JSON.stringify(expected) ||
             tools.tools.some((tool) => tool.annotations?.readOnlyHint !== true)) {
             throw new Error("unexpected_tool_inventory");
@@ -56,6 +56,16 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         const alerts = await call("xdr_list_alerts", { days: 7, page: 1, pageSize: 1 }, 70_000);
         if (!Array.isArray(alerts) || alerts.length > 1) throw new Error("invalid_alert_result");
         console.log(`live status=pass phase=alerts count=${alerts.length}`);
+        if (alerts.length && /^[A-Za-z0-9._:-]{1,160}$/.test(alerts[0].alertId)) {
+            const alert = await call("xdr_get_alert", { alertId: alerts[0].alertId }, 70_000);
+            if (alert?.alertId !== alerts[0].alertId) throw new Error("invalid_alert_detail");
+            console.log("live status=pass phase=alert_detail");
+        } else {
+            console.log("live status=skip phase=alert_detail reason=no_usable_alert");
+        }
+        const schema = await call("xdr_get_hunting_table_schema", { table: "DeviceEvents" }, 70_000);
+        if (schema?.table !== "DeviceEvents" || !Array.isArray(schema.columns) || schema.columns.length > 50) throw new Error("invalid_schema_result");
+        console.log(`live status=pass phase=hunting_schema columns=${schema.columns.length} truncated=${schema.truncated}`);
         const devices = await call("xdr_list_devices", { days: 7, page: 1, pageSize: 1 }, 70_000);
         if (!Array.isArray(devices) || devices.length > 1 || devices.some((item) => !/^[0-9a-f]{40}$/i.test(item.deviceId))) throw new Error("invalid_device_result");
         console.log(`live status=pass phase=devices count=${devices.length}`);
@@ -63,8 +73,12 @@ if (!["browser", "software-passkey"].includes(authMode)) {
             const device = await call("xdr_get_device", { deviceId: devices[0].deviceId }, 70_000);
             if (device?.deviceId?.toLowerCase() !== devices[0].deviceId.toLowerCase()) throw new Error("invalid_device_detail");
             console.log("live status=pass phase=device_detail");
+            const timeline = await call("xdr_list_device_timeline", { deviceId: devices[0].deviceId, minutes: 10, pageSize: 1 }, 70_000);
+            if (!Array.isArray(timeline) || timeline.length > 1 || timeline.some((item) => item.deviceId !== devices[0].deviceId)) throw new Error("invalid_timeline_result");
+            console.log(`live status=pass phase=device_timeline count=${timeline.length}`);
         } else {
             console.log("live status=skip phase=device_detail reason=no_device");
+            console.log("live status=skip phase=device_timeline reason=no_device");
         }
         const identities = await call("xdr_list_identities", { page: 1, pageSize: 10 }, 70_000);
         if (!Array.isArray(identities) || identities.length > 10 || identities.some((item) => !item.name && !item.upn && !item.sid && !item.objectId)) {
@@ -128,7 +142,7 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         if (!denied.isError) throw new Error("invalid_arguments_accepted");
         console.log("live status=pass phase=invalid_arguments");
     } catch (error) {
-        const known = new Set(["unsafe_passkey_file", "unexpected_tool_inventory", "not_connected", "operation_failed", "invalid_response", "upstream_failed", "session_lost", "session_timed_out", "tool_error", "invalid_incident_result", "invalid_alert_result", "invalid_device_result", "invalid_device_detail", "invalid_identity_result", "invalid_identity_detail", "invalid_pending_result", "invalid_history_result", "invalid_policy_result", "invalid_page_result", "invalid_detail_result", "invalid_related_alert_result", "invalid_arguments_accepted"]);
+        const known = new Set(["unsafe_passkey_file", "unexpected_tool_inventory", "not_connected", "operation_failed", "invalid_response", "upstream_failed", "session_lost", "session_timed_out", "tool_error", "invalid_incident_result", "invalid_alert_result", "invalid_alert_detail", "invalid_schema_result", "invalid_device_result", "invalid_device_detail", "invalid_timeline_result", "invalid_identity_result", "invalid_identity_detail", "invalid_pending_result", "invalid_history_result", "invalid_policy_result", "invalid_page_result", "invalid_detail_result", "invalid_related_alert_result", "invalid_arguments_accepted"]);
         const reason = known.has(error?.message) ? error.message : "connection_or_transport_failed";
         const category = ["McpError", "AbortError", "TypeError", "Error"].includes(error?.name) ? error.name : "other";
         const protocolCode = Number.isInteger(error?.code) && error.code >= -32700 && error.code <= -32000 ? error.code : "none";

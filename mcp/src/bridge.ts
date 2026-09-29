@@ -1,7 +1,7 @@
 ﻿import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-export type Operation = "list_incidents" | "get_incident" | "list_incident_alerts" | "list_alerts" | "list_devices" | "get_device" | "list_identities" | "get_identity" | "list_pending_actions" | "list_action_history" | "list_cloud_policies";
+export type Operation = "list_incidents" | "get_incident" | "list_incident_alerts" | "list_alerts" | "get_alert" | "list_devices" | "get_device" | "list_device_timeline" | "get_hunting_table_schema" | "list_identities" | "get_identity" | "list_pending_actions" | "list_action_history" | "list_cloud_policies";
 
 type Response = { id: string; ok: boolean; data?: unknown; error?: string };
 

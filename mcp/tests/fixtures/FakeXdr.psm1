@@ -104,6 +104,35 @@ function Get-XdrEndpointDevice {
     [pscustomobject]@{ MachineId = 'a' * 40; ComputerDnsName = 'host.example'; RiskScore = 'High'; HealthStatus = 'Active'; LastSeen = [DateTime]::UtcNow; Credential = 'secret-cookie-should-not-leak' }
 }
 
+function Invoke-XdrRestMethod {
+    param([string]$Uri)
+    if ($Uri -match '/alerts/(denied|missing)$' -or $Uri -match '/machines/d{40}/' -or
+        ($env:XDR_MCP_TEST_SCHEMA_FORBIDDEN -eq '1' -and $Uri -match '/huntingService/schema$')) {
+        $failure = [System.InvalidOperationException]::new('portal rejection')
+        $status = if ($Uri -match '/alerts/missing$') { 404 } else { 403 }
+        $failure | Add-Member -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = $status })
+        throw $failure
+    }
+    if ($Uri -eq 'https://security.microsoft.com/apiproxy/mtp/alertsApiService/alerts/alert-2') {
+        return [pscustomobject]@{ alertId = 'alert-2'; alertDisplayName = 'Example'; severity = 'High'; status = 'New'; incidentId = 42; timeGenerated = '2026-01-01T00:00:00Z'; credential = 'secret-cookie-should-not-leak' }
+    }
+    if ($Uri -eq 'https://security.microsoft.com/apiproxy/mtp/huntingService/schema') {
+        if ($env:XDR_MCP_TEST_SCHEMA_ARRAY -eq '1') {
+            return , @([pscustomobject]@{ Tables = @() }, [pscustomobject]@{ Tables = @([pscustomobject]@{ Name = 'DeviceEvents'; Schema = @() }) })
+        }
+        return [pscustomobject]@{ Tables = @(
+            [pscustomobject]@{ Name = 'DeviceEvents'; Schema = @([pscustomobject]@{ Name = 'Timestamp'; Type = 'datetime'; Description = 'Event time'; credential = 'secret-cookie-should-not-leak' }) },
+            [pscustomobject]@{ Name = 'BadTable'; Schema = 'malformed' },
+            [pscustomobject]@{ Name = @('OtherTable', 'MixedTable'); Schema = @() }
+        ) }
+    }
+    if ($Uri -notmatch '/mdeTimelineExperience/machines/[0-9a-f]{40}/events/\?' -or $Uri -notmatch 'pageSize=1' -or $Uri -match 'http://') { throw 'unbounded timeline request' }
+    if ($Uri -match '/machines/b{40}/') { return [pscustomobject]@{ Items = 'malformed' } }
+    if ($Uri -match '/machines/c{40}/') { return [pscustomobject]@{ Items = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; EventType = 'Process'; DeviceId = ('a' * 40) }) } }
+    if ($Uri -match '/machines/e{40}/') { return , @([pscustomobject]@{ Items = @() }, [pscustomobject]@{ Items = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; EventType = 'Process' }) }) }
+    [pscustomobject]@{ Items = @([pscustomobject]@{ timestamp = '2026-01-01T00:00:00Z'; eventType = 'Process'; title = 'Started'; credential = 'secret-cookie-should-not-leak' }) }
+}
+
 function Get-XdrIdentityIdentity {
     param([int]$PageSize, [int]$Skip, [string]$SortByField, [string]$SortDirection, [switch]$All)
     if ($All -or $PageSize -gt 50 -or $Skip -ne 1 -or $SortByField -ne 'RepresentableName' -or $SortDirection -ne 'Asc') { throw 'unsupported request' }
@@ -137,4 +166,4 @@ function Get-XdrCloudAppsPolicy {
     [pscustomobject]@{ _id = 'policy-1'; name = 'Cloud policy'; severity = 2; Credential = 'secret-cookie-should-not-leak' }
 }
 
-Export-ModuleMember -Function Connect-XdrByBrowser, Connect-XdrBySoftwarePasskey, Get-XdrIncident, Get-XdrIncidentAssociatedAlert, Get-XdrAlert, Get-XdrEndpointDevice, Get-XdrIdentityIdentity, Get-XdrIdentityUser, Get-XdrActionsCenterPending, Get-XdrActionsCenterHistory, Get-XdrCloudAppsPolicy, Clear-XdrCache
+Export-ModuleMember -Function Connect-XdrByBrowser, Connect-XdrBySoftwarePasskey, Get-XdrIncident, Get-XdrIncidentAssociatedAlert, Get-XdrAlert, Get-XdrEndpointDevice, Get-XdrIdentityIdentity, Get-XdrIdentityUser, Get-XdrActionsCenterPending, Get-XdrActionsCenterHistory, Get-XdrCloudAppsPolicy, Clear-XdrCache, Invoke-XdrRestMethod

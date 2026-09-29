@@ -19,6 +19,13 @@ const alert = z.object({
 const device = z.object({ deviceId: text, name: text, risk: status, health: text, lastSeen: text }).strict();
 const deviceDetail = device.extend({ deviceId: z.string().regex(/^[0-9a-fA-F]{40}$/) }).strict();
 const timelineEvent = z.object({ deviceId: z.string().regex(/^[0-9a-fA-F]{40}$/), timestamp: text, eventType: text, title: text }).strict();
+const alertEvidence = z.object({ timestamp: text, deviceId: text, alertId: z.string().min(1).max(500), title: text, severity: text }).strict();
+const deviceAlertEvidence = alertEvidence.extend({ deviceId: z.string().regex(/^[0-9a-fA-F]{40}$/) }).strict();
+const userAlertEvidence = alertEvidence.extend({ upn: z.string().max(254) }).strict();
+const fileEvent = z.object({ timestamp: text, deviceId: text, fileName: text, sha256: z.string().regex(/^[0-9a-fA-F]{64}$/) }).strict();
+const networkObservation = z.object({ timestamp: text, deviceId: text, remoteIp: text, remoteUrl: text }).strict();
+const userDeviceLogon = z.object({ timestamp: text, upn: z.string().max(254), deviceName: z.string().min(1).max(500) }).strict();
+const huntEvent = z.object({ table: z.enum(["DeviceEvents", "DeviceFileEvents", "DeviceNetworkEvents", "AlertEvidence", "IdentityLogonEvents"]), timestamp: text, deviceId: text, summary: text, alertId: text, upn: text }).strict();
 const tableSchema = z.object({ table: z.string().max(80), truncated: z.boolean(), columns: z.array(z.object({ name: text, type: text, description: text }).strict()).max(50) }).strict();
 const identity = z.object({ name: text, upn: text, domain: text, sid: text, objectId: text }).strict();
 const identityDetail = z.object({ upn: text, name: text, objectId: text, sid: text, firstSeen: text, lastSeen: text }).strict();
@@ -37,7 +44,7 @@ export function createServer(bridge: Bridge): McpServer {
     async function read(operation: Operation, args: Record<string, number | string>, signal?: AbortSignal) {
         try {
             const data = await bridge.invoke(operation, args, signal);
-            const schema = operation === "get_incident" ? detail : operation === "get_alert" ? alert : operation === "get_device" ? deviceDetail : operation === "get_identity" ? identityDetail : operation === "get_hunting_table_schema" ? tableSchema : z.array(operation === "list_device_timeline" ? timelineEvent : operation === "list_alerts" || operation === "list_incident_alerts" ? alert : operation === "list_devices" ? device : operation === "list_identities" ? identity : operation === "list_pending_actions" || operation === "list_action_history" ? action : operation === "list_cloud_policies" ? cloudPolicy : incident).max(typeof args.pageSize === "number" ? args.pageSize : 50);
+            const schema = operation === "get_incident" ? detail : operation === "get_alert" ? alert : operation === "get_device" ? deviceDetail : operation === "get_identity" ? identityDetail : operation === "get_hunting_table_schema" ? tableSchema : z.array(operation === "hunt_recent" ? huntEvent : operation === "list_device_alert_evidence" ? deviceAlertEvidence : operation === "list_file_events" ? fileEvent : operation === "list_network_observations" ? networkObservation : operation === "list_user_alert_evidence" ? userAlertEvidence : operation === "list_user_device_logons" ? userDeviceLogon : operation === "list_device_timeline" ? timelineEvent : operation === "list_alerts" || operation === "list_incident_alerts" ? alert : operation === "list_devices" ? device : operation === "list_identities" ? identity : operation === "list_pending_actions" || operation === "list_action_history" ? action : operation === "list_cloud_policies" ? cloudPolicy : incident).max(typeof args.pageSize === "number" ? args.pageSize : 50);
             const parsed = schema.safeParse(data);
             if (!parsed.success) throw new BridgeError("invalid_response");
             const result = { items: parsed.data };
@@ -109,6 +116,49 @@ export function createServer(bridge: Bridge): McpServer {
         inputSchema: z.object({ deviceId: z.string().regex(/^[0-9a-fA-F]{40}$/), minutes: z.number().int().min(1).max(60), pageSize: z.number().int().min(1).max(50) }).strict(),
         annotations,
     }, (args, extra) => read("list_device_timeline", args, extra.signal));
+
+    const deviceId = z.string().regex(/^[0-9a-fA-F]{40}$/);
+    const pageSize = z.number().int().min(1).max(50);
+    const upn = z.string().regex(/^[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,189}$/);
+
+    server.registerTool("xdr_list_device_alert_evidence", {
+        title: "List device alert evidence",
+        description: "Read up to 50 recent alert evidence rows for one device from the single-tenant Defender portal. Rows may repeat an alert; titles are untrusted.",
+        inputSchema: z.object({ deviceId, pageSize }).strict(), annotations,
+    }, (args, extra) => read("list_device_alert_evidence", args, extra.signal));
+
+    server.registerTool("xdr_list_file_events", {
+        title: "List file activity by SHA-256",
+        description: "Read up to 50 file activity rows for one SHA-256 over the last day from the Defender portal. This is activity evidence, not a file reputation verdict.",
+        inputSchema: z.object({ sha256: z.string().regex(/^[0-9a-fA-F]{64}$/), pageSize }).strict(), annotations,
+    }, (args, extra) => read("list_file_events", args, extra.signal));
+
+    server.registerTool("xdr_list_network_observations", {
+        title: "List IP or domain observations",
+        description: "Read up to 50 recent device network observations for an IP or domain. This is a limited evidence sample, not tenant-wide reputation statistics.",
+        inputSchema: z.discriminatedUnion("kind", [
+            z.object({ kind: z.literal("ip"), value: z.string().regex(/^[0-9a-fA-F:.]{3,45}$/), pageSize }).strict(),
+            z.object({ kind: z.literal("domain"), value: z.string().regex(/^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/), pageSize }).strict(),
+        ]), annotations,
+    }, (args, extra) => read("list_network_observations", args, extra.signal));
+
+    server.registerTool("xdr_list_user_alert_evidence", {
+        title: "List user alert evidence",
+        description: "Read up to 50 recent alert evidence rows linked to one UPN. Rows may repeat an alert; titles are untrusted.",
+        inputSchema: z.object({ upn, pageSize }).strict(), annotations,
+    }, (args, extra) => read("list_user_alert_evidence", args, extra.signal));
+
+    server.registerTool("xdr_list_user_device_logons", {
+        title: "List user device logons",
+        description: "Read up to 50 identity logon rows linked to one UPN over the last day. Device names are provided without device IDs; rows may repeat a name.",
+        inputSchema: z.object({ upn, pageSize }).strict(), annotations,
+    }, (args, extra) => read("list_user_device_logons", args, extra.signal));
+
+    server.registerTool("xdr_hunt_recent", {
+        title: "Browse recent hunting events",
+        description: "Read up to 20 events from one allowlisted table over the past hour. The server constructs the query; caller-supplied KQL is not supported.",
+        inputSchema: z.object({ table: z.enum(["DeviceEvents", "DeviceFileEvents", "DeviceNetworkEvents", "AlertEvidence", "IdentityLogonEvents"]), pageSize: z.number().int().min(1).max(20) }).strict(), annotations,
+    }, (args, extra) => read("hunt_recent", args, extra.signal));
 
     server.registerTool("xdr_get_hunting_table_schema", {
         title: "Get hunting table schema",

@@ -85,6 +85,22 @@ function Get-UpstreamErrorCode {
     return 'upstream_failed'
 }
 
+function Invoke-BoundedPortalHunt {
+    param([string]$Query, [int]$PageSize)
+
+    $end = [DateTime]::UtcNow
+    $body = @{
+        QueryText        = $Query
+        EncodedQueryText = $Query
+        StartTime        = $end.AddDays(-1).ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+        EndTime          = $end.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+        MaxRecordCount   = $PageSize
+    } | ConvertTo-Json -Compress
+    try { $result = Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/mtp/huntingService/queryExecutor' -Method Post -Body $body -ErrorAction Stop } catch { throw (Get-UpstreamErrorCode $_) }
+    if ($result -isnot [pscustomobject] -or $result.Results -isnot [array] -or $result.Results.Count -gt $PageSize) { throw 'invalid_response' }
+    return , @($result.Results)
+}
+
 try {
     Import-Module $ModulePath -ErrorAction Stop | Out-Null
 } catch {
@@ -136,6 +152,12 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
             'list_cloud_policies' { @{ page = @(1, 10); pageSize = @(1, 50) }; break }
             'get_device' { $null; break }
             'list_device_timeline' { $null; break }
+            'list_device_alert_evidence' { $null; break }
+            'list_file_events' { $null; break }
+            'list_network_observations' { $null; break }
+            'list_user_alert_evidence' { $null; break }
+            'list_user_device_logons' { $null; break }
+            'hunt_recent' { $null; break }
             'get_hunting_table_schema' { $null; break }
             'get_identity' { $null; break }
             default { throw 'operation_not_allowed' }
@@ -152,6 +174,35 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                 -not (Test-ArgumentSet -Arguments @{ minutes = $parameters.minutes; pageSize = $parameters.pageSize } -Limits @{ minutes = @(1, 60); pageSize = @(1, 50) })) {
                 throw 'invalid_arguments'
             }
+        } elseif ($request.operation -eq 'list_device_alert_evidence') {
+            if ($parameters.Count -ne 2 -or $parameters.deviceId -isnot [string] -or
+                $parameters.deviceId -cnotmatch '^[0-9a-fA-F]{40}$' -or
+                -not (Test-ArgumentSet -Arguments @{ pageSize = $parameters.pageSize } -Limits @{ pageSize = @(1, 50) })) {
+                throw 'invalid_arguments'
+            }
+        } elseif ($request.operation -eq 'list_file_events') {
+            if ($parameters.Count -ne 2 -or $parameters.sha256 -isnot [string] -or
+                $parameters.sha256 -cnotmatch '^[0-9a-fA-F]{64}$' -or
+                -not (Test-ArgumentSet -Arguments @{ pageSize = $parameters.pageSize } -Limits @{ pageSize = @(1, 50) })) { throw 'invalid_arguments' }
+        } elseif ($request.operation -eq 'list_network_observations') {
+            if ($parameters.Count -ne 3 -or $parameters.kind -cnotin @('ip', 'domain') -or
+                $parameters.value -isnot [string] -or
+                -not (Test-ArgumentSet -Arguments @{ pageSize = $parameters.pageSize } -Limits @{ pageSize = @(1, 50) })) { throw 'invalid_arguments' }
+            if ($parameters.kind -eq 'ip') {
+                $parsedIp = $null
+                if ($parameters.value -cnotmatch '^[0-9a-fA-F:.]{3,45}$' -or
+                    -not [System.Net.IPAddress]::TryParse($parameters.value, [ref]$parsedIp)) { throw 'invalid_arguments' }
+            } elseif ($parameters.value -cnotmatch '^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$') {
+                throw 'invalid_arguments'
+            }
+        } elseif ($request.operation -in @('list_user_alert_evidence', 'list_user_device_logons')) {
+            if ($parameters.Count -ne 2 -or $parameters.upn -isnot [string] -or
+                $parameters.upn -cnotmatch '^[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,189}$' -or
+                -not (Test-ArgumentSet -Arguments @{ pageSize = $parameters.pageSize } -Limits @{ pageSize = @(1, 50) })) { throw 'invalid_arguments' }
+        } elseif ($request.operation -eq 'hunt_recent') {
+            if ($parameters.Count -ne 2 -or $parameters.table -isnot [string] -or
+                $parameters.table -cnotin @('DeviceEvents', 'DeviceFileEvents', 'DeviceNetworkEvents', 'AlertEvidence', 'IdentityLogonEvents') -or
+                -not (Test-ArgumentSet -Arguments @{ pageSize = $parameters.pageSize } -Limits @{ pageSize = @(1, 20) })) { throw 'invalid_arguments' }
         } elseif ($request.operation -eq 'get_device') {
             if ($parameters.Count -ne 1 -or $parameters.deviceId -isnot [string] -or
                 $parameters.deviceId -cnotmatch '^[0-9a-fA-F]{40}$') { throw 'invalid_arguments' }
@@ -288,6 +339,103 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                     })
                 break
             }
+            'list_device_alert_evidence' {
+                $query = 'AlertEvidence | where Timestamp > ago(1d) and DeviceId == "{0}" | project Timestamp, DeviceId, AlertId, Title, Severity | take {1}' -f $parameters.deviceId, $parameters.pageSize
+                $rows = Invoke-BoundedPortalHunt -Query $query -PageSize $parameters.pageSize
+                , @($rows | ForEach-Object {
+                        if ($_ -isnot [pscustomobject] -or $_.DeviceId -ine $parameters.deviceId -or
+                            $_.AlertId -isnot [string] -or [string]::IsNullOrWhiteSpace($_.AlertId)) { throw 'invalid_response' }
+                        $timestamp = Limit-Date $_.Timestamp
+                        if ($null -eq $timestamp) { throw 'invalid_response' }
+                        @{ timestamp = $timestamp; deviceId = $parameters.deviceId; alertId = Limit-Text $_.AlertId; title = Limit-Text $_.Title; severity = Limit-Text $_.Severity }
+                    })
+                break
+            }
+            'list_file_events' {
+                $query = 'DeviceFileEvents | where Timestamp > ago(1d) and SHA256 =~ "{0}" | project Timestamp, DeviceId, FileName, SHA256 | take {1}' -f $parameters.sha256, $parameters.pageSize
+                $rows = Invoke-BoundedPortalHunt -Query $query -PageSize $parameters.pageSize
+                , @($rows | ForEach-Object {
+                        if ($_ -isnot [pscustomobject] -or $_.SHA256 -ine $parameters.sha256) { throw 'invalid_response' }
+                        $timestamp = Limit-Date $_.Timestamp
+                        if ($null -eq $timestamp) { throw 'invalid_response' }
+                        @{ timestamp = $timestamp; deviceId = Limit-Text $_.DeviceId; fileName = Limit-Text $_.FileName; sha256 = $parameters.sha256 }
+                    })
+                break
+            }
+            'list_network_observations' {
+                $predicate = if ($parameters.kind -eq 'ip') { 'RemoteIP == "{0}"' } else { 'RemoteUrl has "{0}"' }
+                $query = 'DeviceNetworkEvents | where Timestamp > ago(1d) and {0} | project Timestamp, DeviceId, RemoteIP, RemoteUrl | take {1}' -f ($predicate -f $parameters.value), $parameters.pageSize
+                $rows = Invoke-BoundedPortalHunt -Query $query -PageSize $parameters.pageSize
+                , @($rows | ForEach-Object {
+                        if ($_ -isnot [pscustomobject]) { throw 'invalid_response' }
+                        if ($parameters.kind -eq 'ip') {
+                            $remoteIp = $null
+                            if ($_.RemoteIP -isnot [string] -or -not [System.Net.IPAddress]::TryParse($_.RemoteIP, [ref]$remoteIp) -or
+                                -not $remoteIp.Equals($parsedIp)) { throw 'invalid_response' }
+                        } else {
+                            if ($_.RemoteUrl -isnot [string]) { throw 'invalid_response' }
+                            $remoteUrl = $null
+                            if (-not [uri]::TryCreate($_.RemoteUrl, [UriKind]::Absolute, [ref]$remoteUrl)) {
+                                if (-not [uri]::TryCreate("https://$($_.RemoteUrl)", [UriKind]::Absolute, [ref]$remoteUrl)) { throw 'invalid_response' }
+                            }
+                            if ($remoteUrl.Host -ine $parameters.value -and -not $remoteUrl.Host.EndsWith(".$($parameters.value)", [StringComparison]::OrdinalIgnoreCase)) { throw 'invalid_response' }
+                        }
+                        $timestamp = Limit-Date $_.Timestamp
+                        if ($null -eq $timestamp) { throw 'invalid_response' }
+                        @{ timestamp = $timestamp; deviceId = Limit-Text $_.DeviceId; remoteIp = Limit-Text $_.RemoteIP; remoteUrl = Limit-Text $_.RemoteUrl }
+                    })
+                break
+            }
+            'list_user_alert_evidence' {
+                $query = 'AlertEvidence | where Timestamp > ago(1d) and AccountUpn =~ "{0}" | project Timestamp, AccountUpn, DeviceId, AlertId, Title, Severity | take {1}' -f $parameters.upn, $parameters.pageSize
+                $rows = Invoke-BoundedPortalHunt -Query $query -PageSize $parameters.pageSize
+                , @($rows | ForEach-Object {
+                        if ($_ -isnot [pscustomobject] -or $_.AccountUpn -ine $parameters.upn -or
+                            $_.AlertId -isnot [string] -or [string]::IsNullOrWhiteSpace($_.AlertId)) { throw 'invalid_response' }
+                        $timestamp = Limit-Date $_.Timestamp
+                        if ($null -eq $timestamp) { throw 'invalid_response' }
+                        @{ timestamp = $timestamp; upn = $parameters.upn; deviceId = Limit-Text $_.DeviceId; alertId = Limit-Text $_.AlertId; title = Limit-Text $_.Title; severity = Limit-Text $_.Severity }
+                    })
+                break
+            }
+            'list_user_device_logons' {
+                $query = 'IdentityLogonEvents | where Timestamp > ago(1d) and AccountUpn =~ "{0}" | project Timestamp, AccountUpn, DeviceName | take {1}' -f $parameters.upn, $parameters.pageSize
+                $rows = Invoke-BoundedPortalHunt -Query $query -PageSize $parameters.pageSize
+                , @($rows | ForEach-Object {
+                        if ($_ -isnot [pscustomobject] -or $_.AccountUpn -ine $parameters.upn -or
+                            $_.DeviceName -isnot [string] -or [string]::IsNullOrWhiteSpace($_.DeviceName)) { throw 'invalid_response' }
+                        $timestamp = Limit-Date $_.Timestamp
+                        if ($null -eq $timestamp) { throw 'invalid_response' }
+                        @{ timestamp = $timestamp; upn = $parameters.upn; deviceName = Limit-Text $_.DeviceName }
+                    })
+                break
+            }
+            'hunt_recent' {
+                $columns = switch -CaseSensitive ($parameters.table) {
+                    'DeviceEvents' { 'Timestamp, DeviceId, ActionType' }
+                    'DeviceFileEvents' { 'Timestamp, DeviceId, FileName' }
+                    'DeviceNetworkEvents' { 'Timestamp, DeviceId, RemoteUrl' }
+                    'AlertEvidence' { 'Timestamp, DeviceId, AlertId, Title' }
+                    'IdentityLogonEvents' { 'Timestamp, AccountUpn, DeviceName' }
+                }
+                $query = '{0} | where Timestamp > ago(1h) | project {1} | take {2}' -f $parameters.table, $columns, $parameters.pageSize
+                $rows = Invoke-BoundedPortalHunt -Query $query -PageSize $parameters.pageSize
+                , @($rows | ForEach-Object {
+                        if ($_ -isnot [pscustomobject]) { throw 'invalid_response' }
+                        $row = $_
+                        $timestamp = Limit-Date $_.Timestamp
+                        if ($null -eq $timestamp) { throw 'invalid_response' }
+                        $summary = switch -CaseSensitive ($parameters.table) {
+                            'DeviceEvents' { $row.ActionType }
+                            'DeviceFileEvents' { $row.FileName }
+                            'DeviceNetworkEvents' { $row.RemoteUrl }
+                            'AlertEvidence' { $row.Title }
+                            'IdentityLogonEvents' { $row.DeviceName }
+                        }
+                        @{ table = $parameters.table; timestamp = $timestamp; deviceId = Limit-Text $_.DeviceId; summary = Limit-Text $summary; alertId = Limit-Text $_.AlertId; upn = Limit-Text $_.AccountUpn }
+                    })
+                break
+            }
             'get_hunting_table_schema' {
                 try { $result = Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/mtp/huntingService/schema' -ErrorAction Stop } catch { throw (Get-UpstreamErrorCode $_) }
                 if ($result -isnot [pscustomobject] -or $result.Tables -isnot [array]) { throw 'invalid_response' }
@@ -300,7 +448,8 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                                 $_.Name -cnotmatch '^[A-Za-z][A-Za-z0-9_]{0,79}$' -or
                                 $_.Type -isnot [string] -or [string]::IsNullOrWhiteSpace($_.Type)) { throw 'invalid_response' }
                             @{ name = Limit-Text $_.Name; type = Limit-Text $_.Type; description = Limit-Text $_.Description }
-                        }) }
+                        })
+                }
                 break
             }
             'get_identity' {

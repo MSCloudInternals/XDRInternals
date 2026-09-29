@@ -126,6 +126,96 @@ test("device timeline requests one bounded portal page without leaking upstream 
     assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
 });
 
+test("device alert evidence uses one fixed single-tenant portal query", () => {
+    const deviceId = "a".repeat(40);
+    const result = runHost([
+        { id: "1", operation: "list_device_alert_evidence", args: { deviceId, pageSize: 1 } },
+        { id: "2", operation: "list_device_alert_evidence", args: { deviceId, pageSize: 51 } },
+        { id: "3", operation: "list_device_alert_evidence", args: { deviceId, pageSize: 1, QueryText: "DeviceInfo | take 100" } },
+    ]);
+    assert.equal(result[0].data[0].alertId, "alert-2");
+    assert.deepEqual(result.slice(1).map((response) => response.error), ["invalid_arguments", "invalid_arguments"]);
+    assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+});
+
+test("file and network observations use fixed portal queries and reject unsafe values", () => {
+    const result = runHost([
+        { id: "1", operation: "list_file_events", args: { sha256: "f".repeat(64), pageSize: 1 } },
+        { id: "2", operation: "list_network_observations", args: { kind: "ip", value: "192.0.2.1", pageSize: 1 } },
+        { id: "3", operation: "list_network_observations", args: { kind: "domain", value: "example.com", pageSize: 1 } },
+        { id: "4", operation: "list_file_events", args: { sha256: "f".repeat(63) + ";", pageSize: 1 } },
+        { id: "5", operation: "list_network_observations", args: { kind: "domain", value: 'example.com" | take 100', pageSize: 1 } },
+        { id: "6", operation: "list_network_observations", args: { kind: "ip", value: "192.0.2.1", pageSize: 100 } },
+    ]);
+    assert.equal(result[0].data[0].fileName, "sample.exe");
+    assert.equal(result[1].data[0].remoteIp, "192.0.2.1");
+    assert.equal(result[2].data[0].remoteUrl, "example.com");
+    assert.deepEqual(result.slice(3).map((response) => response.error), ["invalid_arguments", "invalid_arguments", "invalid_arguments"]);
+    assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+});
+
+test("user alert and device logon pivots verify the UPN and allow only bounded templates", () => {
+    const result = runHost([
+        { id: "1", operation: "list_user_alert_evidence", args: { upn: "analyst@example.test", pageSize: 1 } },
+        { id: "2", operation: "list_user_device_logons", args: { upn: "analyst@example.test", pageSize: 1 } },
+        { id: "3", operation: "list_user_device_logons", args: { upn: 'analyst@example.test" | take 100', pageSize: 1 } },
+        { id: "4", operation: "list_user_alert_evidence", args: { upn: "analyst@example.test", pageSize: 51 } },
+    ]);
+    assert.equal(result[0].data[0].alertId, "alert-2");
+    assert.equal(result[1].data[0].deviceName, "host.example");
+    assert.deepEqual(result.slice(2).map((response) => response.error), ["invalid_arguments", "invalid_arguments"]);
+    assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+});
+
+test("recent hunting accepts only predefined tables and one hour of rows", () => {
+    const result = runHost([
+        { id: "1", operation: "hunt_recent", args: { table: "DeviceEvents", pageSize: 1 } },
+        { id: "2", operation: "hunt_recent", args: { table: "DeviceEvents | take 100", pageSize: 1 } },
+        { id: "3", operation: "hunt_recent", args: { table: "DeviceEvents", pageSize: 21 } },
+    ]);
+    assert.equal(result[0].data[0].summary, "FileCreated");
+    assert.deepEqual(result.slice(1).map((response) => response.error), ["invalid_arguments", "invalid_arguments"]);
+    assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+});
+
+test("portal hunting rejects malformed or wrong-target results and revokes on 403", () => {
+    const request = { id: "1", operation: "list_device_alert_evidence", args: { deviceId: "a".repeat(40), pageSize: 1 } };
+    const next = { id: "2", operation: "list_incidents", args: { days: 7, page: 1, pageSize: 1 } };
+    for (const key of ["XDR_MCP_TEST_HUNT_BAD_RESULTS", "XDR_MCP_TEST_HUNT_MISMATCH"]) {
+        const result = runHost([request, next], true, { [key]: "1" });
+        assert.equal(result[0].error, "invalid_response");
+        assert.equal(result[1].ok, true);
+    }
+    const rejected = runHost([request, next], true, { XDR_MCP_TEST_HUNT_FORBIDDEN: "1" });
+    assert.deepEqual(rejected.map((response) => response.error), ["not_connected", "not_connected"]);
+});
+
+test("MCP denies caller-supplied hunting queries and unsupported pivot values", async () => {
+    const calls = [];
+    const server = createServer({ invoke: async (operation, args) => { calls.push({ operation, args }); return []; } });
+    const client = new Client({ name: "portal-input-test", version: "1.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    try {
+        await server.connect(serverTransport);
+        await client.connect(clientTransport);
+        for (const { name, args } of [
+            { name: "xdr_hunt_recent", args: { table: "DeviceEvents", pageSize: 1, QueryText: "DeviceInfo | take 100" } },
+            { name: "xdr_hunt_recent", args: { table: "OtherTable", pageSize: 1 } },
+            { name: "xdr_list_device_alert_evidence", args: { deviceId: "a".repeat(40), pageSize: 1, TenantIds: ["other"] } },
+            { name: "xdr_list_file_events", args: { sha256: "f".repeat(63) + ";", pageSize: 1 } },
+            { name: "xdr_list_network_observations", args: { kind: "domain", value: 'example.com" | take 100', pageSize: 1 } },
+            { name: "xdr_list_user_alert_evidence", args: { upn: "bad-upn", pageSize: 1 } },
+            { name: "xdr_list_user_device_logons", args: { upn: "analyst@example.test", pageSize: 51 } },
+        ]) {
+            assert.equal((await client.callTool({ name, arguments: args })).isError, true);
+        }
+        assert.deepEqual(calls, []);
+    } finally {
+        await client.close();
+        await server.close();
+    }
+});
+
 test("hunting schema returns only one requested table and projected columns", () => {
     const result = runHost([
         { id: "1", operation: "get_hunting_table_schema", args: { table: "DeviceEvents" } },
@@ -270,7 +360,7 @@ test("MCP registers only bounded read tools and rejects invalid inputs", async (
         await server.connect(serverTransport);
         await client.connect(clientTransport);
         const tools = await client.listTools();
-        assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), ["xdr_get_alert", "xdr_get_device", "xdr_get_hunting_table_schema", "xdr_get_identity", "xdr_get_incident", "xdr_list_action_history", "xdr_list_alerts", "xdr_list_cloud_policies", "xdr_list_device_timeline", "xdr_list_devices", "xdr_list_identities", "xdr_list_incident_alerts", "xdr_list_incidents", "xdr_list_pending_actions"]);
+        assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), ["xdr_get_alert", "xdr_get_device", "xdr_get_hunting_table_schema", "xdr_get_identity", "xdr_get_incident", "xdr_hunt_recent", "xdr_list_action_history", "xdr_list_alerts", "xdr_list_cloud_policies", "xdr_list_device_alert_evidence", "xdr_list_device_timeline", "xdr_list_devices", "xdr_list_file_events", "xdr_list_identities", "xdr_list_incident_alerts", "xdr_list_incidents", "xdr_list_network_observations", "xdr_list_pending_actions", "xdr_list_user_alert_evidence", "xdr_list_user_device_logons"]);
         assert.ok(tools.tools.every((tool) => tool.annotations.readOnlyHint === true));
         await client.callTool({ name: "xdr_list_incidents", arguments: { days: 7, page: 2, pageSize: 3 } });
         assert.deepEqual(calls, [{ operation: "list_incidents", args: { days: 7, page: 2, pageSize: 3 } }]);

@@ -1,6 +1,6 @@
 ﻿# XDRInternals MCP roadmap
 
-Status: `1.0.0-rc.1` read-only release candidate for review. Fourteen bounded reads cover incident/alert navigation, device/identity lookup and timeline, hunting schema, Action Center status, and Cloud Apps policies. Software-passkey and interactive Microsoft Edge browser sign-in have both been live-tested on Linux. PR #133's 43 tools are an inventory of possible workflows, not a release target.
+Status: `1.0.0-rc.1` read-only release candidate for review. Twenty bounded reads cover incident/alert navigation, device/identity lookup, fixed portal hunting pivots, Action Center status, and Cloud Apps policies. Software-passkey and interactive Microsoft Edge browser sign-in have both been live-tested on Linux. PR #133's 43 tools are an inventory of possible workflows, not a release target.
 
 ## Release principle
 
@@ -16,10 +16,10 @@ The candidate ships the following workflows; excluded capabilities are not count
 | --- | --- | --- |
 | Session | One local operator; opt-in passkey or browser startup; no model-supplied secrets. | No multi-tenant selection, session control tool, or per-request HTTP authentication. |
 | Incidents and alerts | Bounded incident list/detail, alert list/detail, and one page of incident-associated alerts. | No merges, moves, or auto-pagination through MCP. |
-| Entities | Bounded device list/detail and one-page, at-most-one-hour portal timeline; identity list/resolve-only detail by UPN, Entra object ID or SID. | No file-backed timelines, device-alert API pivots or enrichment fan-out. |
+| Entities | Bounded device list/detail and one-page, at-most-one-hour portal timeline; identity list/resolve-only detail; fixed portal alert, file, IP, domain and user evidence pivots. | No file-backed timelines, public API reputation verdicts or enrichment fan-out. |
 | Response state | Pending approvals and one month of Action Center history, read-only. | No approval, isolation, cancellation, or other tenant mutations. |
 | Cloud Apps | One page of policy metadata. | No policy edits, activity timelines, or unbounded governance lists. |
-| Hunting and advanced | One exact table's schema, up to 50 columns with a truncation flag. | No arbitrary query execution, 10,000-record rule fetches, or attack-path calls that reset the session. |
+| Hunting and advanced | One exact table's schema, up to 50 columns with a truncation flag; recent rows from five allowlisted tables over one hour. | No arbitrary query execution, 10,000-record rule fetches, or attack-path calls that reset the session. |
 
 The module exports many more commands than an analyst needs in one model session. Additional reads require direct bounds, result-shape tests and a single-tenant safety review.
 
@@ -33,8 +33,8 @@ The module exports many more commands than an analyst needs in one model session
 
 ## Delivery sequence
 
-1. **RC review:** fourteen fixed bounded reads, fixture/protocol/PowerShell tests, Linux passkey and Edge browser live checks, CI and dependency audit. The pending-action page and ten-minute device timeline were empty in the live tenant, so their populated projections are fixture-tested only. Other operating systems are not claimed as live-verified.
-2. **Later reads:** add API-scoped OAuth authentication and least-privilege permissions before public MTP/WDATP entity pivots; make activity cmdlets file-free and bounded; paginate detection and suppression rule retrieval upstream. Hunting execution needs explicit single-tenant scoping, query/time/row/byte budgets, and partial-error tests before consideration.
+1. **RC review:** twenty fixed bounded reads, fixture/protocol/PowerShell tests, Linux passkey and Edge browser live checks, CI and dependency audit. Several evidence pivots had empty live pages, so their populated projections are fixture-tested only. Other operating systems are not claimed as live-verified.
+2. **Later reads:** stay with the project portal session; improve portal-only activity and identity pivots where upstream routes support direct bounds, and paginate detection and suppression rule retrieval upstream. Arbitrary hunting is not included: the current tools generate fixed single-tenant queries with explicit time, row and byte budgets.
 3. **Later auth:** explicit operator-visible sign-in/status/logout lifecycle, verified account and tenant across refresh, isolated sessions and caches for each principal, and cross-tenant denial tests. No cookie-valued tool argument.
 4. **Beyond first release:** only a separately designed, independently approved product could consider tenant writes or Live Response. Generic raw REST and exported-cmdlet runners remain non-goals.
 

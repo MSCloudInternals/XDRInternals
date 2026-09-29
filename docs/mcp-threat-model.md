@@ -1,6 +1,6 @@
 ﻿# Read-only MCP release candidate threat model
 
-Status: review draft for `1.0.0-rc.1`. Applies only to the local stdio server with one operator, one dedicated Defender account, and the fourteen tools documented in [the MCP README](../mcp/README.md). Linux software-passkey and interactive Microsoft Edge browser sign-in have been live-tested. This is not a shared service or a multi-tenant authorization system.
+Status: review draft for `1.0.0-rc.1`. Applies only to the local stdio server with one operator, one dedicated Defender account, and the twenty tools documented in [the MCP README](../mcp/README.md). Linux software-passkey and interactive Microsoft Edge browser sign-in have been live-tested. This is not a shared service or a multi-tenant authorization system.
 
 ## Boundaries
 
@@ -28,9 +28,9 @@ Status: review draft for `1.0.0-rc.1`. Applies only to the local stdio server wi
 - Browser authentication was live-tested with Microsoft Edge on Linux; other browser and operating-system combinations have not received the candidate's live validation.
 - The live pending-actions page was empty. Its populated-record mapping has fixture coverage but no live populated-page evidence.
 - The live timeline window was empty. Its request succeeded, but the populated event projection is fixture-tested only. Schema lookup fetched 70 columns upstream for `DeviceEvents`, projected 50, and flagged truncation. Schema reads fetch the portal catalog before selecting one table; only the MCP output, not the upstream response, is column-bounded.
-- The passkey establishes a Defender portal session, not an API-scoped OAuth token. Public MTP/WDATP file/IP/domain/user and device-alert API reads, as well as arbitrary hunting, are not claimed as implemented or live-tested.
+- The passkey establishes a Defender portal session; public MTP/WDATP endpoints are not called. Fixed portal hunting templates sample activity/evidence for file, IP, domain, user and device pivots, but do not provide public API reputation verdicts or complete user-machine associations. Arbitrary hunting remains excluded.
 - PowerShell cmdlets depend on portal APIs that can change shape, semantics, or permissions. Strict projections fail closed on wrong types, but absent optional fields can still return null. Monitor live checks before publishing a final release.
 - Portal text can carry prompt injection even though the server cannot execute writes. An AI client with unrelated tools could exfiltrate read data. Review client approvals, logs, model-provider retention, local file permissions, and tenant policy before enabling access.
 - The passkey file is a local secret whose permissions and rotation are managed by the operator. Never place its contents in MCP arguments, repository configuration, test output, or issue reports.
 
-Release reviewers should confirm that the fixed tool inventory matches the documented fourteen reads, no exported operation calls a mutation or writes a local file, the focused Pester and MCP tests pass, and the live test emits only status/count data for a dedicated test account.
+Release reviewers should confirm that the fixed tool inventory matches the documented twenty reads, no exported operation calls a mutation or writes a local file, the focused Pester and MCP tests pass, and the live test emits only status/count data for a dedicated test account.

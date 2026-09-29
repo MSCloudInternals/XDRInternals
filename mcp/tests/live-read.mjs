@@ -33,7 +33,7 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         phase = "handshake";
         await client.connect(transport);
         const tools = await client.listTools();
-        const expected = ["xdr_get_alert", "xdr_get_device", "xdr_get_hunting_table_schema", "xdr_get_identity", "xdr_get_incident", "xdr_list_action_history", "xdr_list_alerts", "xdr_list_cloud_policies", "xdr_list_device_timeline", "xdr_list_devices", "xdr_list_identities", "xdr_list_incident_alerts", "xdr_list_incidents", "xdr_list_pending_actions"];
+        const expected = ["xdr_get_alert", "xdr_get_device", "xdr_get_hunting_table_schema", "xdr_get_identity", "xdr_get_incident", "xdr_hunt_recent", "xdr_list_action_history", "xdr_list_alerts", "xdr_list_cloud_policies", "xdr_list_device_alert_evidence", "xdr_list_device_timeline", "xdr_list_devices", "xdr_list_file_events", "xdr_list_identities", "xdr_list_incident_alerts", "xdr_list_incidents", "xdr_list_network_observations", "xdr_list_pending_actions", "xdr_list_user_alert_evidence", "xdr_list_user_device_logons"];
         if (JSON.stringify(tools.tools.map((tool) => tool.name).sort()) !== JSON.stringify(expected) ||
             tools.tools.some((tool) => tool.annotations?.readOnlyHint !== true)) {
             throw new Error("unexpected_tool_inventory");
@@ -66,6 +66,17 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         const schema = await call("xdr_get_hunting_table_schema", { table: "DeviceEvents" }, 70_000);
         if (schema?.table !== "DeviceEvents" || !Array.isArray(schema.columns) || schema.columns.length > 50) throw new Error("invalid_schema_result");
         console.log(`live status=pass phase=hunting_schema columns=${schema.columns.length} truncated=${schema.truncated}`);
+        const recent = await call("xdr_hunt_recent", { table: "DeviceEvents", pageSize: 1 }, 70_000);
+        if (!Array.isArray(recent) || recent.length > 1 || recent.some((item) => item.table !== "DeviceEvents")) throw new Error("invalid_recent_hunt");
+        console.log(`live status=pass phase=recent_hunt count=${recent.length}`);
+        const files = await call("xdr_list_file_events", { sha256: "f".repeat(64), pageSize: 1 }, 70_000);
+        if (!Array.isArray(files) || files.length > 1 || files.some((item) => item.sha256.toLowerCase() !== "f".repeat(64))) throw new Error("invalid_file_events");
+        console.log(`live status=pass phase=file_events count=${files.length}`);
+        for (const { kind, value } of [{ kind: "ip", value: "192.0.2.1" }, { kind: "domain", value: "example.com" }]) {
+            const observations = await call("xdr_list_network_observations", { kind, value, pageSize: 1 }, 70_000);
+            if (!Array.isArray(observations) || observations.length > 1) throw new Error("invalid_network_observations");
+            console.log(`live status=pass phase=network_${kind} count=${observations.length}`);
+        }
         const devices = await call("xdr_list_devices", { days: 7, page: 1, pageSize: 1 }, 70_000);
         if (!Array.isArray(devices) || devices.length > 1 || devices.some((item) => !/^[0-9a-f]{40}$/i.test(item.deviceId))) throw new Error("invalid_device_result");
         console.log(`live status=pass phase=devices count=${devices.length}`);
@@ -76,9 +87,13 @@ if (!["browser", "software-passkey"].includes(authMode)) {
             const timeline = await call("xdr_list_device_timeline", { deviceId: devices[0].deviceId, minutes: 10, pageSize: 1 }, 70_000);
             if (!Array.isArray(timeline) || timeline.length > 1 || timeline.some((item) => item.deviceId !== devices[0].deviceId)) throw new Error("invalid_timeline_result");
             console.log(`live status=pass phase=device_timeline count=${timeline.length}`);
+            const evidence = await call("xdr_list_device_alert_evidence", { deviceId: devices[0].deviceId, pageSize: 1 }, 70_000);
+            if (!Array.isArray(evidence) || evidence.length > 1 || evidence.some((item) => item.deviceId.toLowerCase() !== devices[0].deviceId.toLowerCase())) throw new Error("invalid_device_alert_evidence");
+            console.log(`live status=pass phase=device_alert_evidence count=${evidence.length}`);
         } else {
             console.log("live status=skip phase=device_detail reason=no_device");
             console.log("live status=skip phase=device_timeline reason=no_device");
+            console.log("live status=skip phase=device_alert_evidence reason=no_device");
         }
         const identities = await call("xdr_list_identities", { page: 1, pageSize: 10 }, 70_000);
         if (!Array.isArray(identities) || identities.length > 10 || identities.some((item) => !item.name && !item.upn && !item.sid && !item.objectId)) {
@@ -86,6 +101,7 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         }
         console.log(`live status=pass phase=identities count=${identities.length}`);
         const byUpn = identities.find((item) => /^[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,189}$/.test(item.upn ?? ""));
+        let pivotUpn = byUpn?.upn;
         const byObjectId = identities.find((item) => /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(item.objectId ?? ""));
         const bySid = identities.find((item) => /^S-1-[0-9]{1,15}(?:-[0-9]{1,10}){1,15}$/.test(item.sid ?? ""));
         if (byUpn) {
@@ -95,6 +111,7 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         } else if (byObjectId) {
             const identity = await call("xdr_get_identity", { objectId: byObjectId.objectId }, 70_000);
             if (identity?.objectId?.toLowerCase() !== byObjectId.objectId.toLowerCase()) throw new Error("invalid_identity_detail");
+            if (/^[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,189}$/.test(identity.upn ?? "")) pivotUpn = identity.upn;
             console.log("live status=pass phase=identity_detail");
         } else if (bySid) {
             const identity = await call("xdr_get_identity", { sid: bySid.sid }, 70_000);
@@ -103,6 +120,13 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         } else {
             console.log("live status=skip phase=identity_detail reason=no_identifier");
         }
+        const userProbe = pivotUpn ?? "analyst@example.invalid";
+        const userAlerts = await call("xdr_list_user_alert_evidence", { upn: userProbe, pageSize: 1 }, 70_000);
+        if (!Array.isArray(userAlerts) || userAlerts.length > 1 || userAlerts.some((item) => item.upn.toLowerCase() !== userProbe.toLowerCase())) throw new Error("invalid_user_alert_evidence");
+        console.log(`live status=pass phase=user_alert_evidence count=${userAlerts.length} target=${pivotUpn ? "listed" : "placeholder"}`);
+        const userDevices = await call("xdr_list_user_device_logons", { upn: userProbe, pageSize: 1 }, 70_000);
+        if (!Array.isArray(userDevices) || userDevices.length > 1 || userDevices.some((item) => item.upn.toLowerCase() !== userProbe.toLowerCase())) throw new Error("invalid_user_devices");
+        console.log(`live status=pass phase=user_device_logons count=${userDevices.length} target=${pivotUpn ? "listed" : "placeholder"}`);
         const pending = await call("xdr_list_pending_actions", { page: 1, pageSize: 1 }, 70_000);
         if (!Array.isArray(pending) || pending.length > 1 || pending.some((item) => !item.approvalId && !item.actionType)) {
             throw new Error("invalid_pending_result");
@@ -142,7 +166,7 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         if (!denied.isError) throw new Error("invalid_arguments_accepted");
         console.log("live status=pass phase=invalid_arguments");
     } catch (error) {
-        const known = new Set(["unsafe_passkey_file", "unexpected_tool_inventory", "not_connected", "operation_failed", "invalid_response", "upstream_failed", "session_lost", "session_timed_out", "tool_error", "invalid_incident_result", "invalid_alert_result", "invalid_alert_detail", "invalid_schema_result", "invalid_device_result", "invalid_device_detail", "invalid_timeline_result", "invalid_identity_result", "invalid_identity_detail", "invalid_pending_result", "invalid_history_result", "invalid_policy_result", "invalid_page_result", "invalid_detail_result", "invalid_related_alert_result", "invalid_arguments_accepted"]);
+        const known = new Set(["unsafe_passkey_file", "unexpected_tool_inventory", "not_connected", "operation_failed", "invalid_response", "upstream_failed", "session_lost", "session_timed_out", "tool_error", "invalid_incident_result", "invalid_alert_result", "invalid_alert_detail", "invalid_schema_result", "invalid_recent_hunt", "invalid_file_events", "invalid_network_observations", "invalid_device_result", "invalid_device_detail", "invalid_timeline_result", "invalid_device_alert_evidence", "invalid_identity_result", "invalid_identity_detail", "invalid_user_alert_evidence", "invalid_user_devices", "invalid_pending_result", "invalid_history_result", "invalid_policy_result", "invalid_page_result", "invalid_detail_result", "invalid_related_alert_result", "invalid_arguments_accepted"]);
         const reason = known.has(error?.message) ? error.message : "connection_or_transport_failed";
         const category = ["McpError", "AbortError", "TypeError", "Error"].includes(error?.name) ? error.name : "other";
         const protocolCode = Number.isInteger(error?.code) && error.code >= -32700 && error.code <= -32000 ? error.code : "none";

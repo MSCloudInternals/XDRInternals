@@ -63,8 +63,8 @@ function Get-XdrIncident {
     if ($PageIndex -eq 4) {
         $text = [string][char]1 * 500
         return @(1..$PageSize | ForEach-Object {
-            [pscustomobject]@{ IncidentId = $_; Title = $text; SeverityName = $text; Status = $text; AlertCount = 1 }
-        })
+                [pscustomobject]@{ IncidentId = $_; Title = $text; SeverityName = $text; Status = $text; AlertCount = 1 }
+            })
     }
 
     return [pscustomobject]@{
@@ -105,7 +105,44 @@ function Get-XdrEndpointDevice {
 }
 
 function Invoke-XdrRestMethod {
-    param([string]$Uri)
+    param([string]$Uri, [string]$Method, [string]$Body)
+    if ($Uri -eq 'https://security.microsoft.com/apiproxy/mtp/huntingService/queryExecutor') {
+        $request = $Body | ConvertFrom-Json -AsHashtable
+        if ($env:XDR_MCP_TEST_HUNT_FORBIDDEN -eq '1') {
+            $failure = [System.InvalidOperationException]::new('portal rejection')
+            $failure | Add-Member -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = 403 })
+            throw $failure
+        }
+        if ($env:XDR_MCP_TEST_HUNT_BAD_RESULTS -eq '1') { return [pscustomobject]@{ Results = 'malformed' } }
+        if ($env:XDR_MCP_TEST_HUNT_MISMATCH -eq '1') {
+            return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'b' * 40; AlertId = 'alert-2' }) }
+        }
+        if ($Method -ne 'Post' -or $request.MaxRecordCount -ne 1 -or $request.QueryText -cne $request.EncodedQueryText -or $request.ContainsKey('TenantIds')) { throw 'unsafe_hunting_request' }
+        switch -CaseSensitive ($request.QueryText) {
+            ('AlertEvidence | where Timestamp > ago(1d) and DeviceId == "{0}" | project Timestamp, DeviceId, AlertId, Title, Severity | take 1' -f ('a' * 40)) {
+                return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'a' * 40; AlertId = 'alert-2'; Title = 'Example'; Severity = 'High'; credential = 'secret-cookie-should-not-leak' }) }
+            }
+            ('DeviceFileEvents | where Timestamp > ago(1d) and SHA256 =~ "{0}" | project Timestamp, DeviceId, FileName, SHA256 | take 1' -f ('f' * 64)) {
+                return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'a' * 40; FileName = 'sample.exe'; SHA256 = 'f' * 64; credential = 'secret-cookie-should-not-leak' }) }
+            }
+            'DeviceNetworkEvents | where Timestamp > ago(1d) and RemoteIP == "192.0.2.1" | project Timestamp, DeviceId, RemoteIP, RemoteUrl | take 1' {
+                return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'a' * 40; RemoteIP = '192.0.2.1'; RemoteUrl = 'example.com'; credential = 'secret-cookie-should-not-leak' }) }
+            }
+            'DeviceNetworkEvents | where Timestamp > ago(1d) and RemoteUrl has "example.com" | project Timestamp, DeviceId, RemoteIP, RemoteUrl | take 1' {
+                return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'a' * 40; RemoteIP = '192.0.2.1'; RemoteUrl = 'example.com'; credential = 'secret-cookie-should-not-leak' }) }
+            }
+            'AlertEvidence | where Timestamp > ago(1d) and AccountUpn =~ "analyst@example.test" | project Timestamp, AccountUpn, DeviceId, AlertId, Title, Severity | take 1' {
+                return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; AccountUpn = 'analyst@example.test'; DeviceId = 'a' * 40; AlertId = 'alert-2'; Title = 'Example'; Severity = 'High'; credential = 'secret-cookie-should-not-leak' }) }
+            }
+            'IdentityLogonEvents | where Timestamp > ago(1d) and AccountUpn =~ "analyst@example.test" | project Timestamp, AccountUpn, DeviceName | take 1' {
+                return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; AccountUpn = 'analyst@example.test'; DeviceName = 'host.example'; credential = 'secret-cookie-should-not-leak' }) }
+            }
+            'DeviceEvents | where Timestamp > ago(1h) | project Timestamp, DeviceId, ActionType | take 1' {
+                return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'a' * 40; ActionType = 'FileCreated'; credential = 'secret-cookie-should-not-leak' }) }
+            }
+            default { throw 'unsafe_hunting_request' }
+        }
+    }
     if ($Uri -match '/alerts/(denied|missing)$' -or $Uri -match '/machines/d{40}/' -or
         ($env:XDR_MCP_TEST_SCHEMA_FORBIDDEN -eq '1' -and $Uri -match '/huntingService/schema$')) {
         $failure = [System.InvalidOperationException]::new('portal rejection')
@@ -121,10 +158,11 @@ function Invoke-XdrRestMethod {
             return , @([pscustomobject]@{ Tables = @() }, [pscustomobject]@{ Tables = @([pscustomobject]@{ Name = 'DeviceEvents'; Schema = @() }) })
         }
         return [pscustomobject]@{ Tables = @(
-            [pscustomobject]@{ Name = 'DeviceEvents'; Schema = @([pscustomobject]@{ Name = 'Timestamp'; Type = 'datetime'; Description = 'Event time'; credential = 'secret-cookie-should-not-leak' }) },
-            [pscustomobject]@{ Name = 'BadTable'; Schema = 'malformed' },
-            [pscustomobject]@{ Name = @('OtherTable', 'MixedTable'); Schema = @() }
-        ) }
+                [pscustomobject]@{ Name = 'DeviceEvents'; Schema = @([pscustomobject]@{ Name = 'Timestamp'; Type = 'datetime'; Description = 'Event time'; credential = 'secret-cookie-should-not-leak' }) },
+                [pscustomobject]@{ Name = 'BadTable'; Schema = 'malformed' },
+                [pscustomobject]@{ Name = @('OtherTable', 'MixedTable'); Schema = @() }
+            )
+        }
     }
     if ($Uri -notmatch '/mdeTimelineExperience/machines/[0-9a-f]{40}/events/\?' -or $Uri -notmatch 'pageSize=1' -or $Uri -match 'http://') { throw 'unbounded timeline request' }
     if ($Uri -match '/machines/b{40}/') { return [pscustomobject]@{ Items = 'malformed' } }

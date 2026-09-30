@@ -65,7 +65,7 @@
     param (
         [Parameter(ParameterSetName = 'DeviceId', Mandatory = $true)]
         [Alias('MachineId', 'SenseMachineId')]
-        [ValidateLength(40,40)]
+        [ValidateLength(40, 40)]
         [ValidatePattern('^[0-9a-fA-F]{40}$')]
         [string]$DeviceId,
 
@@ -116,7 +116,7 @@
             try {
                 $result = Invoke-RestMethod -Uri $DeviceUri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
             } catch {
-                throw "Failed to retrieve device details for DeviceId '$DeviceId': $_"
+                throw [System.InvalidOperationException]::new("Failed to retrieve device details for DeviceId '$DeviceId': $_", $_.Exception)
             }
 
             if (-not $result) {
@@ -136,7 +136,7 @@
             Write-Verbose "Retrieving XDR Endpoint devices (Page: $PageIndex, Size: $PageSize, Sort: $SortByField $SortOrder$(if ($MachineSearchPrefix) { ", Search: $MachineSearchPrefix" }))"
             $result = Invoke-RestMethod -Uri $Uri -ContentType "application/json" -WebSession $script:session -Headers $script:headers
         } catch {
-            Write-Error "Failed to retrieve endpoint devices: $_"
+            Write-Error -Exception $_.Exception -Message "Failed to retrieve endpoint devices: $_"
             return
         }
 

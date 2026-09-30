@@ -1,6 +1,6 @@
 ﻿# XDRInternals MCP roadmap
 
-Status: `1.0.0-rc.1` read-only release candidate for review. Twenty bounded reads cover incident/alert navigation, device/identity lookup, fixed portal hunting pivots, Action Center status, and Cloud Apps policies. Software-passkey and interactive Microsoft Edge browser sign-in have both been live-tested on Linux. PR #133's 43 tools are an inventory of possible workflows, not a release target.
+Status: `1.0.0-rc.1` read-only release candidate for review. Twenty-one bounded reads cover incident/alert navigation, device/identity lookup and timelines, fixed portal hunting pivots, Action Center status, and Cloud Apps policies. Software-passkey and interactive Microsoft Edge browser sign-in have both been live-tested on Linux. PR #133's 43 tools are an inventory of possible workflows, not a release target.
 
 ## Release principle
 
@@ -16,7 +16,7 @@ The candidate ships the following workflows; excluded capabilities are not count
 | --- | --- | --- |
 | Session | One local operator; opt-in passkey or browser startup; no model-supplied secrets. | No multi-tenant selection, session control tool, or per-request HTTP authentication. |
 | Incidents and alerts | Bounded incident list/detail, alert list/detail, and one page of incident-associated alerts. | No merges, moves, or auto-pagination through MCP. |
-| Entities | Bounded device list/detail and one-page, at-most-one-hour portal timeline; identity list/resolve-only detail; fixed portal alert, file, IP, domain and user evidence pivots. | No file-backed timelines, public API reputation verdicts or enrichment fan-out. |
+| Entities | Bounded device list/detail and one-page, at-most-one-hour portal timeline; identity list/resolve-only detail and at-most-one-hour user logon timeline; fixed portal alert, file, IP, domain and user evidence pivots. | No file-backed timelines, complete identity activity history, public API reputation verdicts or enrichment fan-out. |
 | Response state | Pending approvals and one month of Action Center history, read-only. | No approval, isolation, cancellation, or other tenant mutations. |
 | Cloud Apps | One page of policy metadata. | No policy edits, activity timelines, or unbounded governance lists. |
 | Hunting and advanced | One exact table's schema, up to 50 columns with a truncation flag; recent rows from five allowlisted tables over one hour. | No arbitrary query execution, 10,000-record rule fetches, or attack-path calls that reset the session. |
@@ -33,7 +33,7 @@ The module exports many more commands than an analyst needs in one model session
 
 ## Delivery sequence
 
-1. **RC review:** twenty fixed bounded reads, fixture/protocol/PowerShell tests, Linux passkey and Edge browser live checks, CI and dependency audit. Several evidence pivots had empty live pages, so their populated projections are fixture-tested only. Other operating systems are not claimed as live-verified.
+1. **RC review:** twenty-one fixed bounded reads, fixture/protocol/PowerShell tests, Linux passkey and Edge browser live checks, CI and dependency audit. Two fresh activity-targeted passes validated populated device/user timelines, file/IP/domain observations and real-user identity detail. Device alert evidence, real-user alert/device-name pivots and pending actions remained empty within their permitted scopes, so their populated projections are fixture-tested only. Other operating systems are not claimed as live-verified.
 2. **Later reads:** stay with the project portal session; improve portal-only activity and identity pivots where upstream routes support direct bounds, and paginate detection and suppression rule retrieval upstream. Arbitrary hunting is not included: the current tools generate fixed single-tenant queries with explicit time, row and byte budgets.
 3. **Later auth:** explicit operator-visible sign-in/status/logout lifecycle, verified account and tenant across refresh, isolated sessions and caches for each principal, and cross-tenant denial tests. No cookie-valued tool argument.
 4. **Beyond first release:** only a separately designed, independently approved product could consider tenant writes or Live Response. Generic raw REST and exported-cmdlet runners remain non-goals.
@@ -43,3 +43,5 @@ Dependency notes: `Get-XdrIncidentAssociatedAlert` has a new single-page mode us
 Post-review hardening preserves HTTP status across the original eleven read paths, distinguishes not-found responses from authentication failures, restricts the extended deadline to sign-in, and rejects oversized serialized pages without losing the session. SID resolution completes the existing identity lookup tool without adding another operation or enrichment request; it has offline target-validation and single-request tests, not live evidence yet.
 
 Live testing found that the portal rejects `Get-XdrIncident -SortByField LastUpdatedDate` despite the cmdlet's documented `ValidateSet`; the candidate fixes `TopRisk` descending. Incident status may be numeric. Device list results use `MachineId`, and identity list results contain a nested `ids.aad` rather than a top-level object ID. `Update-XdrConnectionSettings` uses cached tenant context but does not independently verify account and tenant after refresh. No tenant mutation or live write validation is part of this release.
+
+Activity-targeted validation exposed and fixed populated device timeline timestamp mapping (`ActionTimeIsoString`/`ActionTime`) and device-less user logon handling. The user device-logon query filters nonempty `DeviceName` before its row limit; the user timeline accepts device-less logons without claiming device associations. The opt-in live harness discovers recent targets through fixed bounded portal queries, keeps them in memory, and logs counts/status only; fixtures remain synthetic.

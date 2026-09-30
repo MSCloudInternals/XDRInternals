@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export type Operation = "list_incidents" | "get_incident" | "list_incident_alerts" | "list_alerts" | "get_alert" | "list_devices" | "get_device" | "list_device_timeline" | "list_device_alert_evidence" | "list_file_events" | "list_network_observations" | "list_user_alert_evidence" | "list_user_device_logons" | "hunt_recent" | "get_hunting_table_schema" | "list_identities" | "get_identity" | "list_pending_actions" | "list_action_history" | "list_cloud_policies";
+export type Operation = "list_incidents" | "get_incident" | "list_incident_alerts" | "list_alerts" | "get_alert" | "list_devices" | "get_device" | "list_device_timeline" | "list_device_alert_evidence" | "list_file_events" | "list_network_observations" | "list_user_alert_evidence" | "list_user_device_logons" | "list_user_timeline" | "hunt_recent" | "get_hunting_table_schema" | "list_identities" | "get_identity" | "list_pending_actions" | "list_action_history" | "list_cloud_policies";
 
 type Response = { id: string; ok: boolean; data?: unknown; error?: string };
 

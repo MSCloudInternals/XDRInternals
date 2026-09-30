@@ -1,4 +1,5 @@
 ﻿import { statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -22,6 +23,21 @@ if (!["browser", "software-passkey"].includes(authMode)) {
                 throw new Error("unsafe_passkey_file");
             }
         }
+        let targets;
+        if (process.env.XDR_MCP_DISCOVER_TARGETS === "1") {
+            if (authMode !== "software-passkey") throw new Error("discovery_requires_passkey");
+            phase = "target_discovery";
+            try {
+                targets = JSON.parse(execFileSync("pwsh", ["-NoProfile", "-File", fileURLToPath(new URL("./live-targets.ps1", import.meta.url))], {
+                    env: process.env, stdio: ["ignore", "pipe", "pipe"], timeout: 390_000, maxBuffer: 256 * 1024,
+                }).toString().trim().split(/\r?\n/).at(-1));
+            } catch (error) {
+                const diagnostic = error.stderr?.toString().match(/^discovery phase=(authentication|devices|evidence|files|network|domains) status=(none|[0-9]{3})$/m);
+                if (diagnostic) console.error(diagnostic[0]);
+                throw new Error("target_discovery_failed");
+            }
+            console.log(`live status=pass phase=target_discovery active_devices=${targets.devices.length} evidence=${targets.evidence.length} files=${targets.files.length} network=${targets.network.length} domains=${targets.domains.length}`);
+        }
         const transport = new StdioClientTransport({
             command: process.execPath,
             args: [fileURLToPath(new URL("../dist/index.js", import.meta.url))],
@@ -33,7 +49,7 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         phase = "handshake";
         await client.connect(transport);
         const tools = await client.listTools();
-        const expected = ["xdr_get_alert", "xdr_get_device", "xdr_get_hunting_table_schema", "xdr_get_identity", "xdr_get_incident", "xdr_hunt_recent", "xdr_list_action_history", "xdr_list_alerts", "xdr_list_cloud_policies", "xdr_list_device_alert_evidence", "xdr_list_device_timeline", "xdr_list_devices", "xdr_list_file_events", "xdr_list_identities", "xdr_list_incident_alerts", "xdr_list_incidents", "xdr_list_network_observations", "xdr_list_pending_actions", "xdr_list_user_alert_evidence", "xdr_list_user_device_logons"];
+        const expected = ["xdr_get_alert", "xdr_get_device", "xdr_get_hunting_table_schema", "xdr_get_identity", "xdr_get_incident", "xdr_hunt_recent", "xdr_list_action_history", "xdr_list_alerts", "xdr_list_cloud_policies", "xdr_list_device_alert_evidence", "xdr_list_device_timeline", "xdr_list_devices", "xdr_list_file_events", "xdr_list_identities", "xdr_list_incident_alerts", "xdr_list_incidents", "xdr_list_network_observations", "xdr_list_pending_actions", "xdr_list_user_alert_evidence", "xdr_list_user_device_logons", "xdr_list_user_timeline"];
         if (JSON.stringify(tools.tools.map((tool) => tool.name).sort()) !== JSON.stringify(expected) ||
             tools.tools.some((tool) => tool.annotations?.readOnlyHint !== true)) {
             throw new Error("unexpected_tool_inventory");
@@ -69,26 +85,42 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         const recent = await call("xdr_hunt_recent", { table: "DeviceEvents", pageSize: 1 }, 70_000);
         if (!Array.isArray(recent) || recent.length > 1 || recent.some((item) => item.table !== "DeviceEvents")) throw new Error("invalid_recent_hunt");
         console.log(`live status=pass phase=recent_hunt count=${recent.length}`);
-        const files = await call("xdr_list_file_events", { sha256: "f".repeat(64), pageSize: 1 }, 70_000);
-        if (!Array.isArray(files) || files.length > 1 || files.some((item) => item.sha256.toLowerCase() !== "f".repeat(64))) throw new Error("invalid_file_events");
+        const sha256 = targets?.files.find((item) => /^[0-9a-f]{64}$/i.test(item.SHA256 ?? ""))?.SHA256 ?? "f".repeat(64);
+        const files = await call("xdr_list_file_events", { sha256, pageSize: 1 }, 70_000);
+        if (!Array.isArray(files) || files.length > 1 || files.some((item) => item.sha256.toLowerCase() !== sha256.toLowerCase())) throw new Error("invalid_file_events");
         console.log(`live status=pass phase=file_events count=${files.length}`);
-        for (const { kind, value } of [{ kind: "ip", value: "192.0.2.1" }, { kind: "domain", value: "example.com" }]) {
+        const ip = targets?.network.find((item) => /^[0-9a-f:.]{3,45}$/i.test(item.RemoteIP ?? ""))?.RemoteIP ?? "192.0.2.1";
+        const domain = targets?.domains.map((item) => {
+            try { return new URL(/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(item.RemoteUrl) ? item.RemoteUrl : `https://${item.RemoteUrl}`).hostname; } catch { return ""; }
+        }).find((host) => /^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/.test(host)) ?? "example.com";
+        for (const { kind, value } of [{ kind: "ip", value: ip }, { kind: "domain", value: domain }]) {
             const observations = await call("xdr_list_network_observations", { kind, value, pageSize: 1 }, 70_000);
             if (!Array.isArray(observations) || observations.length > 1) throw new Error("invalid_network_observations");
             console.log(`live status=pass phase=network_${kind} count=${observations.length}`);
         }
-        const devices = await call("xdr_list_devices", { days: 7, page: 1, pageSize: 1 }, 70_000);
-        if (!Array.isArray(devices) || devices.length > 1 || devices.some((item) => !/^[0-9a-f]{40}$/i.test(item.deviceId))) throw new Error("invalid_device_result");
+        const devices = await call("xdr_list_devices", { days: 7, page: 1, pageSize: 50 }, 70_000);
+        if (!Array.isArray(devices) || devices.length > 50 || devices.some((item) => !/^[0-9a-f]{40}$/i.test(item.deviceId))) throw new Error("invalid_device_result");
         console.log(`live status=pass phase=devices count=${devices.length}`);
+        devices.sort((first, second) => (Date.parse(second.lastSeen ?? "") || 0) - (Date.parse(first.lastSeen ?? "") || 0));
+        const activeIds = targets?.devices.map((item) => item.DeviceId).filter((id) => /^[0-9a-f]{40}$/i.test(id)) ?? [];
+        if (activeIds.length) devices.splice(0, devices.length, ...activeIds.map((deviceId) => ({ deviceId })));
         if (devices.length) {
             const device = await call("xdr_get_device", { deviceId: devices[0].deviceId }, 70_000);
             if (device?.deviceId?.toLowerCase() !== devices[0].deviceId.toLowerCase()) throw new Error("invalid_device_detail");
             console.log("live status=pass phase=device_detail");
-            const timeline = await call("xdr_list_device_timeline", { deviceId: devices[0].deviceId, minutes: 10, pageSize: 1 }, 70_000);
-            if (!Array.isArray(timeline) || timeline.length > 1 || timeline.some((item) => item.deviceId !== devices[0].deviceId)) throw new Error("invalid_timeline_result");
-            console.log(`live status=pass phase=device_timeline count=${timeline.length}`);
-            const evidence = await call("xdr_list_device_alert_evidence", { deviceId: devices[0].deviceId, pageSize: 1 }, 70_000);
-            if (!Array.isArray(evidence) || evidence.length > 1 || evidence.some((item) => item.deviceId.toLowerCase() !== devices[0].deviceId.toLowerCase())) throw new Error("invalid_device_alert_evidence");
+            let timelineCount = 0;
+            let attempted = 0;
+            for (const target of devices.slice(0, 5)) {
+                const timeline = await call("xdr_list_device_timeline", { deviceId: target.deviceId, minutes: 60, pageSize: 50 }, 70_000);
+                if (!Array.isArray(timeline) || timeline.length > 50 || timeline.some((item) => item.deviceId.toLowerCase() !== target.deviceId.toLowerCase())) throw new Error("invalid_timeline_result");
+                timelineCount += timeline.length;
+                attempted++;
+                if (timeline.length) break;
+            }
+            console.log(`live status=pass phase=device_timeline count=${timelineCount} attempted=${attempted} coverage=${timelineCount ? "populated" : "empty"}`);
+            const evidenceId = targets?.evidence.find((item) => /^[0-9a-f]{40}$/i.test(item.DeviceId ?? ""))?.DeviceId ?? devices[0].deviceId;
+            const evidence = await call("xdr_list_device_alert_evidence", { deviceId: evidenceId, pageSize: 1 }, 70_000);
+            if (!Array.isArray(evidence) || evidence.length > 1 || evidence.some((item) => item.deviceId.toLowerCase() !== evidenceId.toLowerCase())) throw new Error("invalid_device_alert_evidence");
             console.log(`live status=pass phase=device_alert_evidence count=${evidence.length}`);
         } else {
             console.log("live status=skip phase=device_detail reason=no_device");
@@ -101,11 +133,11 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         }
         console.log(`live status=pass phase=identities count=${identities.length}`);
         const byUpn = identities.find((item) => /^[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,189}$/.test(item.upn ?? ""));
-        let pivotUpn = byUpn?.upn;
+        let pivotUpn = process.env.XDR_MCP_TEST_UPN ?? byUpn?.upn;
         const byObjectId = identities.find((item) => /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(item.objectId ?? ""));
         const bySid = identities.find((item) => /^S-1-[0-9]{1,15}(?:-[0-9]{1,10}){1,15}$/.test(item.sid ?? ""));
-        if (byUpn) {
-            const identity = await call("xdr_get_identity", { upn: byUpn.upn }, 70_000);
+        if (pivotUpn) {
+            const identity = await call("xdr_get_identity", { upn: pivotUpn }, 70_000);
             if (!identity || (!identity.name && !identity.objectId)) throw new Error("invalid_identity_detail");
             console.log("live status=pass phase=identity_detail");
         } else if (byObjectId) {
@@ -121,12 +153,16 @@ if (!["browser", "software-passkey"].includes(authMode)) {
             console.log("live status=skip phase=identity_detail reason=no_identifier");
         }
         const userProbe = pivotUpn ?? "analyst@example.invalid";
-        const userAlerts = await call("xdr_list_user_alert_evidence", { upn: userProbe, pageSize: 1 }, 70_000);
-        if (!Array.isArray(userAlerts) || userAlerts.length > 1 || userAlerts.some((item) => item.upn.toLowerCase() !== userProbe.toLowerCase())) throw new Error("invalid_user_alert_evidence");
-        console.log(`live status=pass phase=user_alert_evidence count=${userAlerts.length} target=${pivotUpn ? "listed" : "placeholder"}`);
-        const userDevices = await call("xdr_list_user_device_logons", { upn: userProbe, pageSize: 1 }, 70_000);
-        if (!Array.isArray(userDevices) || userDevices.length > 1 || userDevices.some((item) => item.upn.toLowerCase() !== userProbe.toLowerCase())) throw new Error("invalid_user_devices");
-        console.log(`live status=pass phase=user_device_logons count=${userDevices.length} target=${pivotUpn ? "listed" : "placeholder"}`);
+        const userAlerts = await call("xdr_list_user_alert_evidence", { upn: userProbe, pageSize: 50 }, 70_000);
+        if (!Array.isArray(userAlerts) || userAlerts.length > 50 || userAlerts.some((item) => item.upn.toLowerCase() !== userProbe.toLowerCase())) throw new Error("invalid_user_alert_evidence");
+        const userTarget = process.env.XDR_MCP_TEST_UPN ? "operator" : pivotUpn ? "listed" : "placeholder";
+        console.log(`live status=pass phase=user_alert_evidence count=${userAlerts.length} target=${userTarget}`);
+        const userDevices = await call("xdr_list_user_device_logons", { upn: userProbe, pageSize: 50 }, 70_000);
+        if (!Array.isArray(userDevices) || userDevices.length > 50 || userDevices.some((item) => item.upn.toLowerCase() !== userProbe.toLowerCase())) throw new Error("invalid_user_devices");
+        console.log(`live status=pass phase=user_device_logons count=${userDevices.length} target=${userTarget}`);
+        const userTimeline = await call("xdr_list_user_timeline", { upn: userProbe, minutes: 60, pageSize: 50 }, 70_000);
+        if (!Array.isArray(userTimeline) || userTimeline.length > 50 || userTimeline.some((item) => item.upn.toLowerCase() !== userProbe.toLowerCase() || !item.eventType)) throw new Error("invalid_user_timeline");
+        console.log(`live status=pass phase=user_timeline count=${userTimeline.length} target=${userTarget}`);
         const pending = await call("xdr_list_pending_actions", { page: 1, pageSize: 1 }, 70_000);
         if (!Array.isArray(pending) || pending.length > 1 || pending.some((item) => !item.approvalId && !item.actionType)) {
             throw new Error("invalid_pending_result");
@@ -166,7 +202,9 @@ if (!["browser", "software-passkey"].includes(authMode)) {
         if (!denied.isError) throw new Error("invalid_arguments_accepted");
         console.log("live status=pass phase=invalid_arguments");
     } catch (error) {
-        const known = new Set(["unsafe_passkey_file", "unexpected_tool_inventory", "not_connected", "operation_failed", "invalid_response", "upstream_failed", "session_lost", "session_timed_out", "tool_error", "invalid_incident_result", "invalid_alert_result", "invalid_alert_detail", "invalid_schema_result", "invalid_recent_hunt", "invalid_file_events", "invalid_network_observations", "invalid_device_result", "invalid_device_detail", "invalid_timeline_result", "invalid_device_alert_evidence", "invalid_identity_result", "invalid_identity_detail", "invalid_user_alert_evidence", "invalid_user_devices", "invalid_pending_result", "invalid_history_result", "invalid_policy_result", "invalid_page_result", "invalid_detail_result", "invalid_related_alert_result", "invalid_arguments_accepted"]);
+        const known = new Set(["unsafe_passkey_file", "unexpected_tool_inventory", "not_connected", "operation_failed", "invalid_response", "upstream_failed", "session_lost", "session_timed_out", "tool_error", "invalid_incident_result", "invalid_alert_result", "invalid_alert_detail", "invalid_schema_result", "invalid_recent_hunt", "invalid_file_events", "invalid_network_observations", "invalid_device_result", "invalid_device_detail", "invalid_timeline_result", "invalid_device_alert_evidence", "invalid_identity_result", "invalid_identity_detail", "invalid_user_alert_evidence", "invalid_user_devices", "invalid_user_timeline", "invalid_pending_result", "invalid_history_result", "invalid_policy_result", "invalid_page_result", "invalid_detail_result", "invalid_related_alert_result", "invalid_arguments_accepted"]);
+        known.add("target_discovery_failed");
+        known.add("discovery_requires_passkey");
         const reason = known.has(error?.message) ? error.message : "connection_or_transport_failed";
         const category = ["McpError", "AbortError", "TypeError", "Error"].includes(error?.name) ? error.name : "other";
         const protocolCode = Number.isInteger(error?.code) && error.code >= -32700 && error.code <= -32000 ? error.code : "none";

@@ -150,6 +150,18 @@ test("device alert evidence uses one fixed single-tenant portal query", () => {
     assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
 });
 
+test("device timeline accepts portal action timestamps but rejects malformed dates", () => {
+    const request = { id: "1", operation: "list_device_timeline", args: { deviceId: "f".repeat(40), minutes: 60, pageSize: 1 } };
+    for (const env of [{}, { XDR_MCP_TEST_TIMELINE_ACTION_TIME: "1" }]) {
+        const result = runHost([request], true, env)[0];
+        assert.equal(result.ok, true);
+        assert.match(result.data[0].timestamp, /^2026-01-01T00:00:00/);
+        assert.equal(result.data[0].eventType, "Process");
+        assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+    }
+    assert.equal(runHost([request], true, { XDR_MCP_TEST_TIMELINE_BAD_DATE: "1" })[0].error, "invalid_response");
+});
+
 test("file and network observations use fixed portal queries and reject unsafe values", () => {
     const result = runHost([
         { id: "1", operation: "list_file_events", args: { sha256: "f".repeat(64), pageSize: 1 } },
@@ -200,6 +212,31 @@ test("user alert and device logon pivots verify the UPN and allow only bounded t
     assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
 });
 
+test("user timeline uses a fixed short-window portal query and verifies its target", () => {
+    const request = { id: "1", operation: "list_user_timeline", args: { upn: "analyst@example.test", minutes: 10, pageSize: 1 } };
+    const result = runHost([
+        request,
+        { ...request, id: "2", args: { ...request.args, minutes: 61 } },
+        { ...request, id: "3", args: { ...request.args, QueryText: "IdentityInfo | take 100" } },
+        { ...request, id: "4", args: { ...request.args, upn: 'analyst@example.test" | take 100' } },
+    ]);
+    assert.equal(result[0].data[0].eventType, "LogonSuccess");
+    assert.equal(result[0].data[0].upn, "analyst@example.test");
+    assert.deepEqual(result.slice(1).map((response) => response.error), ["invalid_arguments", "invalid_arguments", "invalid_arguments"]);
+    assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+    assert.equal(runHost([request], true, { XDR_MCP_TEST_USER_TIMELINE_MISMATCH: "1" })[0].error, "invalid_response");
+});
+
+test("device-less identity logons remain timeline evidence rather than device associations", () => {
+    const result = runHost([
+        { id: "1", operation: "list_user_device_logons", args: { upn: "analyst@example.test", pageSize: 1 } },
+        { id: "2", operation: "list_user_timeline", args: { upn: "analyst@example.test", minutes: 10, pageSize: 1 } },
+    ], true, { XDR_MCP_TEST_DEVICELESS_LOGONS: "1" });
+    assert.deepEqual(result[0].data, []);
+    assert.equal(result[1].data[0].eventType, "LogonSuccess");
+    assert.equal(result[1].data[0].deviceName, null);
+});
+
 test("recent hunting accepts only predefined tables and one hour of rows", () => {
     const result = runHost([
         { id: "1", operation: "hunt_recent", args: { table: "DeviceEvents", pageSize: 1 } },
@@ -239,6 +276,8 @@ test("MCP denies caller-supplied hunting queries and unsupported pivot values", 
             { name: "xdr_list_network_observations", args: { kind: "domain", value: 'example.com" | take 100', pageSize: 1 } },
             { name: "xdr_list_user_alert_evidence", args: { upn: "bad-upn", pageSize: 1 } },
             { name: "xdr_list_user_device_logons", args: { upn: "analyst@example.test", pageSize: 51 } },
+            { name: "xdr_list_user_timeline", args: { upn: "analyst@example.test", minutes: 61, pageSize: 1 } },
+            { name: "xdr_list_user_timeline", args: { upn: "analyst@example.test", minutes: 10, pageSize: 1, QueryText: "IdentityInfo | take 100" } },
         ]) {
             assert.equal((await client.callTool({ name, arguments: args })).isError, true);
         }
@@ -393,7 +432,7 @@ test("MCP registers only bounded read tools and rejects invalid inputs", async (
         await server.connect(serverTransport);
         await client.connect(clientTransport);
         const tools = await client.listTools();
-        assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), ["xdr_get_alert", "xdr_get_device", "xdr_get_hunting_table_schema", "xdr_get_identity", "xdr_get_incident", "xdr_hunt_recent", "xdr_list_action_history", "xdr_list_alerts", "xdr_list_cloud_policies", "xdr_list_device_alert_evidence", "xdr_list_device_timeline", "xdr_list_devices", "xdr_list_file_events", "xdr_list_identities", "xdr_list_incident_alerts", "xdr_list_incidents", "xdr_list_network_observations", "xdr_list_pending_actions", "xdr_list_user_alert_evidence", "xdr_list_user_device_logons"]);
+        assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), ["xdr_get_alert", "xdr_get_device", "xdr_get_hunting_table_schema", "xdr_get_identity", "xdr_get_incident", "xdr_hunt_recent", "xdr_list_action_history", "xdr_list_alerts", "xdr_list_cloud_policies", "xdr_list_device_alert_evidence", "xdr_list_device_timeline", "xdr_list_devices", "xdr_list_file_events", "xdr_list_identities", "xdr_list_incident_alerts", "xdr_list_incidents", "xdr_list_network_observations", "xdr_list_pending_actions", "xdr_list_user_alert_evidence", "xdr_list_user_device_logons", "xdr_list_user_timeline"]);
         assert.ok(tools.tools.every((tool) => tool.annotations.readOnlyHint === true));
         await client.callTool({ name: "xdr_list_incidents", arguments: { days: 7, page: 2, pageSize: 3 } });
         assert.deepEqual(calls, [{ operation: "list_incidents", args: { days: 7, page: 2, pageSize: 3 } }]);
@@ -424,6 +463,7 @@ test("new MCP reads reject extra arguments and malformed projected results", asy
             calls.push({ operation, args });
             if (operation === "get_alert") return { alertId: "alert-2", title: null, severity: null, status: null, incidentId: null, generated: null, credential: "secret" };
             if (operation === "list_device_timeline") return [{ deviceId: args.deviceId, timestamp: null, eventType: null, title: null, credential: "secret" }];
+            if (operation === "list_user_timeline") return [{ timestamp: "2026-01-01T00:00:00Z", upn: args.upn, eventType: null, deviceName: "host.example", credential: "secret" }];
             return { table: args.table, truncated: false, columns: [{ name: null, type: null, description: null, credential: "secret" }] };
         },
     });
@@ -435,6 +475,7 @@ test("new MCP reads reject extra arguments and malformed projected results", asy
         for (const { name, args } of [
             { name: "xdr_get_alert", args: { alertId: "alert-2" } },
             { name: "xdr_list_device_timeline", args: { deviceId: "a".repeat(40), minutes: 1, pageSize: 1 } },
+            { name: "xdr_list_user_timeline", args: { upn: "analyst@example.test", minutes: 10, pageSize: 1 } },
             { name: "xdr_get_hunting_table_schema", args: { table: "DeviceEvents" } },
         ]) {
             assert.equal((await client.callTool({ name, arguments: { ...args, OutputPath: "/tmp/unsafe" } })).isError, true);
@@ -442,14 +483,14 @@ test("new MCP reads reject extra arguments and malformed projected results", asy
             assert.equal(response.isError, true);
             assert.equal(response.content[0].text, "invalid_response");
         }
-        assert.equal(calls.length, 3);
+        assert.equal(calls.length, 4);
     } finally {
         await client.close();
         await server.close();
     }
 });
 
-test("all twenty tool calls return bounded projected results in two fresh offline sessions", async () => {
+test("all twenty-one tool calls return bounded projected results in two fresh offline sessions", async () => {
     const deviceId = "a".repeat(40);
     const cases = [
         ["xdr_list_incidents", "list_incidents", { days: 7, page: 1, pageSize: 1 }],
@@ -465,6 +506,7 @@ test("all twenty tool calls return bounded projected results in two fresh offlin
         ["xdr_list_network_observations", "list_network_observations", { kind: "domain", value: "example.com", pageSize: 1 }],
         ["xdr_list_user_alert_evidence", "list_user_alert_evidence", { upn: "analyst@example.test", pageSize: 1 }],
         ["xdr_list_user_device_logons", "list_user_device_logons", { upn: "analyst@example.test", pageSize: 1 }],
+        ["xdr_list_user_timeline", "list_user_timeline", { upn: "analyst@example.test", minutes: 10, pageSize: 1 }],
         ["xdr_hunt_recent", "hunt_recent", { table: "DeviceEvents", pageSize: 1 }],
         ["xdr_get_hunting_table_schema", "get_hunting_table_schema", { table: "DeviceEvents" }],
         ["xdr_list_identities", "list_identities", { page: 2, pageSize: 1 }],

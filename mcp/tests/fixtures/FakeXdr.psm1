@@ -143,8 +143,14 @@ function Invoke-XdrRestMethod {
             'AlertEvidence | where Timestamp > ago(1d) and AccountUpn =~ "analyst@example.test" | project Timestamp, AccountUpn, DeviceId, AlertId, Title, Severity | take 1' {
                 return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; AccountUpn = 'analyst@example.test'; DeviceId = 'a' * 40; AlertId = 'alert-2'; Title = 'Example'; Severity = 'High'; credential = 'secret-cookie-should-not-leak' }) }
             }
-            'IdentityLogonEvents | where Timestamp > ago(1d) and AccountUpn =~ "analyst@example.test" | project Timestamp, AccountUpn, DeviceName | take 1' {
+            'IdentityLogonEvents | where Timestamp > ago(1d) and AccountUpn =~ "analyst@example.test" and isnotempty(DeviceName) | project Timestamp, AccountUpn, DeviceName | take 1' {
+                if ($env:XDR_MCP_TEST_DEVICELESS_LOGONS -eq '1') { return [pscustomobject]@{ Results = @() } }
                 return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; AccountUpn = 'analyst@example.test'; DeviceName = 'host.example'; credential = 'secret-cookie-should-not-leak' }) }
+            }
+            'IdentityLogonEvents | where Timestamp > ago(10m) and AccountUpn =~ "analyst@example.test" | project Timestamp, AccountUpn, ActionType, DeviceName | take 1' {
+                $upn = if ($env:XDR_MCP_TEST_USER_TIMELINE_MISMATCH -eq '1') { 'other@example.test' } else { 'analyst@example.test' }
+                $deviceName = if ($env:XDR_MCP_TEST_DEVICELESS_LOGONS -eq '1') { $null } else { 'host.example' }
+                return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; AccountUpn = $upn; ActionType = 'LogonSuccess'; DeviceName = $deviceName; credential = 'secret-cookie-should-not-leak' }) }
             }
             'DeviceEvents | where Timestamp > ago(1h) | project Timestamp, DeviceId, ActionType | take 1' {
                 return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'a' * 40; ActionType = 'FileCreated'; credential = 'secret-cookie-should-not-leak' }) }
@@ -177,6 +183,12 @@ function Invoke-XdrRestMethod {
     if ($Uri -match '/machines/b{40}/') { return [pscustomobject]@{ Items = 'malformed' } }
     if ($Uri -match '/machines/c{40}/') { return [pscustomobject]@{ Items = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; EventType = 'Process'; DeviceId = ('a' * 40) }) } }
     if ($Uri -match '/machines/e{40}/') { return , @([pscustomobject]@{ Items = @() }, [pscustomobject]@{ Items = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; EventType = 'Process' }) }) }
+    if ($Uri -match '/machines/f{40}/') {
+        $field = if ($env:XDR_MCP_TEST_TIMELINE_ACTION_TIME -eq '1') { 'ActionTime' } else { 'ActionTimeIsoString' }
+        $event = @{ ActionType = 'Process'; credential = 'secret-cookie-should-not-leak' }
+        $event[$field] = if ($env:XDR_MCP_TEST_TIMELINE_BAD_DATE -eq '1') { 'not-a-date' } else { [datetime]'2026-01-01T00:00:00Z' }
+        return [pscustomobject]@{ Items = @([pscustomobject]$event) }
+    }
     [pscustomobject]@{ Items = @([pscustomobject]@{ timestamp = '2026-01-01T00:00:00Z'; eventType = 'Process'; title = 'Started'; credential = 'secret-cookie-should-not-leak' }) }
 }
 

@@ -157,6 +157,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
             'list_network_observations' { $null; break }
             'list_user_alert_evidence' { $null; break }
             'list_user_device_logons' { $null; break }
+            'list_user_timeline' { $null; break }
             'hunt_recent' { $null; break }
             'get_hunting_table_schema' { $null; break }
             'get_identity' { $null; break }
@@ -199,6 +200,10 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
             if ($parameters.Count -ne 2 -or $parameters.upn -isnot [string] -or
                 $parameters.upn -cnotmatch '^[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,189}$' -or
                 -not (Test-ArgumentSet -Arguments @{ pageSize = $parameters.pageSize } -Limits @{ pageSize = @(1, 50) })) { throw 'invalid_arguments' }
+        } elseif ($request.operation -eq 'list_user_timeline') {
+            if ($parameters.Count -ne 3 -or $parameters.upn -isnot [string] -or
+                $parameters.upn -cnotmatch '^[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,189}$' -or
+                -not (Test-ArgumentSet -Arguments @{ minutes = $parameters.minutes; pageSize = $parameters.pageSize } -Limits @{ minutes = @(1, 60); pageSize = @(1, 50) })) { throw 'invalid_arguments' }
         } elseif ($request.operation -eq 'hunt_recent') {
             if ($parameters.Count -ne 2 -or $parameters.table -isnot [string] -or
                 $parameters.table -cnotin @('DeviceEvents', 'DeviceFileEvents', 'DeviceNetworkEvents', 'AlertEvidence', 'IdentityLogonEvents') -or
@@ -341,8 +346,9 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                             if ($null -ne $_.$field -and $_.$field -ine $parameters.deviceId) { throw 'invalid_response' }
                         }
                         $eventType = if ($_.ActionType) { $_.ActionType } elseif ($_.Type) { $_.Type } else { $_.EventType }
-                        if ($eventType -isnot [string] -or [string]::IsNullOrWhiteSpace($eventType) -or $null -eq $_.Timestamp) { throw 'invalid_response' }
-                        $timestamp = Limit-Date $_.Timestamp
+                        $eventTime = if ($null -ne $_.Timestamp) { $_.Timestamp } elseif ($null -ne $_.ActionTimeIsoString) { $_.ActionTimeIsoString } else { $_.ActionTime }
+                        if ($eventType -isnot [string] -or [string]::IsNullOrWhiteSpace($eventType) -or $null -eq $eventTime) { throw 'invalid_response' }
+                        $timestamp = Limit-Date $eventTime
                         if ($null -eq $timestamp) { throw 'invalid_response' }
                         @{ timestamp = $timestamp; eventType = Limit-Text $eventType; title = Limit-Text $_.Title; deviceId = $parameters.deviceId }
                     })
@@ -413,7 +419,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                 break
             }
             'list_user_device_logons' {
-                $query = 'IdentityLogonEvents | where Timestamp > ago(1d) and AccountUpn =~ "{0}" | project Timestamp, AccountUpn, DeviceName | take {1}' -f $parameters.upn, $parameters.pageSize
+                $query = 'IdentityLogonEvents | where Timestamp > ago(1d) and AccountUpn =~ "{0}" and isnotempty(DeviceName) | project Timestamp, AccountUpn, DeviceName | take {1}' -f $parameters.upn, $parameters.pageSize
                 $rows = Invoke-BoundedPortalHunt -Query $query -PageSize $parameters.pageSize
                 , @($rows | ForEach-Object {
                         if ($_ -isnot [pscustomobject] -or $_.AccountUpn -ine $parameters.upn -or
@@ -421,6 +427,18 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                         $timestamp = Limit-Date $_.Timestamp
                         if ($null -eq $timestamp) { throw 'invalid_response' }
                         @{ timestamp = $timestamp; upn = $parameters.upn; deviceName = Limit-Text $_.DeviceName }
+                    })
+                break
+            }
+            'list_user_timeline' {
+                $query = 'IdentityLogonEvents | where Timestamp > ago({0}m) and AccountUpn =~ "{1}" | project Timestamp, AccountUpn, ActionType, DeviceName | take {2}' -f $parameters.minutes, $parameters.upn, $parameters.pageSize
+                $rows = Invoke-BoundedPortalHunt -Query $query -PageSize $parameters.pageSize
+                , @($rows | ForEach-Object {
+                        if ($_ -isnot [pscustomobject] -or $_.AccountUpn -ine $parameters.upn -or
+                            $_.ActionType -isnot [string] -or [string]::IsNullOrWhiteSpace($_.ActionType)) { throw 'invalid_response' }
+                        $timestamp = Limit-Date $_.Timestamp
+                        if ($null -eq $timestamp) { throw 'invalid_response' }
+                        @{ timestamp = $timestamp; upn = $parameters.upn; eventType = Limit-Text $_.ActionType; deviceName = Limit-Text $_.DeviceName }
                     })
                 break
             }

@@ -1,4 +1,7 @@
-﻿import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+﻿import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export type Operation = "list_incidents" | "get_incident" | "list_incident_alerts" | "list_alerts" | "get_alert" | "list_devices" | "get_device" | "list_device_timeline" | "list_device_alert_evidence" | "list_file_events" | "list_network_observations" | "list_user_alert_evidence" | "list_user_device_logons" | "hunt_recent" | "get_hunting_table_schema" | "list_identities" | "get_identity" | "list_pending_actions" | "list_action_history" | "list_cloud_policies";
@@ -13,6 +16,8 @@ export class BridgeError extends Error {
 
 export class ReadOnlyBridge {
     private child?: ChildProcessWithoutNullStreams;
+    private browserTemp?: string;
+    private childClosed?: Promise<void>;
     private closed = false;
     private outstanding = 0;
     private nextId = 0;
@@ -25,12 +30,26 @@ export class ReadOnlyBridge {
         if (this.closed) throw new BridgeError("session_lost");
         if (this.child) return this.child;
         const host = fileURLToPath(new URL("../bridge/ReadOnlyHost.ps1", import.meta.url));
+        const browserTemp = this.childEnv.XDR_MCP_AUTH === "browser" ? mkdtempSync(join(tmpdir(), "xdr-mcp-auth-")) : undefined;
+        const env = browserTemp ? { ...this.childEnv, TMPDIR: browserTemp, TMP: browserTemp, TEMP: browserTemp } : this.childEnv;
         const child = spawn("pwsh", ["-NoProfile", "-NonInteractive", "-File", host], {
             stdio: ["pipe", "pipe", "pipe"],
             windowsHide: true,
-            env: this.childEnv,
+            detached: !!browserTemp && process.platform !== "win32",
+            env,
         });
         this.child = child;
+        this.browserTemp = browserTemp;
+        this.childClosed = new Promise<void>((resolve) => {
+            child.once("close", () => {
+                if (browserTemp) {
+                    try { rmSync(browserTemp, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); }
+                    catch { console.error("Temporary browser profile cleanup failed."); }
+                    if (this.browserTemp === browserTemp) this.browserTemp = undefined;
+                }
+                resolve();
+            });
+        });
         let buffer = "";
         const handleLine = (line: string) => {
             let response: Response;
@@ -70,7 +89,17 @@ export class ReadOnlyBridge {
         if (this.child !== child) return;
         this.closed = true;
         this.child = undefined;
-        child.kill();
+        if (this.browserTemp && child.pid) {
+            if (process.platform === "win32") {
+                const result = spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore", windowsHide: true, timeout: 5000 });
+                if (result.status !== 0) child.kill();
+            } else {
+                try { process.kill(-child.pid, "SIGKILL"); }
+                catch { child.kill(); }
+            }
+        } else {
+            child.kill();
+        }
         for (const pending of this.pending.values()) {
             clearTimeout(pending.timer);
             pending.reject(new BridgeError("session_lost"));
@@ -117,8 +146,10 @@ export class ReadOnlyBridge {
         return result.finally(() => { this.outstanding--; });
     }
 
-    close(): void {
+    close(): Promise<void> {
         this.closed = true;
+        const childClosed = this.childClosed ?? Promise.resolve();
         if (this.child) this.stop(this.child);
+        return childClosed;
     }
 }

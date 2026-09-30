@@ -11,7 +11,7 @@ This is an optional local, single-operator MCP server for bounded Defender inves
 | `xdr_list_incident_alerts` | One page (1-50 items, pages 1-10) of alerts associated with an incident; no auto-pagination |
 | `xdr_list_alerts` | One page (1-50 items, pages 1-10, lookback 1-30 days), newest first |
 | `xdr_get_alert` | One alert by validated ID; verifies the returned ID |
-| `xdr_list_devices` | One page (1-50 items, pages 1-10, lookback 1-30 days), sorted by risk; returns a validated machine ID when present |
+| `xdr_list_devices` | One page (1-50 items, pages 1-10, lookback 1-30 days), sorted by risk; requires a validated machine ID for each result |
 | `xdr_get_device` | One device by its 40-character hex machine ID; verifies the returned ID |
 | `xdr_list_device_timeline` | One portal timeline page (1-50 events) for one device over the last 1-60 minutes, without file output or pagination |
 | `xdr_list_device_alert_evidence` | Up to 50 alert evidence rows for one device from the past day; may repeat an alert |
@@ -53,7 +53,7 @@ Configure your trusted MCP client locally with the absolute path to `mcp/dist/in
 }
 ```
 
-The browser sign-in runs on the first tool call and must be completed by the operator. It uses a temporary private browser profile; the PowerShell session is lost when the process exits. Normal sign-in cleanup removes the temporary profile, but an abrupt process termination during sign-in may leave a browser/profile behind. Close the sign-in browser in that case. Without an explicit authentication mode, reads return `not_connected`.
+The browser sign-in runs on the first tool call and must be completed by the operator. It uses a temporary private browser profile; the PowerShell session is lost when the process exits. The bridge owns the browser's temporary files and terminates its process tree on cancellation or normal shutdown; this cleanup is regression-tested on Linux, not yet on Windows or macOS. An external hard kill of the MCP server itself still bypasses cleanup. Without an explicit authentication mode, reads return `not_connected`.
 
 The first authentication call has a six-minute deadline; subsequent reads have a 60-second deadline including queue time. Cancelling an active read or exceeding its deadline terminates the PowerShell session, so restart the server before further reads.
 
@@ -65,11 +65,22 @@ Live testing is **opt-in** and uses the same local stdio server and a small numb
 XDR_MCP_PASSKEY_FILE="/absolute/path/to/private.passkey" npm run test:live --prefix mcp
 ```
 
+For two consecutive fresh sign-ins and passes of the same 20-tool count/status harness, run `XDR_MCP_PASSKEY_FILE="/absolute/path/to/private.passkey" npm run test:live:twice --prefix mcp`. Offline `npm test --prefix mcp` also runs all 20 tool contracts twice with populated fixture results; live tools that need a listed incident, alert, or device explicitly report skips if the tenant has none.
+
 To validate interactive browser sign-in instead, use a local graphical session and complete the sign-in in the temporary browser window:
 
 ```sh
 XDR_MCP_AUTH=browser npm run test:live --prefix mcp
 ```
+
+On a Windows desktop with Node.js 20+, PowerShell 7 (`pwsh` on `PATH`), and Microsoft Edge installed, run `npm ci --prefix mcp` once, then in PowerShell from the repository root:
+
+```powershell
+$env:XDR_MCP_AUTH = 'browser'
+npm run test:live:twice --prefix mcp
+```
+
+Complete both sign-ins in the browser windows. Report only the printed phase/status/count lines, whether either browser or temporary profile remains after each pass, and any sanitized error status. Do not share cookies, tokens, browser profiles, or tenant records. Windows browser cleanup has not yet been live-validated.
 
 The default `npm test --prefix mcp` uses a fake module and explicitly disables authentication in its production-process tests. The live suite requires network access and may create sign-in/audit events, but does not call response or mutation cmdlets.
 

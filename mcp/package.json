@@ -10,6 +10,7 @@
         "build": "tsc",
         "test": "npm run build && node --test tests/*.test.mjs",
         "test:live": "npm run build && node tests/live-read.mjs",
+        "test:live:twice": "npm run build && node tests/live-read.mjs && node tests/live-read.mjs",
         "start": "node dist/index.js"
     },
     "dependencies": {

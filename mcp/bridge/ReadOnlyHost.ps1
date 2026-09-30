@@ -221,6 +221,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                     $items = @(Get-XdrIncident -LookBackInDays $parameters.days -PageIndex $parameters.page -PageSize $parameters.pageSize -SortByField TopRisk -SortOrder Descending -ErrorAction Stop)
                 } catch { throw (Get-UpstreamErrorCode $_) }
                 , @($items | Select-Object -First $parameters.pageSize | ForEach-Object {
+                        if ((Limit-Integer $_.IncidentId) -le 0) { throw 'invalid_response' }
                         @{ incidentId = Limit-Integer $_.IncidentId; title = Limit-Text $_.Title; severity = Limit-Text $_.SeverityName; status = Limit-Status $_.Status; lastUpdated = Limit-Date $_.LastUpdateTime; alertCount = Limit-Integer $_.AlertCount }
                     })
                 break
@@ -237,6 +238,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                     $items = @(Get-XdrIncidentAssociatedAlert -IncidentId $parameters.incidentId -PageIndex $parameters.page -PageSize $parameters.pageSize -ErrorAction Stop)
                 } catch { throw (Get-UpstreamErrorCode $_) }
                 , @($items | Select-Object -First $parameters.pageSize | ForEach-Object {
+                        if ($_.alertId -isnot [string] -or [string]::IsNullOrWhiteSpace($_.alertId)) { throw 'invalid_response' }
                         @{ alertId = Limit-Text $_.alertId; title = Limit-Text $_.alertDisplayName; severity = Limit-Text $_.severity; status = Limit-Text $_.status; incidentId = $parameters.incidentId; generated = Limit-Date $_.timeGenerated }
                     })
                 break
@@ -246,6 +248,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                     $items = @(Get-XdrAlert -DaysAgo $parameters.days -PageNumber $parameters.page -PageSize $parameters.pageSize -Order desc -ErrorAction Stop)
                 } catch { throw (Get-UpstreamErrorCode $_) }
                 , @($items | Select-Object -First $parameters.pageSize | ForEach-Object {
+                        if ($_.alertId -isnot [string] -or [string]::IsNullOrWhiteSpace($_.alertId)) { throw 'invalid_response' }
                         @{ alertId = Limit-Text $_.alertId; title = Limit-Text $_.alertDisplayName; severity = Limit-Text $_.severity; status = Limit-Text $_.status; incidentId = Limit-Integer $_.incidentId; generated = Limit-Date $_.timeGenerated }
                     })
                 break
@@ -264,6 +267,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                 } catch { throw (Get-UpstreamErrorCode $_) }
                 , @($items | Select-Object -First $parameters.pageSize | ForEach-Object {
                         $machineId = @($_.MachineId, $_.SenseMachineId, $_.id) | Where-Object { $_ -is [string] -and $_ -cmatch '^[0-9a-fA-F]{40}$' } | Select-Object -First 1
+                        if ($null -eq $machineId) { throw 'invalid_response' }
                         @{ deviceId = Limit-Text $machineId; name = Limit-Text $_.ComputerDnsName; risk = Limit-Status $_.RiskScore; health = Limit-Text $_.HealthStatus; lastSeen = Limit-Date $_.LastSeen }
                     })
                 break
@@ -273,6 +277,8 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                     $items = @(Get-XdrIdentityIdentity -PageSize $parameters.pageSize -Skip (($parameters.page - 1) * $parameters.pageSize) -SortByField RepresentableName -SortDirection Asc -ErrorAction Stop)
                 } catch { throw (Get-UpstreamErrorCode $_) }
                 , @($items | Select-Object -First $parameters.pageSize | ForEach-Object {
+                        if ($_.representableName -isnot [string] -and $_.userPrincipalName -isnot [string] -and
+                            $_.ids.sid -isnot [string] -and $_.ids.aad -isnot [string]) { throw 'invalid_response' }
                         @{ name = Limit-Text $_.representableName; upn = Limit-Text $_.userPrincipalName; domain = Limit-Text $_.accountDomain; sid = Limit-Text $_.ids.sid; objectId = Limit-Text $_.ids.aad }
                     })
                 break
@@ -282,6 +288,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                     $items = @(Get-XdrActionsCenterPending -PageIndex $parameters.page -PageSize $parameters.pageSize -SortByField ActionUpdateTime -SortOrder Descending -ErrorAction Stop)
                 } catch { throw (Get-UpstreamErrorCode $_) }
                 , @($items | Select-Object -First $parameters.pageSize | ForEach-Object {
+                        if ($_.bulkId -isnot [string] -and $_.actionType -isnot [string]) { throw 'invalid_response' }
                         @{ approvalId = Limit-Text $_.bulkId; investigationId = Limit-Integer $_.investigationId; actionType = Limit-Text $_.actionType; asset = Limit-Text $_.computerName; status = Limit-Text $_.actionStatus; updated = Limit-Date $_.eventTime }
                     })
                 break
@@ -291,6 +298,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                     $items = @(Get-XdrActionsCenterHistory -Months 1 -PageIndex $parameters.page -PageSize $parameters.pageSize -SortByField ActionUpdateTime -SortOrder Descending -ErrorAction Stop)
                 } catch { throw (Get-UpstreamErrorCode $_) }
                 , @($items | Select-Object -First $parameters.pageSize | ForEach-Object {
+                        if ($_.bulkId -isnot [string] -and $_.actionType -isnot [string]) { throw 'invalid_response' }
                         @{ approvalId = Limit-Text $_.bulkId; investigationId = Limit-Integer $_.investigationId; actionType = Limit-Text $_.actionType; asset = Limit-Text $_.computerName; status = Limit-Text $_.actionStatus; updated = Limit-Date $_.eventTime }
                     })
                 break
@@ -300,6 +308,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                     $items = @(Get-XdrCloudAppsPolicy -Limit $parameters.pageSize -Skip (($parameters.page - 1) * $parameters.pageSize) -SortField severity -SortDirection desc -ErrorAction Stop)
                 } catch { throw (Get-UpstreamErrorCode $_) }
                 , @($items | Select-Object -First $parameters.pageSize | ForEach-Object {
+                        if ($_._id -isnot [string] -and $_.name -isnot [string]) { throw 'invalid_response' }
                         @{ policyId = Limit-Text $_._id; name = Limit-Text $_.name; severity = Limit-Status $_.severity }
                     })
                 break
@@ -340,7 +349,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                 break
             }
             'list_device_alert_evidence' {
-                $query = 'AlertEvidence | where Timestamp > ago(1d) and DeviceId == "{0}" | project Timestamp, DeviceId, AlertId, Title, Severity | take {1}' -f $parameters.deviceId, $parameters.pageSize
+                $query = 'AlertEvidence | where Timestamp > ago(1d) and DeviceId == "{0}" | project Timestamp, DeviceId, AlertId, Title, Severity | take {1}' -f $parameters.deviceId.ToLowerInvariant(), $parameters.pageSize
                 $rows = Invoke-BoundedPortalHunt -Query $query -PageSize $parameters.pageSize
                 , @($rows | ForEach-Object {
                         if ($_ -isnot [pscustomobject] -or $_.DeviceId -ine $parameters.deviceId -or
@@ -363,21 +372,26 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                 break
             }
             'list_network_observations' {
-                $predicate = if ($parameters.kind -eq 'ip') { 'RemoteIP == "{0}"' } else { 'RemoteUrl has "{0}"' }
-                $query = 'DeviceNetworkEvents | where Timestamp > ago(1d) and {0} | project Timestamp, DeviceId, RemoteIP, RemoteUrl | take {1}' -f ($predicate -f $parameters.value), $parameters.pageSize
+                if ($parameters.kind -eq 'ip') {
+                    $predicate = 'ipv6_is_match(RemoteIP, "{0}")' -f $parsedIp.ToString()
+                } else {
+                    $predicate = 'RemoteUrl has "{0}" | extend UrlHost = tostring(parse_url(iff(RemoteUrl matches regex @"^[A-Za-z][A-Za-z0-9+.-]*://", RemoteUrl, strcat("https://", RemoteUrl))).Host) | where UrlHost =~ "{0}" or UrlHost endswith ".{0}"' -f $parameters.value
+                }
+                $query = 'DeviceNetworkEvents | where Timestamp > ago(1d) and {0} | project Timestamp, DeviceId, RemoteIP, RemoteUrl | take {1}' -f $predicate, $parameters.pageSize
                 $rows = Invoke-BoundedPortalHunt -Query $query -PageSize $parameters.pageSize
                 , @($rows | ForEach-Object {
                         if ($_ -isnot [pscustomobject]) { throw 'invalid_response' }
                         if ($parameters.kind -eq 'ip') {
                             $remoteIp = $null
-                            if ($_.RemoteIP -isnot [string] -or -not [System.Net.IPAddress]::TryParse($_.RemoteIP, [ref]$remoteIp) -or
-                                -not $remoteIp.Equals($parsedIp)) { throw 'invalid_response' }
+                            if ($_.RemoteIP -isnot [string] -or -not [System.Net.IPAddress]::TryParse($_.RemoteIP, [ref]$remoteIp)) { throw 'invalid_response' }
+                            $normalizedRemoteIp = if ($remoteIp.IsIPv4MappedToIPv6) { $remoteIp.MapToIPv4() } else { $remoteIp }
+                            $normalizedTargetIp = if ($parsedIp.IsIPv4MappedToIPv6) { $parsedIp.MapToIPv4() } else { $parsedIp }
+                            if (-not $normalizedRemoteIp.Equals($normalizedTargetIp)) { throw 'invalid_response' }
                         } else {
                             if ($_.RemoteUrl -isnot [string]) { throw 'invalid_response' }
                             $remoteUrl = $null
-                            if (-not [uri]::TryCreate($_.RemoteUrl, [UriKind]::Absolute, [ref]$remoteUrl)) {
-                                if (-not [uri]::TryCreate("https://$($_.RemoteUrl)", [UriKind]::Absolute, [ref]$remoteUrl)) { throw 'invalid_response' }
-                            }
+                            $urlToParse = if ($_.RemoteUrl -cmatch '^[A-Za-z][A-Za-z0-9+.-]*://') { $_.RemoteUrl } else { "https://$($_.RemoteUrl)" }
+                            if (-not [uri]::TryCreate($urlToParse, [UriKind]::Absolute, [ref]$remoteUrl)) { throw 'invalid_response' }
                             if ($remoteUrl.Host -ine $parameters.value -and -not $remoteUrl.Host.EndsWith(".$($parameters.value)", [StringComparison]::OrdinalIgnoreCase)) { throw 'invalid_response' }
                         }
                         $timestamp = Limit-Date $_.Timestamp

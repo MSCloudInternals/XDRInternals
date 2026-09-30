@@ -1,5 +1,8 @@
 ﻿import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -110,6 +113,15 @@ test("oversized serialized pages fail without losing the session", () => {
     assert.equal(result[2].data.incidentId, 42);
 });
 
+test("malformed device list records fail closed without fabricating a device", () => {
+    const result = runHost([
+        { id: "1", operation: "list_devices", args: { days: 7, page: 1, pageSize: 1 } },
+        { id: "2", operation: "list_incidents", args: { days: 7, page: 1, pageSize: 1 } },
+    ], true, { XDR_MCP_TEST_MALFORMED_DEVICE_LIST: "1" });
+    assert.equal(result[0].error, "invalid_response");
+    assert.equal(result[1].ok, true);
+});
+
 test("device timeline requests one bounded portal page without leaking upstream fields", () => {
     const deviceId = "a".repeat(40);
     const result = runHost([
@@ -152,6 +164,27 @@ test("file and network observations use fixed portal queries and reject unsafe v
     assert.equal(result[2].data[0].remoteUrl, "example.com");
     assert.deepEqual(result.slice(3).map((response) => response.error), ["invalid_arguments", "invalid_arguments", "invalid_arguments"]);
     assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+});
+
+test("hunting canonicalizes device IDs and compares equivalent IPv6 spellings", () => {
+    const result = runHost([
+        { id: "1", operation: "list_device_alert_evidence", args: { deviceId: "A".repeat(40), pageSize: 1 } },
+        { id: "2", operation: "list_network_observations", args: { kind: "ip", value: "2001:0db8:0:0:0:0:0:1", pageSize: 1 } },
+        { id: "3", operation: "list_network_observations", args: { kind: "ip", value: "::ffff:192.0.2.1", pageSize: 1 } },
+    ]);
+    assert.equal(result[0].data[0].deviceId, "A".repeat(40));
+    assert.equal(result[1].data[0].remoteIp, "2001:0db8:0:0:0:0:0:1");
+    assert.equal(result[2].data[0].remoteIp, "192.0.2.1");
+    const mapped = runHost([{ id: "1", operation: "list_network_observations", args: { kind: "ip", value: "192.0.2.1", pageSize: 1 } }], true, { XDR_MCP_TEST_HUNT_IP_MAPPED: "1" });
+    assert.equal(mapped[0].data[0].remoteIp, "::ffff:192.0.2.1");
+});
+
+test("domain evidence accepts the matching host across URL schemes and ports", () => {
+    const request = { id: "1", operation: "list_network_observations", args: { kind: "domain", value: "example.com", pageSize: 1 } };
+    for (const url of ["example.com:443/path", "ftp://example.com/file", "https://sub.example.com/path"]) {
+        assert.equal(runHost([request], true, { XDR_MCP_TEST_HUNT_URL: url })[0].data[0].remoteUrl, url);
+    }
+    assert.equal(runHost([request], true, { XDR_MCP_TEST_HUNT_URL: "https://unrelated.test/path/example.com" })[0].error, "invalid_response");
 });
 
 test("user alert and device logon pivots verify the UPN and allow only bounded templates", () => {
@@ -416,6 +449,63 @@ test("new MCP reads reject extra arguments and malformed projected results", asy
     }
 });
 
+test("all twenty tool calls return bounded projected results in two fresh offline sessions", async () => {
+    const deviceId = "a".repeat(40);
+    const cases = [
+        ["xdr_list_incidents", "list_incidents", { days: 7, page: 1, pageSize: 1 }],
+        ["xdr_get_incident", "get_incident", { incidentId: 42 }],
+        ["xdr_list_incident_alerts", "list_incident_alerts", { incidentId: 42, page: 2, pageSize: 1 }],
+        ["xdr_list_alerts", "list_alerts", { days: 7, page: 1, pageSize: 1 }],
+        ["xdr_get_alert", "get_alert", { alertId: "alert-2" }],
+        ["xdr_list_devices", "list_devices", { days: 7, page: 1, pageSize: 1 }],
+        ["xdr_get_device", "get_device", { deviceId }],
+        ["xdr_list_device_timeline", "list_device_timeline", { deviceId, minutes: 10, pageSize: 1 }],
+        ["xdr_list_device_alert_evidence", "list_device_alert_evidence", { deviceId, pageSize: 1 }],
+        ["xdr_list_file_events", "list_file_events", { sha256: "f".repeat(64), pageSize: 1 }],
+        ["xdr_list_network_observations", "list_network_observations", { kind: "domain", value: "example.com", pageSize: 1 }],
+        ["xdr_list_user_alert_evidence", "list_user_alert_evidence", { upn: "analyst@example.test", pageSize: 1 }],
+        ["xdr_list_user_device_logons", "list_user_device_logons", { upn: "analyst@example.test", pageSize: 1 }],
+        ["xdr_hunt_recent", "hunt_recent", { table: "DeviceEvents", pageSize: 1 }],
+        ["xdr_get_hunting_table_schema", "get_hunting_table_schema", { table: "DeviceEvents" }],
+        ["xdr_list_identities", "list_identities", { page: 2, pageSize: 1 }],
+        ["xdr_get_identity", "get_identity", { upn: "analyst@example.test" }],
+        ["xdr_list_pending_actions", "list_pending_actions", { page: 1, pageSize: 1 }],
+        ["xdr_list_action_history", "list_action_history", { page: 1, pageSize: 1 }],
+        ["xdr_list_cloud_policies", "list_cloud_policies", { page: 2, pageSize: 1 }],
+    ];
+    for (let pass = 1; pass <= 2; pass++) {
+        const upstream = runHost(cases.map(([, operation, args], index) => ({ id: String(index + 1), operation, args })));
+        assert.equal(upstream.length, cases.length);
+        assert.ok(upstream.every((response) => response.ok), `fixture failure in pass ${pass}: ${upstream.find((response) => !response.ok)?.error}`);
+        let invoked = 0;
+        const server = createServer({
+            invoke: async (operation, args) => {
+                const [, expectedOperation, expectedArgs] = cases[invoked];
+                assert.equal(operation, expectedOperation);
+                assert.deepEqual(args, expectedArgs);
+                return upstream[invoked++].data;
+            }
+        });
+        const client = new Client({ name: `all-reads-pass-${pass}`, version: "1.0.0" });
+        const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+        try {
+            await server.connect(serverTransport);
+            await client.connect(clientTransport);
+            assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name).sort(), cases.map(([name]) => name).sort());
+            for (const [index, [name, , args]] of cases.entries()) {
+                const result = await client.callTool({ name, arguments: args });
+                assert.ok(!result.isError, `${name} failed in pass ${pass}: ${result.content?.[0]?.text}`);
+                assert.deepEqual(result.structuredContent?.items, upstream[index].data);
+                assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+            }
+            assert.equal(invoked, cases.length);
+        } finally {
+            await client.close();
+            await server.close();
+        }
+    }
+});
+
 test("MCP fails closed on malformed bridge output and unexpected error text", async () => {
     const outcomes = [null, [{ incidentId: 42, title: "x", Credential: "secret" }],
         [{ incidentId: null, title: "x", severity: null, status: null, lastUpdated: null, alertCount: null }],
@@ -476,6 +566,75 @@ test("only child startup receives the authentication deadline", async (context) 
         assert.ok(deadlines[1] > 50_000 && deadlines[1] <= 60_000);
     } finally {
         bridge.close();
+    }
+});
+
+test("cancelled browser sign-in kills its descendants and removes its private profile", { skip: process.platform !== "linux" }, async () => {
+    const harness = mkdtempSync(join(tmpdir(), "xdr-mcp-cancel-test-"));
+    const browserPidFile = join(harness, "browser.pid");
+    const profilePathFile = join(harness, "profile.path");
+    const stub = join(harness, "pwsh");
+    writeFileSync(stub, `#!/bin/sh\nprintf '%s' "$TMPDIR" > "$TEST_PROFILE_PATH_FILE"\n${JSON.stringify(process.execPath)} -e 'setInterval(() => {}, 1000)' &\nprintf '%s' "$!" > "$TEST_BROWSER_PID_FILE"\nwait\n`);
+    chmodSync(stub, 0o700);
+    const bridge = new ReadOnlyBridge({ ...process.env, XDR_MCP_AUTH: "browser", PATH: `${harness}${delimiter}${process.env.PATH}`, TEST_BROWSER_PID_FILE: browserPidFile, TEST_PROFILE_PATH_FILE: profilePathFile });
+    const cancel = new AbortController();
+    try {
+        const call = bridge.invoke("list_incidents", { days: 1, page: 1, pageSize: 1 }, cancel.signal);
+        for (let attempt = 0; attempt < 100 && (!existsSync(browserPidFile) || !existsSync(profilePathFile)); attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        assert.ok(existsSync(browserPidFile) && existsSync(profilePathFile), "browser did not start");
+        const browserPid = Number(readFileSync(browserPidFile, "utf8"));
+        const profilePath = readFileSync(profilePathFile, "utf8");
+        assert.ok(existsSync(profilePath));
+        cancel.abort();
+        await assert.rejects(call, (error) => error.code === "session_lost");
+        for (let attempt = 0; attempt < 100 && existsSync(profilePath); attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        assert.equal(existsSync(profilePath), false);
+        const processState = existsSync(`/proc/${browserPid}/stat`) ? readFileSync(`/proc/${browserPid}/stat`, "utf8").match(/\) ([A-Z]) /)?.[1] : undefined;
+        assert.ok(!processState || processState === "Z", "browser descendant was left running");
+    } finally {
+        bridge.close();
+        rmSync(harness, { recursive: true, force: true });
+    }
+});
+
+test("stdio shutdown waits for browser sign-in cleanup", { skip: process.platform !== "linux", timeout: 15_000 }, async () => {
+    const harness = mkdtempSync(join(tmpdir(), "xdr-mcp-shutdown-test-"));
+    const browserPidFile = join(harness, "browser.pid");
+    const profilePathFile = join(harness, "profile.path");
+    const stub = join(harness, "pwsh");
+    writeFileSync(stub, `#!/bin/sh\nprintf '%s' "$TMPDIR" > "$TEST_PROFILE_PATH_FILE"\n${JSON.stringify(process.execPath)} -e 'setInterval(() => {}, 1000)' &\nprintf '%s' "$!" > "$TEST_BROWSER_PID_FILE"\nwait\n`);
+    chmodSync(stub, 0o700);
+    const entrypoint = fileURLToPath(new URL("../dist/index.js", import.meta.url));
+    const server = spawn(process.execPath, [entrypoint], {
+        env: { ...process.env, XDR_MCP_AUTH: "browser", PATH: `${harness}${delimiter}${process.env.PATH}`, TEST_BROWSER_PID_FILE: browserPidFile, TEST_PROFILE_PATH_FILE: profilePathFile },
+        stdio: ["pipe", "pipe", "pipe"],
+    });
+    server.stderr.resume();
+    server.stdout.resume();
+    try {
+        server.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "shutdown-test", version: "1.0.0" } } }) + "\n");
+        server.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
+        server.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "xdr_list_incidents", arguments: { days: 1, page: 1, pageSize: 1 } } }) + "\n");
+        for (let attempt = 0; attempt < 200 && (!existsSync(browserPidFile) || !existsSync(profilePathFile)); attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        assert.ok(existsSync(browserPidFile) && existsSync(profilePathFile), "sign-in did not start");
+        const browserPid = Number(readFileSync(browserPidFile, "utf8"));
+        const profilePath = readFileSync(profilePathFile, "utf8");
+        assert.ok(existsSync(profilePath));
+        const stopped = new Promise((resolve) => server.once("close", resolve));
+        server.kill("SIGTERM");
+        await stopped;
+        assert.equal(existsSync(profilePath), false, "server exited before private profile cleanup");
+        const processState = existsSync(`/proc/${browserPid}/stat`) ? readFileSync(`/proc/${browserPid}/stat`, "utf8").match(/\) ([A-Z]) /)?.[1] : undefined;
+        assert.ok(!processState || processState === "Z", "browser descendant was left running");
+    } finally {
+        if (server.exitCode === null) server.kill("SIGKILL");
+        rmSync(harness, { recursive: true, force: true });
     }
 });
 

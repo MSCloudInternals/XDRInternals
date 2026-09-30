@@ -69,8 +69,11 @@
             } | ConvertTo-Json
             try {
                 $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType 'application/json' -Body $body -WebSession $script:session -Headers $script:headers -ErrorAction Stop
-                if ($null -eq $result.items) { return @() }
+                if ($result -isnot [pscustomobject] -or $result.items -isnot [array]) { throw 'invalid_response' }
                 if (@($result.items).Count -gt $PageSize) { throw 'invalid_response' }
+                foreach ($item in $result.items) {
+                    if ($item -isnot [pscustomobject]) { throw 'invalid_response' }
+                }
                 return @($result.items)
             } catch {
                 throw [System.InvalidOperationException]::new("Failed to retrieve associated alerts for incident ${IncidentId}: $_", $_.Exception)

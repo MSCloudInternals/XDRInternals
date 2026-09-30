@@ -212,7 +212,13 @@ export function createServer(bridge: Bridge): McpServer {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
     const bridge = new ReadOnlyBridge();
     const server = createServer(bridge);
-    const shutdown = () => { bridge.close(); process.exit(0); };
+    let shuttingDown = false;
+    const shutdown = async () => {
+        if (shuttingDown) return;
+        shuttingDown = true;
+        await bridge.close();
+        process.exit(0);
+    };
     server.server.onclose = shutdown;
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);

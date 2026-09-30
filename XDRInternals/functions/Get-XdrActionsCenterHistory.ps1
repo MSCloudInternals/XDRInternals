@@ -131,8 +131,12 @@
 
         Write-Verbose "Retrieving XDR Action Center history (From: $fromDateString, To: $toDateString, Page: $PageIndex, Size: $PageSize)"
         try {
-            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers | Select-Object -ExpandProperty Results
-            return $result
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers -ErrorAction Stop
+            if ($result -isnot [pscustomobject] -or $result.Results -isnot [array]) { throw 'invalid_response' }
+            foreach ($item in $result.Results) {
+                if ($item -isnot [pscustomobject]) { throw 'invalid_response' }
+            }
+            return $result.Results
         } catch {
             Write-Error -Exception $_.Exception -Message "Failed to retrieve Action Center history: $_"
         }

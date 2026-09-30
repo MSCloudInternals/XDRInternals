@@ -42,9 +42,16 @@
         { Get-XdrIncidentAssociatedAlert -IncidentId 42 -PageIndex 2 -PageSize 1 } | Should -Throw
     }
 
-    It 'returns an empty page when the portal omits items' {
-        Mock Invoke-RestMethod { [pscustomobject]@{ totalPagesAvailable = 0 } } -ModuleName XDRInternals
+    It 'returns an explicitly empty page' {
+        Mock Invoke-RestMethod { [pscustomobject]@{ items = @(); totalPagesAvailable = 0 } } -ModuleName XDRInternals
         @(Get-XdrIncidentAssociatedAlert -IncidentId 42 -PageIndex 1 -PageSize 1) | Should -HaveCount 0
+    }
+
+    It 'rejects a malformed portal response instead of reporting no alerts' {
+        foreach ($response in @([pscustomobject]@{ totalPagesAvailable = 0 }, '<html>error</html>', [pscustomobject]@{ items = 'unexpected' }, [pscustomobject]@{ items = @($null) }, [pscustomobject]@{ items = @([pscustomobject]@{ alertId = 'valid' }, $null) })) {
+            Mock Invoke-RestMethod { $response } -ModuleName XDRInternals
+            { Get-XdrIncidentAssociatedAlert -IncidentId 42 -PageIndex 1 -PageSize 1 } | Should -Throw
+        }
     }
 
     It 'rejects an oversized upstream page' {

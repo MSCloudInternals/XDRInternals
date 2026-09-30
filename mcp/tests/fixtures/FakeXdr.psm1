@@ -96,6 +96,7 @@ function Get-XdrIncidentAssociatedAlert {
 
 function Get-XdrEndpointDevice {
     param([int]$LookingBackInDays, [int]$PageIndex, [int]$PageSize, [string]$SortByField, [string]$SortOrder, [string]$DeviceId)
+    if ($env:XDR_MCP_TEST_MALFORMED_DEVICE_LIST -eq '1' -and -not $PSBoundParameters.ContainsKey('DeviceId')) { return '<html>error</html>' }
     if ($PSBoundParameters.ContainsKey('DeviceId')) {
         if ($DeviceId -eq ('b' * 40)) { return [pscustomobject]@{ MachineId = 'a' * 40; Credential = 'secret-cookie-should-not-leak' } }
         return [pscustomobject]@{ MachineId = $DeviceId; ComputerDnsName = 'host.example'; RiskScore = 'High'; HealthStatus = 'Active'; LastSeen = '2026-01-01'; Credential = 'secret-cookie-should-not-leak' }
@@ -125,11 +126,19 @@ function Invoke-XdrRestMethod {
             ('DeviceFileEvents | where Timestamp > ago(1d) and SHA256 =~ "{0}" | project Timestamp, DeviceId, FileName, SHA256 | take 1' -f ('f' * 64)) {
                 return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'a' * 40; FileName = 'sample.exe'; SHA256 = 'f' * 64; credential = 'secret-cookie-should-not-leak' }) }
             }
-            'DeviceNetworkEvents | where Timestamp > ago(1d) and RemoteIP == "192.0.2.1" | project Timestamp, DeviceId, RemoteIP, RemoteUrl | take 1' {
+            'DeviceNetworkEvents | where Timestamp > ago(1d) and ipv6_is_match(RemoteIP, "192.0.2.1") | project Timestamp, DeviceId, RemoteIP, RemoteUrl | take 1' {
+                $ip = if ($env:XDR_MCP_TEST_HUNT_IP_MAPPED -eq '1') { '::ffff:192.0.2.1' } else { '192.0.2.1' }
+                return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'a' * 40; RemoteIP = $ip; RemoteUrl = 'example.com'; credential = 'secret-cookie-should-not-leak' }) }
+            }
+            'DeviceNetworkEvents | where Timestamp > ago(1d) and ipv6_is_match(RemoteIP, "2001:db8::1") | project Timestamp, DeviceId, RemoteIP, RemoteUrl | take 1' {
+                return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'a' * 40; RemoteIP = '2001:0db8:0:0:0:0:0:1'; RemoteUrl = 'example.com'; credential = 'secret-cookie-should-not-leak' }) }
+            }
+            'DeviceNetworkEvents | where Timestamp > ago(1d) and ipv6_is_match(RemoteIP, "::ffff:192.0.2.1") | project Timestamp, DeviceId, RemoteIP, RemoteUrl | take 1' {
                 return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'a' * 40; RemoteIP = '192.0.2.1'; RemoteUrl = 'example.com'; credential = 'secret-cookie-should-not-leak' }) }
             }
-            'DeviceNetworkEvents | where Timestamp > ago(1d) and RemoteUrl has "example.com" | project Timestamp, DeviceId, RemoteIP, RemoteUrl | take 1' {
-                return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'a' * 40; RemoteIP = '192.0.2.1'; RemoteUrl = 'example.com'; credential = 'secret-cookie-should-not-leak' }) }
+            'DeviceNetworkEvents | where Timestamp > ago(1d) and RemoteUrl has "example.com" | extend UrlHost = tostring(parse_url(iff(RemoteUrl matches regex @"^[A-Za-z][A-Za-z0-9+.-]*://", RemoteUrl, strcat("https://", RemoteUrl))).Host) | where UrlHost =~ "example.com" or UrlHost endswith ".example.com" | project Timestamp, DeviceId, RemoteIP, RemoteUrl | take 1' {
+                $url = if ($env:XDR_MCP_TEST_HUNT_URL) { $env:XDR_MCP_TEST_HUNT_URL } else { 'example.com' }
+                return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; DeviceId = 'a' * 40; RemoteIP = '192.0.2.1'; RemoteUrl = $url; credential = 'secret-cookie-should-not-leak' }) }
             }
             'AlertEvidence | where Timestamp > ago(1d) and AccountUpn =~ "analyst@example.test" | project Timestamp, AccountUpn, DeviceId, AlertId, Title, Severity | take 1' {
                 return [pscustomobject]@{ Results = @([pscustomobject]@{ Timestamp = '2026-01-01T00:00:00Z'; AccountUpn = 'analyst@example.test'; DeviceId = 'a' * 40; AlertId = 'alert-2'; Title = 'Example'; Severity = 'High'; credential = 'secret-cookie-should-not-leak' }) }

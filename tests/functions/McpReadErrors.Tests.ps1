@@ -63,4 +63,15 @@
         $failure | Should -Not -BeNullOrEmpty
         Get-UpstreamErrorCode $failure | Should -Be 'not_found'
     }
+
+    It 'rejects malformed Action Center envelopes instead of returning an empty page' {
+        foreach ($response in @([pscustomobject]@{ Results = $null }, [pscustomobject]@{ Other = @() }, [pscustomobject]@{ Results = 'unexpected' }, [pscustomobject]@{ Results = @($null) }, [pscustomobject]@{ Results = @([pscustomobject]@{ actionType = 'valid' }, $null) })) {
+            Mock Invoke-RestMethod { $response } -ModuleName XDRInternals
+            { Get-XdrActionsCenterPending -PageIndex 1 -PageSize 1 -ErrorAction Stop } | Should -Throw
+            { Get-XdrActionsCenterHistory -Months 1 -PageIndex 1 -PageSize 1 -ErrorAction Stop } | Should -Throw
+        }
+        Mock Invoke-RestMethod { [pscustomobject]@{ Results = @() } } -ModuleName XDRInternals
+        @(Get-XdrActionsCenterPending -PageIndex 1 -PageSize 1 -ErrorAction Stop) | Should -HaveCount 0
+        @(Get-XdrActionsCenterHistory -Months 1 -PageIndex 1 -PageSize 1 -ErrorAction Stop) | Should -HaveCount 0
+    }
 }

@@ -15,10 +15,32 @@ addDisclaimerToUI();
 // Listen for network requests
 chrome.devtools.network.onRequestFinished.addListener(request => {
     const url = request.request.url;
-    if (url.includes('https://security.microsoft.com/apiproxy')) {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.origin === 'https://security.microsoft.com' && (parsedUrl.pathname.startsWith('/apiproxy/') || /^\/api\/(Report(V2)?\/GetReport|historicalsearch\/GetList|reportschedule\/GetList)/.test(parsedUrl.pathname))) {
         processRequest(request);
     }
 });
+
+function findReportMapping(url, method, body) {
+    return cmdletMapping.find(map => map.Cmdlet === 'Get-XdrReport' &&
+        new URL(map.ApiUri).pathname.toLowerCase() === url.pathname.toLowerCase() &&
+        map.Method.toLowerCase() === method.toLowerCase() &&
+        Object.entries(map.QueryMatch || {}).every(([key, value]) => url.searchParams.get(key) === value) &&
+        Object.entries(map.BodyMatch || {}).every(([key, value]) => {
+            let actualValue = body;
+            const pathParts = key.split('.');
+            for (const [index, part] of pathParts.entries()) {
+                if (Array.isArray(actualValue) && /^\d+$/.test(part)) {
+                    const prefix = pathParts.slice(0, index + 1).join('.');
+                    const identityField = ['metricId', 'id'].find(field => Object.prototype.hasOwnProperty.call(map.BodyMatch, `${prefix}.${field}`));
+                    actualValue = identityField ? actualValue.find(item => item?.[identityField] === map.BodyMatch[`${prefix}.${identityField}`]) : actualValue[part];
+                } else {
+                    actualValue = actualValue?.[part];
+                }
+            }
+            return actualValue === value;
+        }));
+}
 
 function processRequest(request) {
     const url = new URL(request.request.url);
@@ -36,8 +58,10 @@ function processRequest(request) {
     // Find matching cmdlet
     let matchedCmdlet = null;
     let matchedParams = null;
+    let matchedReport = null;
 
     for (const map of cmdletMapping) {
+        if (map.Cmdlet === 'Get-XdrReport' && (map.Method.toLowerCase() !== method.toLowerCase() || Object.entries(map.QueryMatch || {}).some(([key, value]) => url.searchParams.get(key) !== value))) continue;
         const mappingPath = new URL(map.ApiUri).pathname;
         const regexStr = '^' + mappingPath.replace(/\{[^}]+\}/g, '([^/]+)') + '$';
         const regex = new RegExp(regexStr, 'i');
@@ -45,12 +69,14 @@ function processRequest(request) {
         if (regex.test(url.pathname)) {
             matchedCmdlet = map.Cmdlet;
             matchedParams = map.Parameters;
+            if (map.Cmdlet === 'Get-XdrReport') matchedReport = { name: map.Parameters.Name.substring(6), queryKeys: map.ReportQueryKeys, binary: map.ReportBinary };
             break;
         }
 
         if (url.pathname.toLowerCase() === mappingPath.toLowerCase()) {
             matchedCmdlet = map.Cmdlet;
             matchedParams = map.Parameters;
+            if (map.Cmdlet === 'Get-XdrReport') matchedReport = { name: map.Parameters.Name.substring(6), queryKeys: map.ReportQueryKeys, binary: map.ReportBinary };
             break;
         }
     }
@@ -70,12 +96,19 @@ function processRequest(request) {
                 }
             }
 
+            if (matchedCmdlet === 'Get-XdrReport') {
+                const reportMap = findReportMapping(url, method, body);
+                matchedCmdlet = reportMap?.Cmdlet || null;
+                matchedParams = reportMap?.Parameters || null;
+                matchedReport = reportMap ? { name: reportMap.Parameters.Name.substring(6), queryKeys: reportMap.ReportQueryKeys, binary: reportMap.ReportBinary } : null;
+            }
             const requestData = {
                 method: method,
                 url: request.request.url,
                 headers: headers,
                 cmdlet: matchedCmdlet || 'Invoke-XdrRestMethod',
                 parameters: matchedParams,
+                report: matchedReport,
                 body: body,
                 timestamp: new Date().toISOString()
             };
@@ -160,6 +193,15 @@ function addRequestToUI(data) {
 function generatePowerShellCode(data) {
     const urlObj = new URL(data.url);
     let code = '';
+    if (data.report) {
+        const quote = value => `'${String(value).replace(/'/g, "''")}'`;
+        code = `Get-XdrReport -Name ${quote(data.report.name)}`;
+        const query = [...urlObj.searchParams].filter(([key]) => data.report.queryKeys.includes(key));
+        if (query.length) code += ` -Parameters @{ ${query.map(([key, value]) => `${quote(key)} = ${quote(value)}`).join('; ')} }`;
+        if (data.body && typeof data.body === 'object') code += ` -Body (${quote(JSON.stringify(data.body))} | ConvertFrom-Json -AsHashtable)`;
+        if (data.report.binary) code += ` -OutFile ${quote('./' + data.report.name + '.report')}`;
+        return code;
+    }
 
     // Helper function to escape values for PowerShell
     function escapeForPowerShell(value) {

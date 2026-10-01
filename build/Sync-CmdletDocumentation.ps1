@@ -13,6 +13,9 @@
 .PARAMETER WhatIf
     Shows what changes would be made without actually making them.
 
+.PARAMETER MappingCmdlet
+    Updates only API mappings for the selected cmdlets, leaving README and manifest unchanged.
+
 .EXAMPLE
     .\build\Sync-CmdletDocumentation.ps1
     
@@ -25,7 +28,10 @@
 #>
 
 [CmdletBinding(SupportsShouldProcess)]
-param()
+param(
+    [Parameter()]
+    [string[]]$MappingCmdlet
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -522,6 +528,19 @@ function ConvertTo-NormalizedApiUri {
 
 # Extract cmdlet metadata
 $cmdlets = @()
+$reportCatalog = @()
+$reportCatalogPath = Join-Path $repoRoot 'XDRInternals/internal/functions/Get-XdrReportCatalog.ps1'
+if (Test-Path -LiteralPath $reportCatalogPath) {
+    . $reportCatalogPath
+    $reportCatalog = @(Get-XdrReportCatalog)
+}
+
+function Get-ApiMappingKey {
+    param($Mapping, [string]$Uri)
+    $key = "$($Mapping.Cmdlet)|$Uri"
+    if ($Mapping.Cmdlet -eq 'Get-XdrReport') { $key += "|$($Mapping.Parameters.Name)" }
+    return $key
+}
 
 foreach ($file in $cmdletFiles) {
     Write-Verbose "Processing: $($file.Name)"
@@ -599,6 +618,47 @@ foreach ($file in $cmdletFiles) {
         }
     }
     
+    if ($cmdletName -eq 'Get-XdrReport' -and $reportCatalog.Count -gt 0) {
+        $apiMappings.Clear()
+        foreach ($definition in $reportCatalog) {
+            $queryMatch = @{}
+            foreach ($key in @('reportId', 'dataSourceId', 'dataProviders')) {
+                if ($definition.Query.ContainsKey($key)) { $queryMatch[$key] = $definition.Query[$key] }
+            }
+            if ($definition.Name -in @('Email.TopMailSender', 'Email.TopMailRecipient')) { $queryMatch.filter = $definition.Query.filter }
+            if ($definition.Name -like 'Cloud.*.Definition') { $queryMatch['$filter'] = $definition.Query['$filter'] }
+            $bodyMatch = @{}
+            if ($definition.Family -eq 'Cloud' -and $definition.Body.schemaId) { $bodyMatch.schemaId = $definition.Body.schemaId }
+            if ($definition.Family -eq 'Cloud' -and $definition.Body.metricsProperties) {
+                for ($metricIndex = 0; $metricIndex -lt $definition.Body.metricsProperties.Count; $metricIndex++) {
+                    $metric = $definition.Body.metricsProperties[$metricIndex]
+                    $metricPath = "metricsProperties.$metricIndex"
+                    $bodyMatch["$metricPath.metricId"] = $metric.metricId
+                    for ($dimensionIndex = 0; $dimensionIndex -lt $metric.dimensionsFilters.Count; $dimensionIndex++) {
+                        $dimension = $metric.dimensionsFilters[$dimensionIndex]
+                        $dimensionPath = "$metricPath.dimensionsFilters.$dimensionIndex"
+                        $bodyMatch["$dimensionPath.id"] = $dimension.id
+                        $bodyMatch["$dimensionPath.operator"] = $dimension.operator
+                        if ($dimension.value -is [array]) {
+                            for ($valueIndex = 0; $valueIndex -lt $dimension.value.Count; $valueIndex++) { $bodyMatch["$dimensionPath.value.$valueIndex"] = $dimension.value[$valueIndex] }
+                        } else { $bodyMatch["$dimensionPath.value"] = $dimension.value }
+                    }
+                }
+            }
+            if ($definition.Name -like 'Email.*Submissions.Detail') { $bodyMatch['QueryFilter.Filter.Value'] = $definition.Body.QueryFilter.Filter.Value }
+            if ($definition.Name -like 'Email.*Submissions.Summary') { $bodyMatch['QueryFilter.Expressions.0.Filter.Value'] = $definition.Body.QueryFilter.Expressions[0].Filter.Value }
+            [void]$apiMappings.Add([ordered]@{
+                Cmdlet = $cmdletName
+                ApiUri = 'https://security.microsoft.com' + $definition.Path
+                Parameters = @{ Name = "fixed:$($definition.Name)" }
+                Method = $definition.Method
+                QueryMatch = ConvertTo-SortedHashtable -InputHashtable $queryMatch
+                BodyMatch = ConvertTo-SortedHashtable -InputHashtable $bodyMatch
+                ReportQueryKeys = @($definition.Query.Keys | Sort-Object)
+                ReportBinary = [bool]$definition.Binary
+            })
+        }
+    }
     $cmdlets += [PSCustomObject]@{
         Name        = $cmdletName
         Synopsis    = $synopsis
@@ -635,7 +695,7 @@ if ($readmeContent -match '(?s)(## Available Cmdlets\s*\n+\|[^\n]+\|\s*\n\|[^\n]
     
     $newReadmeContent = $readmeContent -replace '(?s)(## Available Cmdlets\s*\n+\|[^\n]+\|\s*\n\|[^\n]+\|\s*\n)(.+?)(\n+##\s+\w+)', $newTable
     
-    if ($PSCmdlet.ShouldProcess($readmePath, "Update cmdlet table")) {
+    if (-not $MappingCmdlet -and $PSCmdlet.ShouldProcess($readmePath, "Update cmdlet table")) {
         $utf8Bom = New-Object System.Text.UTF8Encoding $true
         [System.IO.File]::WriteAllText($readmePath, $newReadmeContent, $utf8Bom)
         Write-Verbose "Updated cmdlet table with $($cmdlets.Count) entries"
@@ -659,7 +719,7 @@ if ($psd1Content -match '(?s)FunctionsToExport\s*=\s*@\([^)]+\)') {
     
     $newPsd1Content = $psd1Content -replace '(?s)FunctionsToExport\s*=\s*@\([^)]+\)', $newFunctionsArray
     
-    if ($PSCmdlet.ShouldProcess($psd1Path, "Update FunctionsToExport array")) {
+    if (-not $MappingCmdlet -and $PSCmdlet.ShouldProcess($psd1Path, "Update FunctionsToExport array")) {
         $utf8Bom = New-Object System.Text.UTF8Encoding $true
         [System.IO.File]::WriteAllText($psd1Path, $newPsd1Content, $utf8Bom)
         Write-Verbose "Updated FunctionsToExport with $($cmdlets.Count) entries"
@@ -695,7 +755,7 @@ if (Test-Path $jsonPath) {
                 }
                 
                 # Cmdlet still exists, keep the mapping
-                $key = "$($mapping.Cmdlet)|$normalizedUri"
+                $key = Get-ApiMappingKey -Mapping $mapping -Uri $normalizedUri
                 
                 # Update the mapping with normalized URI
                 $updatedMapping = [ordered]@{
@@ -704,6 +764,9 @@ if (Test-Path $jsonPath) {
                 }
                 if ($mapping.Parameters) {
                     $updatedMapping.Parameters = ConvertTo-SortedHashtableFromObject -InputObject $mapping.Parameters
+                }
+                if ($mapping.Cmdlet -eq 'Get-XdrReport') {
+                    foreach ($field in @('Method', 'QueryMatch', 'BodyMatch', 'ReportQueryKeys', 'ReportBinary')) { $updatedMapping[$field] = $mapping.$field }
                 }
                 
                 $existingMappings[$key] = $updatedMapping
@@ -729,8 +792,9 @@ $otherCmdlets = $cmdlets | Where-Object { $_.Name -notlike 'Get-*' -and $_.Name 
 
 foreach ($cmdletGroup in @($getCmdlets, $setCmdlets, $otherCmdlets)) {
     foreach ($cmdlet in $cmdletGroup) {
+        if ($MappingCmdlet -and $cmdlet.Name -notin $MappingCmdlet) { continue }
         foreach ($mapping in $cmdlet.ApiMappings) {
-            $key = "$($mapping.Cmdlet)|$($mapping.ApiUri)"
+            $key = Get-ApiMappingKey -Mapping $mapping -Uri $mapping.ApiUri
             
             if ($existingMappings.ContainsKey($key)) {
                 # Update existing mapping (in case parameters changed)
@@ -752,7 +816,7 @@ $apiMappingArray = [System.Collections.ArrayList]@()
 $existingMappings.Values | ForEach-Object {
     # Convert ordered hashtable to PSCustomObject
     [PSCustomObject]$_
-} | Sort-Object -Property @{Expression = { $_.Cmdlet }; Ascending = $true }, @{Expression = { $_.ApiUri }; Ascending = $true } | ForEach-Object {
+} | Sort-Object -Property @{Expression = { $_.Cmdlet }; Ascending = $true }, @{Expression = { $_.ApiUri }; Ascending = $true }, @{Expression = { $_.Parameters.Name }; Ascending = $true } | ForEach-Object {
     # Convert back to ordered hashtable for JSON serialization
     $mapping = [ordered]@{
         Cmdlet = $_.Cmdlet
@@ -760,6 +824,13 @@ $existingMappings.Values | ForEach-Object {
     }
     if ($_.Parameters) {
         $mapping.Parameters = ConvertTo-SortedHashtableFromObject -InputObject $_.Parameters
+    }
+    if ($_.Cmdlet -eq 'Get-XdrReport') {
+        $mapping.Method = $_.Method
+        $mapping.QueryMatch = ConvertTo-SortedHashtableFromObject -InputObject $_.QueryMatch
+        $mapping.BodyMatch = ConvertTo-SortedHashtableFromObject -InputObject $_.BodyMatch
+        $mapping.ReportQueryKeys = @($_.ReportQueryKeys)
+        $mapping.ReportBinary = [bool]$_.ReportBinary
     }
     [void]$apiMappingArray.Add($mapping)
 }

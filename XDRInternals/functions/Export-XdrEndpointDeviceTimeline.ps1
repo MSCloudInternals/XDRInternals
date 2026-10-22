@@ -37,6 +37,8 @@
     .PARAMETER Force
         Replaces an existing export and discards incompatible resumable state at Path. The
         existing export remains available until its validated replacement is published.
+        To resume an interrupted replacement, omit Force and repeat the same request.
+        The existing destination must still match the prior export recorded in its manifest.
 
     .EXAMPLE
         Export-XdrEndpointDeviceTimeline -DeviceId $deviceId -FromDate $from -ToDate $to -Path '.\timeline.ndjson'
@@ -112,6 +114,7 @@
         $manifestPartialPath = "$manifestPath.partial"
         $partsPath = "$outputPath.parts"
         $outputPartialPath = "$outputPath.partial"
+        $resumingReplacement = $false
         $replaceExistingOutput = $Force.IsPresent -and (Test-Path -LiteralPath $outputPath -PathType Leaf)
 
         $writeManifest = {
@@ -169,12 +172,13 @@
         }
 
         if (-not $Force -and (Test-Path -LiteralPath $outputPath -PathType Leaf)) {
-            if (-not $manifest -or [string]$manifest.State -ne 'Finalizing') {
+            if (-not $manifest) {
                 throw "Path '$outputPath' already exists. Use -Force to replace it."
             }
 
             $summary = $manifest.Summary
             $hasPublishMetadata =
+                [string]$manifest.State -eq 'Finalizing' -and
                 $summary -and
                 $null -ne $summary.FileBytes -and
                 -not [string]::IsNullOrWhiteSpace([string]$summary.FileSha256)
@@ -185,42 +189,57 @@
                 $publishedFileIsValid = $publishedHash -eq [string]$summary.FileSha256
             }
             if (-not $publishedFileIsValid) {
-                throw "Finalizing manifest '$manifestPath' does not validate the published file. Use -Force to replace it."
-            }
-
-            $partsRetained = $false
-            if (Test-Path -LiteralPath $partsPath) {
-                try {
-                    Remove-Item -LiteralPath $partsPath -Recurse -Force -ErrorAction Stop
+                $replacement = $manifest.Replacement
+                $priorOutputIsValid =
+                    [string]$manifest.State -in @('InProgress', 'Failed', 'Finalizing') -and
+                    $replacement -and
+                    $null -ne $replacement.FileBytes -and
+                    -not [string]::IsNullOrWhiteSpace([string]$replacement.FileSha256) -and
+                    $publishedFile.Length -eq [long]$replacement.FileBytes
+                if ($priorOutputIsValid) {
+                    $priorOutputIsValid = (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256).Hash -eq [string]$replacement.FileSha256
                 }
-                catch {
-                    $partsRetained = $true
-                    Write-Warning "The published export was recovered, but temporary part files could not be removed from '$partsPath': $($_.Exception.Message)"
+                if (-not $priorOutputIsValid) {
+                    throw "Path '$outputPath' already exists and does not match an authorized replacement or a published Finalizing export. Use -Force to replace it."
                 }
+                $replaceExistingOutput = $true
+                $resumingReplacement = $true
             }
-            $operationStopwatch.Stop()
-            $manifest.State = 'Complete'
-            $manifest.Summary.PartsRetained = $partsRetained
-            $manifest.Summary.CompletedUtc = [datetime]::UtcNow.ToString('o')
-            & $writeManifest $manifest $manifestPath $manifestPartialPath
+            else {
+                $partsRetained = $false
+                if (Test-Path -LiteralPath $partsPath) {
+                    try {
+                        Remove-Item -LiteralPath $partsPath -Recurse -Force -ErrorAction Stop
+                    }
+                    catch {
+                        $partsRetained = $true
+                        Write-Warning "The published export was recovered, but temporary part files could not be removed from '$partsPath': $($_.Exception.Message)"
+                    }
+                }
+                $operationStopwatch.Stop()
+                $manifest.State = 'Complete'
+                $manifest.Summary.PartsRetained = $partsRetained
+                $manifest.Summary.CompletedUtc = [datetime]::UtcNow.ToString('o')
+                & $writeManifest $manifest $manifestPath $manifestPartialPath
 
-            Write-Information "Recovered the completed endpoint timeline export at '$outputPath'." -InformationAction Continue
-            return [PSCustomObject]@{
-                OutputPath              = $outputPath
-                ManifestPath            = $manifestPath
-                TotalEvents             = [long]$summary.EventCount
-                TotalPages              = [long]$summary.PageCount
-                TotalRetries            = [long]$summary.RetryCount
-                TotalChunkRestarts      = [long]$summary.ChunkRestartCount
-                TotalChunks             = @($manifest.Chunks).Count
-                ResumedChunks           = [long]$summary.ResumedChunkCount
-                FileBytes               = [long]$summary.FileBytes
-                FileSha256              = [string]$summary.FileSha256
-                MissingTimestampCount   = [long]$summary.MissingTimestampCount
-                BoundaryTimestampCount  = [long]$summary.BoundaryTimestampCount
-                MergeSeconds            = [double]$summary.MergeSeconds
-                ElapsedSeconds          = [double]$manifest.Summary.ElapsedSeconds
-                TemporaryPartsRetained  = $partsRetained
+                Write-Information "Recovered the completed endpoint timeline export at '$outputPath'." -InformationAction Continue
+                return [PSCustomObject]@{
+                    OutputPath              = $outputPath
+                    ManifestPath            = $manifestPath
+                    TotalEvents             = [long]$summary.EventCount
+                    TotalPages              = [long]$summary.PageCount
+                    TotalRetries            = [long]$summary.RetryCount
+                    TotalChunkRestarts      = [long]$summary.ChunkRestartCount
+                    TotalChunks             = @($manifest.Chunks).Count
+                    ResumedChunks           = [long]$summary.ResumedChunkCount
+                    FileBytes               = [long]$summary.FileBytes
+                    FileSha256              = [string]$summary.FileSha256
+                    MissingTimestampCount   = [long]$summary.MissingTimestampCount
+                    BoundaryTimestampCount  = [long]$summary.BoundaryTimestampCount
+                    MergeSeconds            = [double]$summary.MergeSeconds
+                    ElapsedSeconds          = [double]$manifest.Summary.ElapsedSeconds
+                    TemporaryPartsRetained  = $partsRetained
+                }
             }
         }
 
@@ -264,6 +283,12 @@
                 IncludeSentinelEvents = $IncludeSentinelEvents.IsPresent
                 ChunkHours            = $chunkHours
                 PageSize              = $pageSize
+                Replacement           = if ($replaceExistingOutput) {
+                    [ordered]@{
+                        FileBytes  = (Get-Item -LiteralPath $outputPath -ErrorAction Stop).Length
+                        FileSha256 = (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+                    }
+                } else { $null }
                 Ordering              = 'NewestTimeWindowFirst;ApiEventOrderPreserved'
                 CreatedUtc            = [datetime]::UtcNow.ToString('o')
                 UpdatedUtc            = [datetime]::UtcNow.ToString('o')
@@ -648,6 +673,16 @@
         & $writeManifest $manifest $manifestPath $manifestPartialPath
 
         try {
+            if ($resumingReplacement) {
+                $priorOutputIsValid = Test-Path -LiteralPath $outputPath -PathType Leaf
+                if ($priorOutputIsValid) {
+                    $priorOutputIsValid = (Get-Item -LiteralPath $outputPath -ErrorAction Stop).Length -eq [long]$manifest.Replacement.FileBytes -and
+                        (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256 -ErrorAction Stop).Hash -eq [string]$manifest.Replacement.FileSha256
+                }
+                if (-not $priorOutputIsValid) {
+                    throw 'The destination changed during replacement recovery. The replacement was not published.'
+                }
+            }
             [System.IO.File]::Move($outputPartialPath, $outputPath, $replaceExistingOutput)
         }
         catch {

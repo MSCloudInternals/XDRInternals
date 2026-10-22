@@ -149,10 +149,24 @@ Describe 'Connect-XdrByBrowser' {
         Should -Invoke Read-Host -ModuleName XDRInternals -Times 0 -Exactly
     }
 
-    It 'rejects combining explicit profile and private session mode' {
-        {
+    It 'rejects conflicting local profile parameters with actionable structured diagnostics before authentication' {
+        Mock Connect-XdrAuthArtifactSet { throw 'Session establishment must not run' } -ModuleName XDRInternals
+        $failure = $null
+        try {
             Connect-XdrByBrowser -Username 'user@contoso.com' -ProfilePath 'C:\Temp\XdrBrowserProfile' -PrivateSession
-        } | Should -Throw '*invalid request*'
+        } catch {
+            $failure = $_
+        }
+
+        $failure | Should -Not -BeNullOrEmpty
+        $failure.FullyQualifiedErrorId | Should -BeLike 'XdrAuthentication.RequestInvalid*'
+        $failure.CategoryInfo.Category | Should -Be 'InvalidArgument'
+        $failure.Exception.Message | Should -BeLike '*-PrivateSession*-ProfilePath*'
+        $failure.ErrorDetails.RecommendedAction | Should -BeLike 'Remove -ProfilePath*remove -PrivateSession*'
+        $failure.Exception.Data['XdrAuthenticationFailure'].Stage | Should -Be 'InputValidation'
+        $failure.Exception.Data['XdrAuthenticationFailure'].Retryable | Should -BeFalse
+        Should -Invoke Invoke-XdrBrowserAuthentication -ModuleName XDRInternals -Times 0 -Exactly
+        Should -Invoke Connect-XdrAuthArtifactSet -ModuleName XDRInternals -Times 0 -Exactly
     }
 
     It 'prefers ESTS cookie bootstrap when browser auth returns both ESTS and portal cookies' {

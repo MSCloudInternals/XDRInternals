@@ -75,6 +75,8 @@
     process {
         if ($PrivateSession -and $ProfilePath) {
             $failure = Get-XdrAuthenticationFailure -AuthenticationMethod Browser -Stage InputValidation -DefaultCode RequestInvalid
+            $failure.Message = 'Do not combine -PrivateSession with -ProfilePath. Private session uses a temporary profile automatically.'
+            $failure.RecommendedAction = 'Remove -ProfilePath to use a temporary private profile, or remove -PrivateSession to use the explicit profile.'
             throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 

@@ -177,4 +177,141 @@ Describe 'Get-XdrIdentityUserTimeline hardening' {
         $partialResult.Count | Should -Be 1
         $partialResult[0].EventId | Should -Be 'valid'
     }
+    It 'lists user event types with <Selector> and <Range>' -ForEach @(
+        foreach ($selector in @('Upn', 'AadId', 'Sid', 'RadiusUserId', 'InputObject')) {
+            foreach ($range in @('DateRange', 'LastNDays')) {
+                @{ Selector = $selector; Range = $range }
+            }
+        }
+    ) {
+        Mock Invoke-RestMethod {
+            param($Uri, $Body)
+            $request = $Body | ConvertFrom-Json -AsHashtable
+            $request.userIdentifiers.aad | Should -Be '11111111-1111-1111-1111-111111111111'
+            $request.userIdentifiers.upn | Should -Be 'user@contoso.com'
+            $bounds = @($request.filters.Timeframe.between)
+            if ($Range -eq 'DateRange') {
+                $bounds | Should -Be @(1767225600, 1767232800)
+            } else {
+                ($bounds[1] - $bounds[0]) | Should -Be 86400
+                [math]::Abs($bounds[1] - [datetimeoffset]::UtcNow.ToUnixTimeSeconds()) | Should -BeLessThan 10
+            }
+            [pscustomobject]@{ data = @([pscustomobject]@{ Type = 'SyntheticUserEvent' }) }
+        } -ModuleName XDRInternals
+        Mock Start-ThreadJob { throw 'Event type lookup must not start timeline jobs' } -ModuleName XDRInternals
+        $parameters = @{ ListEventTypes = $true; ErrorAction = 'Stop' }
+        switch ($Selector) {
+            Upn { $parameters.Upn = 'user@contoso.com' }
+            AadId { $parameters.AadId = '11111111-1111-1111-1111-111111111111' }
+            Sid { $parameters.Sid = 'S-1-5-21-1-2-3-1000' }
+            RadiusUserId { $parameters.RadiusUserId = 'User_test_user' }
+            InputObject {
+                $parameters.InputObject = [pscustomobject]@{
+                    displayName = 'Timeline User'
+                    ids = [pscustomobject]@{ aad = '11111111-1111-1111-1111-111111111111'; upn = 'user@contoso.com' }
+                }
+            }
+        }
+        if ($Range -eq 'DateRange') {
+            $parameters.FromDate = $script:FromDate
+            $parameters.ToDate = $script:ToDate
+        } else {
+            $parameters.LastNDays = 1
+        }
+        $result = @(Get-XdrIdentityUserTimeline @parameters 6>$null)
+        $result | Should -HaveCount 1
+        $result[0].EventType | Should -Be 'SyntheticUserEvent'
+        $result[0].Scope | Should -Be 'User'
+        $result[0].User | Should -Be 'Timeline User'
+        Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+            $Uri -eq 'https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/timeline/FilterOptions/mtp' -and $Method -eq 'POST'
+        }
+        if ($Selector -eq 'InputObject') {
+            Should -Invoke Get-XdrIdentityUser -ModuleName XDRInternals -Times 0 -Exactly
+        } else {
+            Should -Invoke Get-XdrIdentityUser -ModuleName XDRInternals -Times 1 -Exactly -ParameterFilter {
+                switch ($Selector) {
+                    Upn { $Upn -eq 'user@contoso.com' }
+                    AadId { $AadId -eq '11111111-1111-1111-1111-111111111111' }
+                    Sid { $Sid -eq 'S-1-5-21-1-2-3-1000' }
+                    RadiusUserId { $RadiusUserId -eq 'User_test_user' }
+                }
+            }
+        }
+        Should -Invoke Start-ThreadJob -ModuleName XDRInternals -Times 0 -Exactly
+    }
+
+    It 'rejects conflicting user event type parameters: <Conflict>' -ForEach @(
+        @{ Conflict = 'two user selectors'; Extra = @{ AadId = '11111111-1111-1111-1111-111111111111' } }
+        @{ Conflict = 'mixed date modes'; Extra = @{ LastNDays = 1; FromDate = [datetime]'2026-01-01T00:00:00Z' } }
+    ) {
+        { Get-XdrIdentityUserTimeline -Upn 'user@contoso.com' -ListEventTypes @Extra -ErrorAction Stop } |
+            Should -Throw -ErrorId 'AmbiguousParameterSet*'
+        Should -Invoke Get-XdrIdentityUser -ModuleName XDRInternals -Times 0 -Exactly
+        Should -Invoke Update-XdrConnectionSettings -ModuleName XDRInternals -Times 0 -Exactly
+    }
+
+    It 'lists event types from a piped resolved user with <Range> without resolving again' -ForEach @(
+        @{ Range = 'DateRange' }
+        @{ Range = 'LastNDays' }
+    ) {
+        Mock Invoke-RestMethod {
+            param($Body)
+            ($Body | ConvertFrom-Json).userIdentifiers.upn | Should -Be 'pipeline@contoso.com'
+            [pscustomobject]@{ data = @([pscustomobject]@{ Type = 'PipelineEvent' }) }
+        } -ModuleName XDRInternals
+        $user = [pscustomobject]@{ displayName = 'Pipeline User'; ids = [pscustomobject]@{ upn = 'pipeline@contoso.com' } }
+        $parameters = @{ ListEventTypes = $true; ErrorAction = 'Stop' }
+        if ($Range -eq 'DateRange') { $parameters.FromDate = $script:FromDate; $parameters.ToDate = $script:ToDate } else { $parameters.LastNDays = 1 }
+        $result = @($user | Get-XdrIdentityUserTimeline @parameters 6>$null)
+        $result | Should -HaveCount 1
+        $result[0].EventType | Should -Be 'PipelineEvent'
+        $result[0].Scope | Should -Be 'User'
+        $result[0].User | Should -Be 'Pipeline User'
+        Should -Invoke Get-XdrIdentityUser -ModuleName XDRInternals -Times 0 -Exactly
+        Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 1 -Exactly
+    }
+
+    It 'rejects userless event type lookup before connection with <Mode> and <Preference>' -ForEach @(
+        foreach ($mode in @('default dates', 'DateRange', 'LastNDays', 'false switch')) {
+            foreach ($preference in @('Continue', 'Stop')) {
+                @{ Mode = $mode; Preference = $preference }
+            }
+        }
+    ) {
+        Mock Invoke-RestMethod { throw 'Unexpected REST request' } -ModuleName XDRInternals
+        Mock Invoke-WebRequest { throw 'Unexpected web request' } -ModuleName XDRInternals
+        $parameters = @{ ListEventTypes = $true; ErrorAction = $Preference }
+        switch ($Mode) {
+            DateRange { $parameters.FromDate = $script:FromDate; $parameters.ToDate = $script:ToDate }
+            LastNDays { $parameters.LastNDays = 1 }
+            'false switch' { $parameters.ListEventTypes = $false }
+        }
+        $failure = $null
+        try { Get-XdrIdentityUserTimeline @parameters } catch { $failure = $_ }
+        $failure | Should -Not -BeNullOrEmpty
+        $failure.FullyQualifiedErrorId | Should -BeLike 'GlobalEventTypesNotSupported*'
+        $failure.Exception | Should -BeOfType ([System.NotSupportedException])
+        $failure.CategoryInfo.Category | Should -Be 'NotImplemented'
+        $failure.Exception.Message | Should -BeLike '*without a user*not supported*'
+        foreach ($selector in @('-Upn', '-AadId', '-Sid', '-RadiusUserId', '-InputObject')) {
+            $failure.Exception.Message | Should -BeLike "*$selector*"
+        }
+        Should -Invoke Update-XdrConnectionSettings -ModuleName XDRInternals -Times 0 -Exactly
+        Should -Invoke Get-XdrIdentityHeaders -ModuleName XDRInternals -Times 0 -Exactly
+        Should -Invoke Get-XdrIdentityUser -ModuleName XDRInternals -Times 0 -Exactly
+        Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 0 -Exactly
+        Should -Invoke Invoke-WebRequest -ModuleName XDRInternals -Times 0 -Exactly
+    }
+
+    It 'allows an empty user-specific event type response' {
+        Mock Invoke-RestMethod { [pscustomobject]@{ data = @() } } -ModuleName XDRInternals
+        $warnings = @()
+        $result = @(Get-XdrIdentityUserTimeline -Upn 'user@contoso.com' -ListEventTypes -LastNDays 1 -ErrorAction Stop -WarningVariable +warnings 6>$null)
+        $result | Should -HaveCount 0
+        $warnings | Should -HaveCount 0
+        Should -Invoke Get-XdrIdentityUser -ModuleName XDRInternals -Times 1 -Exactly
+        Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 1 -Exactly
+    }
+
 }

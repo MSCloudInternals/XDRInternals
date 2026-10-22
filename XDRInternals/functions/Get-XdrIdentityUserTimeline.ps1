@@ -50,7 +50,8 @@
     .PARAMETER ListEventTypes
         Lists available event types for filtering for the specified user and time range.
         Returns pipeline objects with EventType, Scope, and User properties.
-        If no user identifier is supplied, returns global event types for the selected time range.
+        A user identifier or resolved InputObject is required. Tenant-wide lookup is not supported
+        by this cmdlet; calls without a user fail before connection setup.
 
     .PARAMETER PageSize
         The number of events to return per page. Defaults to 1000.
@@ -123,12 +124,7 @@
         Lists available event types for filtering for the specified user and time range.
 
     .EXAMPLE
-        Get-XdrIdentityUserTimeline -LastNDays 7 -ListEventTypes
-
-        Lists global event types for the selected time range.
-
-    .EXAMPLE
-        Get-XdrIdentityUserTimeline -LastNDays 7 -ListEventTypes | Select-Object -ExpandProperty EventType
+        Get-XdrIdentityUserTimeline -Upn "user@domain.com" -LastNDays 7 -ListEventTypes | Select-Object -ExpandProperty EventType
 
         Returns only event type names for automation or downstream filtering.
 
@@ -152,7 +148,7 @@
     #>
     [OutputType([System.Object[]])]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseUsingScopeModifierInNewRunspaces', '')]
-    [CmdletBinding(DefaultParameterSetName = 'ByUpnDateRange')]
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory, ParameterSetName = 'ByAadIdDateRange')]
         [Parameter(Mandatory, ParameterSetName = 'ByAadIdLastNDays')]
@@ -204,7 +200,16 @@
         [Parameter()]
         [string[]]$EventType,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ByAadIdDateRange')]
+        [Parameter(ParameterSetName = 'ByAadIdLastNDays')]
+        [Parameter(ParameterSetName = 'ByUpnDateRange')]
+        [Parameter(ParameterSetName = 'ByUpnLastNDays')]
+        [Parameter(ParameterSetName = 'BySidDateRange')]
+        [Parameter(ParameterSetName = 'BySidLastNDays')]
+        [Parameter(ParameterSetName = 'ByRadiusUserIdDateRange')]
+        [Parameter(ParameterSetName = 'ByRadiusUserIdLastNDays')]
+        [Parameter(ParameterSetName = 'ByInputObjectDateRange')]
+        [Parameter(ParameterSetName = 'ByInputObjectLastNDays')]
         [Parameter(Mandatory, ParameterSetName = 'ListEventTypesDateRange')]
         [Parameter(Mandatory, ParameterSetName = 'ListEventTypesLastNDays')]
         [switch]$ListEventTypes,
@@ -272,6 +277,18 @@
     )
 
     begin {
+        # Retain userless parameter sets only to provide an actionable local error.
+        if ($PSCmdlet.ParameterSetName -like 'ListEventTypes*') {
+            $PSCmdlet.ThrowTerminatingError(
+                [System.Management.Automation.ErrorRecord]::new(
+                    [System.NotSupportedException]::new('Listing event types without a user is not supported by this cmdlet. Supply -Upn, -AadId, -Sid, -RadiusUserId, or a resolved user through -InputObject (including pipeline input).'),
+                    'GlobalEventTypesNotSupported',
+                    [System.Management.Automation.ErrorCategory]::NotImplemented,
+                    $null
+                )
+            )
+        }
+
         Update-XdrConnectionSettings
 
         # Constants - centralized for maintainability (function-local scope)
@@ -314,7 +331,6 @@
         $userIdentifiers = $null
         $fallbackDisplayName = $null
         $paramSetName = $PSCmdlet.ParameterSetName
-        $isGlobalListEventTypes = $paramSetName -like 'ListEventTypes*'
 
         $throwResolveError = {
             param(
@@ -350,148 +366,146 @@
             )
         }
 
-        if (-not $isGlobalListEventTypes) {
-            if ($paramSetName -like 'ByInputObject*') {
-                # Already have resolved user from pipeline
-                $resolvedUser = $InputObject
-                try {
-                    $userIdentifiers = ConvertTo-XdrIdentityUserIdentifiers -ResolvedUser $resolvedUser -ErrorAction Stop
-                } catch {
-                    $PSCmdlet.ThrowTerminatingError(
-                        [System.Management.Automation.ErrorRecord]::new(
-                            [System.ArgumentException]::new("InputObject does not contain usable identity identifiers: $($_.Exception.Message)"),
-                            'InvalidInputObject',
-                            [System.Management.Automation.ErrorCategory]::InvalidArgument,
-                            $InputObject
-                        )
-                    )
-                }
-
-                if (-not [string]::IsNullOrWhiteSpace([string]$resolvedUser.ids.upn)) {
-                    $fallbackDisplayName = $resolvedUser.ids.upn
-                } elseif (-not [string]::IsNullOrWhiteSpace([string]$resolvedUser.ids.aad)) {
-                    $fallbackDisplayName = $resolvedUser.ids.aad
-                }
-            }
-            elseif ($paramSetName -like 'ByAadId*') {
-                Write-Verbose "Resolving user by AAD ID: $AadId"
-                try {
-                    $resolvedUser = Get-XdrIdentityUser -AadId $AadId -ErrorAction Stop
-                } catch {
-                    & $throwResolveError -IdentifierLabel 'AAD ID' -IdentifierValue $AadId -ResolveError $_
-                }
-
-                if ($null -eq $resolvedUser) {
-                    $PSCmdlet.ThrowTerminatingError(
-                        [System.Management.Automation.ErrorRecord]::new(
-                            [System.ArgumentException]::new("Could not resolve user with AAD ID: $AadId"),
-                            'UserNotFound',
-                            [System.Management.Automation.ErrorCategory]::ObjectNotFound,
-                            $AadId
-                        )
-                    )
-                }
-
-                $userIdentifiers = ConvertTo-XdrIdentityUserIdentifiers -ResolvedUser $resolvedUser
-                $fallbackDisplayName = $AadId
-            }
-            elseif ($paramSetName -like 'ByUpn*') {
-                Write-Verbose "Resolving user by UPN: $Upn"
-                try {
-                    $resolvedUser = Get-XdrIdentityUser -Upn $Upn -ErrorAction Stop
-                } catch {
-                    & $throwResolveError -IdentifierLabel 'UPN' -IdentifierValue $Upn -ResolveError $_
-                }
-
-                if ($null -eq $resolvedUser) {
-                    $PSCmdlet.ThrowTerminatingError(
-                        [System.Management.Automation.ErrorRecord]::new(
-                            [System.ArgumentException]::new("Could not resolve user with UPN: $Upn"),
-                            'UserNotFound',
-                            [System.Management.Automation.ErrorCategory]::ObjectNotFound,
-                            $Upn
-                        )
-                    )
-                }
-
-                $userIdentifiers = ConvertTo-XdrIdentityUserIdentifiers -ResolvedUser $resolvedUser
-                $fallbackDisplayName = $Upn
-            }
-            elseif ($paramSetName -like 'BySid*') {
-                Write-Verbose "Resolving user by SID: $Sid"
-                try {
-                    $resolvedUser = Get-XdrIdentityUser -Sid $Sid -ErrorAction Stop
-                } catch {
-                    & $throwResolveError -IdentifierLabel 'SID' -IdentifierValue $Sid -ResolveError $_
-                }
-
-                if ($null -eq $resolvedUser) {
-                    $PSCmdlet.ThrowTerminatingError(
-                        [System.Management.Automation.ErrorRecord]::new(
-                            [System.ArgumentException]::new("Could not resolve user with SID: $Sid"),
-                            'UserNotFound',
-                            [System.Management.Automation.ErrorCategory]::ObjectNotFound,
-                            $Sid
-                        )
-                    )
-                }
-
-                $userIdentifiers = ConvertTo-XdrIdentityUserIdentifiers -ResolvedUser $resolvedUser
-                $fallbackDisplayName = $Sid
-            }
-            elseif ($paramSetName -like 'ByRadiusUserId*') {
-                Write-Verbose "Resolving user by Radius User ID: $RadiusUserId"
-                try {
-                    $resolvedUser = Get-XdrIdentityUser -RadiusUserId $RadiusUserId -ErrorAction Stop
-                } catch {
-                    & $throwResolveError -IdentifierLabel 'Radius User ID' -IdentifierValue $RadiusUserId -ResolveError $_
-                }
-
-                if ($null -eq $resolvedUser) {
-                    $PSCmdlet.ThrowTerminatingError(
-                        [System.Management.Automation.ErrorRecord]::new(
-                            [System.ArgumentException]::new("Could not resolve user with Radius User ID: $RadiusUserId"),
-                            'UserNotFound',
-                            [System.Management.Automation.ErrorCategory]::ObjectNotFound,
-                            $RadiusUserId
-                        )
-                    )
-                }
-
-                $userIdentifiers = ConvertTo-XdrIdentityUserIdentifiers -ResolvedUser $resolvedUser
-                $fallbackDisplayName = $RadiusUserId
-            }
-            else {
+        if ($paramSetName -like 'ByInputObject*') {
+            # Already have resolved user from pipeline
+            $resolvedUser = $InputObject
+            try {
+                $userIdentifiers = ConvertTo-XdrIdentityUserIdentifiers -ResolvedUser $resolvedUser -ErrorAction Stop
+            } catch {
                 $PSCmdlet.ThrowTerminatingError(
                     [System.Management.Automation.ErrorRecord]::new(
-                        [System.InvalidOperationException]::new("Unrecognized parameter set: $paramSetName"),
-                        'InvalidParameterSet',
-                        [System.Management.Automation.ErrorCategory]::InvalidOperation,
-                        $paramSetName
+                        [System.ArgumentException]::new("InputObject does not contain usable identity identifiers: $($_.Exception.Message)"),
+                        'InvalidInputObject',
+                        [System.Management.Automation.ErrorCategory]::InvalidArgument,
+                        $InputObject
                     )
                 )
             }
 
-            # Set user display name: prefer displayName from resolved user, fallback to input identifier
-            if (-not [string]::IsNullOrWhiteSpace([string]$resolvedUser.displayName)) {
-                $userDisplayName = $resolvedUser.displayName
-            } else {
-                $userDisplayName = $fallbackDisplayName
+            if (-not [string]::IsNullOrWhiteSpace([string]$resolvedUser.ids.upn)) {
+                $fallbackDisplayName = $resolvedUser.ids.upn
+            } elseif (-not [string]::IsNullOrWhiteSpace([string]$resolvedUser.ids.aad)) {
+                $fallbackDisplayName = $resolvedUser.ids.aad
             }
-            if ([string]::IsNullOrWhiteSpace([string]$userDisplayName)) {
-                $userDisplayName = 'UnknownUser'
+        }
+        elseif ($paramSetName -like 'ByAadId*') {
+            Write-Verbose "Resolving user by AAD ID: $AadId"
+            try {
+                $resolvedUser = Get-XdrIdentityUser -AadId $AadId -ErrorAction Stop
+            } catch {
+                & $throwResolveError -IdentifierLabel 'AAD ID' -IdentifierValue $AadId -ResolveError $_
             }
+
+            if ($null -eq $resolvedUser) {
+                $PSCmdlet.ThrowTerminatingError(
+                    [System.Management.Automation.ErrorRecord]::new(
+                        [System.ArgumentException]::new("Could not resolve user with AAD ID: $AadId"),
+                        'UserNotFound',
+                        [System.Management.Automation.ErrorCategory]::ObjectNotFound,
+                        $AadId
+                    )
+                )
+            }
+
+            $userIdentifiers = ConvertTo-XdrIdentityUserIdentifiers -ResolvedUser $resolvedUser
+            $fallbackDisplayName = $AadId
+        }
+        elseif ($paramSetName -like 'ByUpn*') {
+            Write-Verbose "Resolving user by UPN: $Upn"
+            try {
+                $resolvedUser = Get-XdrIdentityUser -Upn $Upn -ErrorAction Stop
+            } catch {
+                & $throwResolveError -IdentifierLabel 'UPN' -IdentifierValue $Upn -ResolveError $_
+            }
+
+            if ($null -eq $resolvedUser) {
+                $PSCmdlet.ThrowTerminatingError(
+                    [System.Management.Automation.ErrorRecord]::new(
+                        [System.ArgumentException]::new("Could not resolve user with UPN: $Upn"),
+                        'UserNotFound',
+                        [System.Management.Automation.ErrorCategory]::ObjectNotFound,
+                        $Upn
+                    )
+                )
+            }
+
+            $userIdentifiers = ConvertTo-XdrIdentityUserIdentifiers -ResolvedUser $resolvedUser
+            $fallbackDisplayName = $Upn
+        }
+        elseif ($paramSetName -like 'BySid*') {
+            Write-Verbose "Resolving user by SID: $Sid"
+            try {
+                $resolvedUser = Get-XdrIdentityUser -Sid $Sid -ErrorAction Stop
+            } catch {
+                & $throwResolveError -IdentifierLabel 'SID' -IdentifierValue $Sid -ResolveError $_
+            }
+
+            if ($null -eq $resolvedUser) {
+                $PSCmdlet.ThrowTerminatingError(
+                    [System.Management.Automation.ErrorRecord]::new(
+                        [System.ArgumentException]::new("Could not resolve user with SID: $Sid"),
+                        'UserNotFound',
+                        [System.Management.Automation.ErrorCategory]::ObjectNotFound,
+                        $Sid
+                    )
+                )
+            }
+
+            $userIdentifiers = ConvertTo-XdrIdentityUserIdentifiers -ResolvedUser $resolvedUser
+            $fallbackDisplayName = $Sid
+        }
+        elseif ($paramSetName -like 'ByRadiusUserId*') {
+            Write-Verbose "Resolving user by Radius User ID: $RadiusUserId"
+            try {
+                $resolvedUser = Get-XdrIdentityUser -RadiusUserId $RadiusUserId -ErrorAction Stop
+            } catch {
+                & $throwResolveError -IdentifierLabel 'Radius User ID' -IdentifierValue $RadiusUserId -ResolveError $_
+            }
+
+            if ($null -eq $resolvedUser) {
+                $PSCmdlet.ThrowTerminatingError(
+                    [System.Management.Automation.ErrorRecord]::new(
+                        [System.ArgumentException]::new("Could not resolve user with Radius User ID: $RadiusUserId"),
+                        'UserNotFound',
+                        [System.Management.Automation.ErrorCategory]::ObjectNotFound,
+                        $RadiusUserId
+                    )
+                )
+            }
+
+            $userIdentifiers = ConvertTo-XdrIdentityUserIdentifiers -ResolvedUser $resolvedUser
+            $fallbackDisplayName = $RadiusUserId
+        }
+        else {
+            $PSCmdlet.ThrowTerminatingError(
+                [System.Management.Automation.ErrorRecord]::new(
+                    [System.InvalidOperationException]::new("Unrecognized parameter set: $paramSetName"),
+                    'InvalidParameterSet',
+                    [System.Management.Automation.ErrorCategory]::InvalidOperation,
+                    $paramSetName
+                )
+            )
+        }
+
+        # Set user display name: prefer displayName from resolved user, fallback to input identifier
+        if (-not [string]::IsNullOrWhiteSpace([string]$resolvedUser.displayName)) {
+            $userDisplayName = $resolvedUser.displayName
         } else {
-            $userDisplayName = 'AllUsers'
+            $userDisplayName = $fallbackDisplayName
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$userDisplayName)) {
+            $userDisplayName = 'UnknownUser'
         }
 
         # Handle ListEventTypes
+        $UnixEpoch = [datetime]::new(1970, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
         if ($ListEventTypes) {
             $filterOptionsUri = "$script:XdrBaseUrl/apiproxy/mdi/identity/userapiservice/timeline/FilterOptions/mtp"
             $fromUnix = [int]($FromDate.ToUniversalTime() - $UnixEpoch).TotalSeconds
             $toUnix = [int]($ToDate.ToUniversalTime() - $UnixEpoch).TotalSeconds
 
             $filterBody = @{
+                userIdentifiers = $userIdentifiers
                 filterNames = @('Type')
                 filters = @{
                     Timeframe = @{
@@ -499,9 +513,6 @@
                     }
                 }
                 hasMultipleFilters = $false
-            }
-            if ($null -ne $userIdentifiers -and $userIdentifiers.Count -gt 0) {
-                $filterBody['userIdentifiers'] = $userIdentifiers
             }
 
             try {
@@ -513,12 +524,7 @@
                     -Headers $mdiHeaders `
                     -ErrorAction Stop
 
-                $scopeLabel = if ($isGlobalListEventTypes) { 'Global' } else { 'User' }
-                if ($isGlobalListEventTypes) {
-                    Write-Information 'Available global event types for the selected time range:' -InformationAction Continue
-                } else {
-                    Write-Information "Available event types for user '$userDisplayName':" -InformationAction Continue
-                }
+                Write-Information "Available event types for user '$userDisplayName':" -InformationAction Continue
 
                 $eventTypeResults = @()
                 if ($null -ne $filterResponse.data -and $filterResponse.data.Count -gt 0) {
@@ -527,19 +533,15 @@
                         ForEach-Object {
                             [PSCustomObject]@{
                                 EventType = [string]$_.Type
-                                Scope     = $scopeLabel
-                                User      = if ($isGlobalListEventTypes) { $null } else { $userDisplayName }
+                                Scope     = 'User'
+                                User      = $userDisplayName
                             }
                         } |
                         Sort-Object EventType -Unique
                 }
 
                 if ($eventTypeResults.Count -eq 0) {
-                    if ($isGlobalListEventTypes) {
-                        Write-Information 'No event types found for this time range.' -InformationAction Continue
-                    } else {
-                        Write-Information 'No event types found for this user and time range.' -InformationAction Continue
-                    }
+                    Write-Information 'No event types found for this user and time range.' -InformationAction Continue
                     return
                 }
 

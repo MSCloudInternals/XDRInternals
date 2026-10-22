@@ -220,7 +220,7 @@
             $result.Success | Should -BeTrue -Because $result.Error
             $result.RewindCount | Should -Be 2
             $ids | Should -Be @('50', '40a', '40b', '30')
-            Assert-MockCalled Invoke-RestMethod -Times 3 -Exactly -Scope It -ParameterFilter {
+            Should -Invoke Invoke-RestMethod -Times 3 -Exactly -Scope It -ParameterFilter {
                 ($Body | ConvertFrom-Json).skip -eq 0
             }
         }

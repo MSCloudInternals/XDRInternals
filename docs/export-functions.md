@@ -174,11 +174,13 @@ Get-XdrAzureDataExplorerIngestionStatus `
 
 ## Kusto emulator (Kustainer) export
 
-`Export-XdrKustainer` targets the local Kusto emulator without changing the hosted Azure Data Explorer export path. Start Kustainer with its HTTP port exposed, following the [Microsoft installation guide](https://learn.microsoft.com/azure/data-explorer/kusto-emulator-install):
+`Export-XdrKustainer` targets the local Kusto emulator without changing the hosted Azure Data Explorer export path. Start Kustainer with its HTTP port bound to loopback, following the [Microsoft installation guide](https://learn.microsoft.com/azure/data-explorer/kusto-emulator-install):
 
 ```bash
-docker run -e ACCEPT_EULA=Y -m 4G -d -p 8080:8080 -t mcr.microsoft.com/azuredataexplorer/kustainer-linux:latest
+docker run -e ACCEPT_EULA=Y -m 4G -d -p 127.0.0.1:8080:8080 -t mcr.microsoft.com/azuredataexplorer/kustainer-linux:latest
 ```
+
+Kustainer does not authenticate callers. Keep the local port bound to `127.0.0.1` before exporting telemetry. Remote access requires a deliberately secured network or an access-controlled proxy; TLS alone does not authenticate callers. A localhost client URL does not restrict the server listener. Use a current Docker Engine and verify that the published `HostIp` is `127.0.0.1`; see [Docker port publishing](https://docs.docker.com/engine/network/port-publishing/) for platform and routing limits.
 
 Inline ingestion requires no ingestion-policy switch and is accepted through `/v1/rest/mgmt`. Streaming ingestion through `/v1/rest/ingest` is the experimental opt-in mode described below. Kustainer doesn't expose the Azure Data Explorer queued-ingestion service.
 

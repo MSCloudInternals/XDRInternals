@@ -84,9 +84,14 @@ Get-XdrTenantContext -Force
 | Get-XdrDatalakeTableSchema                                      | Retrieves database entities schema from Microsoft Defender XDR datalake. |
 | Get-XdrEndpointAdvancedFeatures                                 | Retrieves comprehensive advanced features configuration for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointConfigurationAdvancedFeatures                    | Retrieves the advanced features configuration settings for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationAttackDisruptionExclusion           | Retrieves IP, device tag, or default device tag exclusions from automated attack disruption. |
 | Get-XdrEndpointConfigurationAuthenticatedTelemetry              | Retrieves the Authenticated Telemetry status for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationAutomatedInvestigation               | Retrieves advanced automated investigation settings for Defender for Endpoint. |
+| Get-XdrEndpointConfigurationAutomatedInvestigationExclusion      | Retrieves automated investigation memory or folder exclusions. |
+| Get-XdrEndpointConfigurationCustomCollectionModel               | Retrieves the platform and table model for Endpoint custom data collection. |
 | Get-XdrEndpointConfigurationCustomCollectionRule                | Retrieves custom collection rules for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointConfigurationIntuneConnection                    | Retrieves the Intune connection status for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationIsolationAllowRule                   | Retrieves Defender for Endpoint device isolation allow rules. |
 | Get-XdrEndpointConfigurationLiveResponse                        | Retrieves the Live Response configuration settings for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointConfigurationPotentiallyUnwantedApplications     | Retrieves the potentially unwanted applications (PUA) configuration for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointConfigurationPreviewFeature                      | Retrieves the preview features configuration for Microsoft Defender for Endpoint. |
@@ -105,6 +110,9 @@ Get-XdrTenantContext -Force
 | Get-XdrEndpointDeviceVendor                                     | Retrieves all device vendors from Microsoft Defender for Endpoint. |
 | Get-XdrEndpointDeviceWindowsReleaseVersion                      | Retrieves all Windows release versions from Microsoft Defender for Endpoint. |
 | Get-XdrEndpointLicenseReport                                    | Retrieves license usage report for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointOnboardingActivator                              | Lists Defender for Endpoint Windows onboarding activators. |
+| Get-XdrEndpointOnboardingStatus                                 | Retrieves Defender for Endpoint onboarding status. |
+| Get-XdrEndpointWebContentFilteringPolicy                        | Retrieves Defender for Endpoint web content filtering policies. |
 | Get-XdrExposureManagementRecommendations                        | Retrieves recommendations from Exposure Management. |
 | Get-XdrIdentityAlertThreshold                                   | Retrieves alert threshold configuration for Microsoft Defender for Identity. |
 | Get-XdrIdentityConfigurationDirectoryServiceAccount             | Retrieves directory service accounts for Microsoft Defender for Identity. |

@@ -84,9 +84,15 @@
             $authParams.UserAgent = $UserAgent
         }
 
-        $ssoAuth = Invoke-XdrSsoAuthentication @authParams
+        try {
+            $ssoAuth = Invoke-XdrSsoAuthentication @authParams
+        } catch {
+            $failure = Get-XdrAuthenticationFailure -ErrorRecord $_ -AuthenticationMethod SSO -Stage BrowserSignIn
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $_)
+        }
         if (-not $ssoAuth) {
-            throw 'SSO authentication failed - no authentication cookies were returned.'
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod SSO -Stage ArtifactCapture -DefaultCode NoAuthenticationArtifact
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         $resolvedTenantId = if ($ssoAuth.SelectedTenantId) {

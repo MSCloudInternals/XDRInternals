@@ -85,7 +85,11 @@
                 return $ordered
             }
             if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
-                return @($Value | ForEach-Object { & $canonicalizePayload $_ })
+                $items = [System.Collections.Generic.List[object]]::new()
+                foreach ($item in $Value) {
+                    $items.Add((& $canonicalizePayload $item))
+                }
+                return ,$items.ToArray()
             }
             return $Value
         }
@@ -251,9 +255,6 @@
                         if ($timestamp -le $requestFromDate -or $timestamp -ge $requestToDate) {
                             throw "Chunk $chunkIndex received an event outside the API's exclusive interval: $($timestamp.ToString('o'))."
                         }
-                        if ($timestamp -lt $chunkFromDate -or $timestamp -ge $chunkToDate) {
-                            throw "Chunk $chunkIndex received an event outside its logical interval: $($timestamp.ToString('o'))."
-                        }
                         if ($null -ne $previousTimestamp -and $timestamp -gt $previousTimestamp) {
                             throw "Chunk $chunkIndex received events outside descending timestamp order."
                         }
@@ -294,8 +295,13 @@
                         if ($null -ne $lastCommittedTimestamp -and $row.Timestamp -gt $lastCommittedTimestamp) {
                             throw "Chunk $chunkIndex received overlapping keyset pages outside descending timestamp order."
                         }
-                        $partWriter.WriteLine($row.Json)
                         $lastCommittedTimestamp = $row.Timestamp
+                        # API bounds round outward to seconds. Validate and paginate every
+                        # returned row, but publish only the exact logical half-open range.
+                        if ($row.Timestamp -lt $chunkFromDate -or $row.Timestamp -ge $chunkToDate) {
+                            continue
+                        }
+                        $partWriter.WriteLine($row.Json)
                         $eventCount++
                     }
                     $partWriter.Flush()

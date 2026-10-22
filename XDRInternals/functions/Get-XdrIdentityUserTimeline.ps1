@@ -714,7 +714,11 @@
                         return $ordered
                     }
                     if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
-                        return @($Value | ForEach-Object { & $canonicalizePayload $_ })
+                        $items = [System.Collections.Generic.List[object]]::new()
+                        foreach ($item in $Value) {
+                            $items.Add((& $canonicalizePayload $item))
+                        }
+                        return ,$items.ToArray()
                     }
                     return $Value
                 }
@@ -881,9 +885,6 @@
                                 if ($eventTimestamp -le $requestFromDate -or $eventTimestamp -ge $requestToDate) {
                                     throw "Chunk $chunkIndex : Timeline event fell outside the API's exclusive interval"
                                 }
-                                if ($eventTimestamp -lt $chunkFromUtc -or $eventTimestamp -ge $chunkToUtc) {
-                                    throw "Chunk $chunkIndex : Timeline event fell outside the logical interval"
-                                }
                                 if ($null -ne $previousTimestamp -and $eventTimestamp -gt $previousTimestamp) {
                                     throw "Chunk $chunkIndex : Timeline response was not in descending timestamp order"
                                 }
@@ -895,6 +896,12 @@
                                 }
                                 $pageOldestTimestamp = $eventTimestamp
                                 $pageOldestUnixSecond = $eventUnixSecond
+
+                                # Padding rows still determine raw ordering and pagination,
+                                # but only the exact logical half-open interval is returned.
+                                if ($eventTimestamp -lt $chunkFromUtc -or $eventTimestamp -ge $chunkToUtc) {
+                                    continue
+                                }
 
                                 $eventKey = & $getEventKey $timelineEvent $eventTimestamp
                                 if (-not $pageKeys.Add($eventKey)) {
@@ -981,6 +988,7 @@
                 }
             }
             # Process chunks in parallel using ForEach-Object -Parallel (PowerShell 7+)
+            $coordinatorFailures = [System.Collections.Generic.List[object]]::new()
             if ($PSVersionTable.PSVersion.Major -ge 7) {
                 $totalChunks = $dateChunks.Count
                 # Convert scriptblock to string for transfer to parallel runspaces
@@ -991,7 +999,15 @@
                         $chunk = $_
                         # Recreate scriptblock from string in parallel context
                         $script = [scriptblock]::Create($using:scriptString)
-                        & $script -chunk $chunk -userIds $using:userIds -baseParams $using:baseParams -tempPath $using:tempPath -cookieInfo $using:cookieInfo -headerInfo $using:headerInfo -baseUrl $using:baseUrl
+                        try {
+                            $chunkOutput = @(& $script -chunk $chunk -userIds $using:userIds -baseParams $using:baseParams -tempPath $using:tempPath -cookieInfo $using:cookieInfo -headerInfo $using:headerInfo -baseUrl $using:baseUrl 2>&1)
+                            if (@($chunkOutput | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }).Count -gt 0) {
+                                throw 'Chunk worker reported uncaught errors.'
+                            }
+                            $chunkOutput
+                        } catch {
+                            @{ ChunkIndex = $chunk.Index; Success = $false; Error = $_.Exception.Message }
+                        }
                     }
                 } -ArgumentList $dateChunks, $ThrottleLimit, $userIdentifiers, $baseQueryParams, $runTempPath, $cookieData, $headersData, $script:XdrBaseUrl, $processingScriptString
 
@@ -1062,7 +1078,11 @@
                     }
                 }
 
-                $results = Receive-Job -Job $parallelJob -Wait
+                $jobErrors = @($parallelJob.Error) + @($parallelJob.ChildJobs | ForEach-Object { $_.Error })
+                $results = @(Receive-Job -Job $parallelJob -Wait -ErrorAction SilentlyContinue)
+                if ($jobState -ne 'Completed' -or $jobErrors.Count -gt 0) {
+                    $coordinatorFailures.Add(@{ ChunkIndex = 'Coordinator'; Error = "Parallel job ended in state $jobState or reported worker errors." })
+                }
                 Remove-Job -Job $parallelJob -Force
             } else {
                 # Fallback for PowerShell 5.1 using runspace pool
@@ -1143,7 +1163,7 @@
                                     FromDate   = $job.Chunk.FromDate
                                     ToDate     = $job.Chunk.ToDate
                                 }
-                                $activeJobs.Remove($job)
+                                [void]$activeJobs.Remove($job)
                             }
                             $lastProgressTime.Restart()
                         }
@@ -1152,6 +1172,9 @@
                     foreach ($job in $completedJobs) {
                         try {
                             $result = $job.PowerShell.EndInvoke($job.Handle)
+                            if ($job.PowerShell.InvocationStateInfo.State -ne 'Completed' -or $job.PowerShell.Streams.Error.Count -gt 0) {
+                                throw 'Chunk worker did not complete without errors.'
+                            }
                             $results += $result
                         } catch {
                             $results += @{
@@ -1163,7 +1186,7 @@
                             }
                         }
                         $job.PowerShell.Dispose()
-                        $activeJobs.Remove($job)
+                        [void]$activeJobs.Remove($job)
 
                         if ($chunkQueue.Count -gt 0) {
                             $nextChunk = $chunkQueue.Dequeue()
@@ -1186,8 +1209,51 @@
 
             Write-Progress -Activity "Retrieving User Timeline for $userDisplayName" -Completed -Id 1
 
-            # Check for failures
-            $failures = @($results | Where-Object { -not $_.Success })
+            # Reconcile every planned chunk before publishing any timeline output.
+            # A file alone is not proof that its worker completed successfully.
+            $failures = [System.Collections.Generic.List[object]]::new()
+            foreach ($failure in $coordinatorFailures) { $failures.Add($failure) }
+            $successfulResults = [System.Collections.Generic.List[object]]::new()
+            $validatedChunks = [System.Collections.Generic.List[object]]::new()
+            $plannedIndices = @($dateChunks | ForEach-Object { [string]$_.Index })
+            foreach ($result in @($results)) {
+                if ($null -eq $result -or [string]$result.ChunkIndex -notin $plannedIndices) {
+                    $failures.Add(@{ ChunkIndex = 'Unknown'; Error = 'Worker returned an unplanned chunk result.' })
+                }
+            }
+            foreach ($chunk in $dateChunks) {
+                $chunkResults = @($results | Where-Object { $null -ne $_ -and [string]$_.ChunkIndex -eq [string]$chunk.Index })
+                try {
+                    if ($chunkResults.Count -ne 1) {
+                        throw "Expected one terminal result; received $($chunkResults.Count)."
+                    }
+                    $result = $chunkResults[0]
+                    if ($result.Success -isnot [bool] -or -not $result.Success) {
+                        throw "Chunk did not succeed: $($result.Error)"
+                    }
+                    $expectedPath = Join-Path $runTempPath ('chunk_{0:D4}_{1:yyyyMMdd}_{2:yyyyMMdd}.json' -f $chunk.Index, $chunk.FromDate, $chunk.ToDate)
+                    if ($result.FilePath -and [System.IO.Path]::GetFullPath($result.FilePath) -ne [System.IO.Path]::GetFullPath($expectedPath)) {
+                        throw 'Chunk result references an unexpected file.'
+                    }
+                    $chunkData = Get-Content -LiteralPath $expectedPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+                    if ($null -eq $chunkData -or $null -eq $chunkData.ChunkIndex -or
+                        [string]$chunkData.ChunkIndex -ne [string]$chunk.Index -or
+                        ([datetime]$chunkData.FromDate).ToUniversalTime() -ne $chunk.FromDate.ToUniversalTime() -or
+                        ([datetime]$chunkData.ToDate).ToUniversalTime() -ne $chunk.ToDate.ToUniversalTime() -or
+                        $null -eq $chunkData.PSObject.Properties['Events']) {
+                        throw 'Chunk file metadata does not match the planned interval.'
+                    }
+                    $eventCount = if ($null -eq $chunkData.Events) { 0 } else { @($chunkData.Events).Count }
+                    if ($null -eq $chunkData.EventCount -or $chunkData.EventCount -ne $eventCount -or
+                        ($null -ne $result.EventCount -and $result.EventCount -ne $eventCount)) {
+                        throw 'Chunk file event count does not match its terminal result.'
+                    }
+                    $successfulResults.Add($result)
+                    $validatedChunks.Add($chunkData)
+                } catch {
+                    $failures.Add(@{ ChunkIndex = $chunk.Index; FromDate = $chunk.FromDate; ToDate = $chunk.ToDate; Error = $_.Exception.Message })
+                }
+            }
             if ($failures.Count -gt 0) {
                 Write-Warning "Some chunks failed to retrieve: $($failures.Count) failures"
                 foreach ($fail in $failures) {
@@ -1200,7 +1266,6 @@
 
             # Output timing information for each chunk
             Write-Information "`n=== Chunk Download Statistics ===" -InformationAction Continue
-            $successfulResults = @($results | Where-Object { $_.Success })
             $totalElapsed = 0
             $totalSizeKB = 0
             foreach ($result in ($successfulResults | Sort-Object ChunkIndex)) {
@@ -1234,7 +1299,6 @@
             $fromUtcInclusive = $FromDate.ToUniversalTime()
             $toUtcExclusive = $ToDate.ToUniversalTime()
             $sha256 = [System.Security.Cryptography.SHA256]::Create()
-            $chunkFiles = Get-ChildItem -Path $runTempPath -Filter "chunk_*.json" -ErrorAction SilentlyContinue | Sort-Object Name
 
             $canonicalizePayload = {
                 param($Value)
@@ -1254,7 +1318,11 @@
                     return $ordered
                 }
                 if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
-                    return @($Value | ForEach-Object { & $canonicalizePayload $_ })
+                    $items = [System.Collections.Generic.List[object]]::new()
+                    foreach ($item in $Value) {
+                        $items.Add((& $canonicalizePayload $item))
+                    }
+                    return ,$items.ToArray()
                 }
                 return $Value
             }
@@ -1323,8 +1391,7 @@
                 }
             }
 
-            foreach ($file in $chunkFiles) {
-                $chunkData = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json
+            foreach ($chunkData in $validatedChunks) {
                 if ($null -ne $chunkData.Events -and $chunkData.Events.Count -gt 0) {
                     foreach ($timelineEvent in $chunkData.Events) {
                         $timelineEvent.PSObject.TypeNames.Insert(0, 'XdrIdentityUserTimelineEvent')
@@ -1405,8 +1472,8 @@
 
             $operationStartTime.Stop()
             $totalEvents = $sortedEvents.Count
-            $successCount = @($results | Where-Object { $_.Success }).Count
-            $failCount = @($results | Where-Object { -not $_.Success }).Count
+            $successCount = $successfulResults.Count
+            $failCount = $failures.Count
             $wallClockSeconds = $operationStartTime.Elapsed.TotalSeconds
             $totalSizeMB = [math]::Round($totalSizeKB / 1024, 1)
             $effectiveRate = if ($wallClockSeconds -gt 0) { [math]::Round($totalEvents / $wallClockSeconds, 1) } else { 0 }

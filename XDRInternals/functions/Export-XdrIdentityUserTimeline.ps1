@@ -36,6 +36,8 @@
     .PARAMETER Force
         Starts a replacement export when Path or incompatible resumable state exists.
         An existing final file remains available until the replacement is complete.
+        To resume an interrupted replacement, omit Force. The destination must still match
+        the prior file fingerprint recorded when the replacement was authorized.
 
     .EXAMPLE
         Export-XdrIdentityUserTimeline -Upn 'user@contoso.com' -FromDate $from -ToDate $to -Path '.\identity.ndjson'
@@ -127,7 +129,11 @@
                 return $ordered
             }
             if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
-                return @($Value | ForEach-Object { & $canonicalize $_ })
+                $items = [System.Collections.Generic.List[object]]::new()
+                foreach ($item in $Value) {
+                    $items.Add((& $canonicalize $item))
+                }
+                return ,$items.ToArray()
             }
             return $Value
         }
@@ -204,6 +210,7 @@
         if ($manifest) {
             $compatible =
                 [int]$manifest.SchemaVersion -eq 2 -and
+                [int]$manifest.CanonicalizationVersion -eq 2 -and
                 [string]$manifest.IdentityFingerprint -eq $identityFingerprint -and
                 ([datetime]$manifest.FromDateUtc).ToUniversalTime().Ticks -eq $rangeStart.Ticks -and
                 ([datetime]$manifest.ToDateUtc).ToUniversalTime().Ticks -eq $rangeEnd.Ticks -and
@@ -213,6 +220,23 @@
             if (-not $compatible) {
                 throw "Manifest '$manifestPath' does not match this request. Use -Force to discard it or choose another Path."
             }
+        }
+
+        # Both publication paths must independently recheck overwrite permission and identity.
+        $assertPublicationDestination = {
+            if (-not (Test-Path -LiteralPath $outputPath -PathType Leaf)) { return $false }
+            $replacement = $manifest.Replacement
+            $authorized = [bool]$manifest.ReplaceExisting -and $replacement -and
+                $null -ne $replacement.FileBytes -and
+                -not [string]::IsNullOrWhiteSpace([string]$replacement.FileSha256)
+            if ($authorized) {
+                $authorized = (Get-Item -LiteralPath $outputPath -ErrorAction Stop).Length -eq [long]$replacement.FileBytes -and
+                    (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256 -ErrorAction Stop).Hash -eq [string]$replacement.FileSha256
+            }
+            if (-not $authorized) {
+                throw 'The destination does not match an authorized replacement. It was not overwritten. Use -Force to start a new replacement or choose another Path.'
+            }
+            return $true
         }
 
         if ($manifest -and [string]$manifest.State -in @('Publishing', 'Complete')) {
@@ -233,7 +257,8 @@
                     $validPartial = (Get-FileHash -LiteralPath $outputPartialPath -Algorithm SHA256).Hash.ToLowerInvariant() -eq $expectedHash
                 }
                 if ($validPartial) {
-                    [System.IO.File]::Move($outputPartialPath, $outputPath, $true)
+                    $replaceDestination = & $assertPublicationDestination
+                    [System.IO.File]::Move($outputPartialPath, $outputPath, $replaceDestination)
                     $validOutput = $true
                 }
             }
@@ -265,11 +290,14 @@
             if ([string]$manifest.State -eq 'Complete') {
                 throw "Completed export '$outputPath' failed validation. Use -Force to replace it."
             }
+            $null = & $assertPublicationDestination
             $manifest.State = 'InProgress'
             if (Test-Path -LiteralPath $outputPartialPath) {
                 Remove-Item -LiteralPath $outputPartialPath -Force -ErrorAction SilentlyContinue
             }
         }
+
+        if ($manifest) { $null = & $assertPublicationDestination }
 
         if (-not $manifest) {
             $chunks = [System.Collections.Generic.List[object]]::new()
@@ -300,10 +328,16 @@
                 }
             )
             $manifest = [ordered]@{
-                SchemaVersion = 2; State = 'InProgress'; IdentityFingerprint = $identityFingerprint
+                SchemaVersion = 2; CanonicalizationVersion = 2; State = 'InProgress'; IdentityFingerprint = $identityFingerprint
                 IdentitySelector = $selectorName; FromDateUtc = $rangeStart.ToString('o'); ToDateUtc = $rangeEnd.ToString('o')
                 ChunkHours = $chunkHours; PageSize = $pageSize; PaginationStrategy = $paginationStrategy
-                Ordering = 'NewestTimeWindowFirst;ApiTimestampDescending'; ReplaceExisting = $existingOutputAtStart
+                Ordering = 'NewestTimeWindowFirst;ApiTimestampDescending'; ReplaceExisting = ($Force.IsPresent -and $existingOutputAtStart)
+                Replacement = if ($Force.IsPresent -and $existingOutputAtStart) {
+                    [ordered]@{
+                        FileBytes = (Get-Item -LiteralPath $outputPath -ErrorAction Stop).Length
+                        FileSha256 = (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+                    }
+                } else { $null }
                 CreatedUtc = [datetime]::UtcNow.ToString('o'); UpdatedUtc = [datetime]::UtcNow.ToString('o')
                 Chunks = $manifestChunks; Summary = $null
             }
@@ -544,7 +578,8 @@
             CompletedUtc = [datetime]::UtcNow.ToString('o')
         }
         & $writeManifest $manifest
-        [System.IO.File]::Move($outputPartialPath, $outputPath, $true)
+        $replaceDestination = & $assertPublicationDestination
+        [System.IO.File]::Move($outputPartialPath, $outputPath, $replaceDestination)
 
         $partsRetained = $false
         try { Remove-Item -LiteralPath $partsPath -Recurse -Force -ErrorAction Stop }

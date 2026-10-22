@@ -56,6 +56,7 @@ Get-XdrTenantContext -Force
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
 | Export-XdrAzureDataExplorer                                     | Exports pipeline data to Azure Data Explorer using queued ingestion. |
 | Export-XdrEndpointDeviceTimeline                                | Exports a Microsoft Defender XDR device timeline to NDJSON. |
+| Export-XdrIdentityUserTimeline                                  | Exports a Microsoft Defender for Identity user timeline to NDJSON. |
 | Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |
 | Get-XdrActionsCenterHistory                                     | Retrieves historical actions from the Microsoft Defender XDR Action Center. |
 | Get-XdrActionsCenterPending                                     | Retrieves pending actions from the Microsoft Defender XDR Action Center. |
@@ -395,6 +396,85 @@ final SHA-256. The 8-hour challenger exceeded the memory gate in both runs and w
 in the reverse comparison. The 2-hour challenger added retries and restarts in both runs
 and was also slower in the reverse comparison. Neither challenger qualified to replace
 the defaults.
+
+#### Large identity timeline exports
+
+Use `Export-XdrIdentityUserTimeline` for a full, disk-backed Defender for Identity user
+timeline. The identity API has different pagination and boundary rules from the device
+timeline, so this command uses a separate worker while preserving the same resumable
+NDJSON contract:
+
+```powershell
+$from = (Get-Date).ToUniversalTime().AddDays(-90)
+$to = (Get-Date).ToUniversalTime()
+
+Export-XdrIdentityUserTimeline `
+    -Upn 'user@contoso.com' `
+    -FromDate $from `
+    -ToDate $to `
+    -Path '.\identity-timeline-90d.ndjson'
+```
+
+The command accepts `-Upn`, `-AadId`, `-Sid`, or `-RadiusUserId`, exports one identity
+per invocation, and uses fixed internal 12-hour windows with eight workers. Completed
+parts are length- and SHA-256-validated before resume. An existing final file remains in
+place during a `-Force` replacement and is atomically replaced only after the new export
+has been fully validated.
+
+Identity Sentinel anomalies are not included in this initial exporter. The current
+identity Sentinel route is a separate API and requires additional completeness and
+pagination validation before it can be used for incident-response export. A live entity
+resolved by AadId and SID exposed an `armId`; its ARM timeline accepted 7-, 30-, and
+31-day requests but rejected 60-, 89-, and 90-day requests with HTTP 400. Values above
+six for `numberOfBucket` were also rejected. The successful responses contained no
+anomalies, so result limits and pagination under load remain unvalidated.
+
+Live validation found that offset pages are not stable enough for high-fidelity export.
+On a dense six-hour range, adjacent offset pages repeated 13 EventIds while page
+membership and `Description` values changed between identical requests. Deduplicating
+those pages yielded fewer logical events than timestamp-keyset retrieval.
+
+The exporter therefore always requests `skip = 0`. After a full page, it withholds the
+oldest timestamp group and repeats the request with that second as the new upper bound.
+Two delayed, fresh-context 30-day probes for a dense test identity each produced the
+same 23,490-event logical set across 36 requests; the largest tied boundary contained
+723 events in one second. Two probes for a lower-volume identity likewise produced the
+same logical set. Duplicate
+representations are counted, the first raw object is retained unchanged, and the export
+fails if one second fills all 1,000 rows because completeness cannot then be proven.
+
+Follow-up testing kept the 1,000-row page size. On a dense 30-day range, both 250- and
+500-row pages failed closed because two API seconds each filled an entire page; the
+1,000-row run completed with 23,502 events and a maximum of 723 events in one second.
+A separate low-volume 30-day range returned the same 335-event canonical set with page
+sizes 250, 500, and 1,000, supporting the short-page terminal assumption where the page
+can represent a complete second.
+
+The same follow-up compared 6-, 12-, and 24-hour windows with 4, 8, and 16 workers on a
+dense fixed seven-day range. All nine aligned runs produced the same 10,070-event
+canonical set. The 12-hour/eight-worker candidate was then interleaved with the prior
+24-hour/eight-worker default over 30 days: 12-hour runs completed in 56.2 and 61.0
+seconds versus 70.8 and 68.2 seconds for 24 hours. All four returned the same 23,502
+events with no retries or restarts; peak working set ranged from 573 to 700 MiB for 12
+hours and 658 to 678 MiB for 24 hours. The repeatable improvement earned the 12-hour
+default, while worker count and page size remain unchanged and private.
+
+A midnight-aligned stress range also exposed a service boundary violation: the API
+repeatedly returned a 23:59:59 event outside its exclusive lower bound. Every tested
+window size rejected that response after fresh-window restarts instead of publishing
+overlapping output.
+
+Independent validation also confirmed line count, half-open range, global ordering,
+byte length, SHA-256, interruption/resume, and adjacent-window set equality. A live
+12-hour-window export resumed 18 of 60 hash-validated parts after interruption and
+completed 23,502 rows with matching length and SHA-256. On a fixed
+six-hour range, the public `Get-` and `Export-` commands returned identical 1,845-event
+stable sets. Repeated raw-file hashes are not expected to match: the service changed
+only `Id`, `RowNumber`, and `Description` on otherwise identical logical events during
+the delayed 30-day comparison. The service also added one 44-day-old event without an
+`EventId` between delayed 90-day snapshots. Treat an export as a point-in-time service
+snapshot and preserve its manifest timestamps; rerun important historical ranges when
+late backend enrichment matters.
 
 #### Azure Data Explorer export
 

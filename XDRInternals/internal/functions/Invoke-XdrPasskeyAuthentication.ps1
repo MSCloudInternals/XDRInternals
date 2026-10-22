@@ -534,7 +534,7 @@ function Invoke-XdrPasskeyAuthentication {
 
     if ($authFailed) {
         $failureCode = if ($useKeyVault) { 'KeyVaultAccessFailed' } else { 'PasskeyAssertionFailed' }
-        $failure = Get-XdrAuthenticationFailure -AuthenticationMethod SoftwarePasskey -Stage AssertionValidation -DefaultCode $failureCode
+        $failure = Get-XdrAuthenticationFailure -AuthState $debug -Response $respFinalize -AuthenticationMethod SoftwarePasskey -Stage AssertionValidation -DefaultCode $failureCode
         throw (New-XdrAuthenticationErrorRecord -Failure $failure)
     }
     #endregion
@@ -547,7 +547,7 @@ function Invoke-XdrPasskeyAuthentication {
 
     $estsCookies = $allCookies | Where-Object Name -Like "ESTS*"
     if (-not $estsCookies) {
-        $failure = Get-XdrAuthenticationFailure -AuthenticationMethod SoftwarePasskey -Stage ArtifactCapture -DefaultCode NoAuthenticationArtifact
+        $failure = Get-XdrAuthenticationFailure -AuthState $debug -Response $respFinalize -AuthenticationMethod SoftwarePasskey -Stage ArtifactCapture -DefaultCode NoAuthenticationArtifact
         throw (New-XdrAuthenticationErrorRecord -Failure $failure)
     }
 

@@ -150,14 +150,14 @@
         }
         try {
             $null = Invoke-WebRequest -UseBasicParsing -ErrorAction Stop -WebSession $session -Method Post -Uri $SecurityPortalUri -Body $Body -Verbose:$false
+            $SessionCookies = $session.Cookies.GetCookies('https://security.microsoft.com') | Select-Object -ExpandProperty Name
+            Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
+            Write-Host "Successfully obtained XDR session cookies."
+            # Save session and headers in script scope
+            Set-XdrConnectionSettings -WebSession $session
         } catch {
             $failure = Get-XdrAuthenticationFailure -ErrorRecord $_ -AuthenticationMethod EstsCookie -Stage PortalBootstrap -DefaultCode BootstrapFailed
             throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $_)
         }
-        $SessionCookies = $session.Cookies.GetCookies('https://security.microsoft.com') | Select-Object -ExpandProperty Name
-        Write-Verbose "Session cookies: $( $SessionCookies -join ', ' )"
-        Write-Host "Successfully obtained XDR session cookies."
-        # Save session and headers in script scope
-        Set-XdrConnectionSettings -WebSession $session
     }
 }

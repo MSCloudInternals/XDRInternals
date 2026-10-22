@@ -157,6 +157,22 @@
                 throw "Manifest '$manifestPath' could not be read. Use -Force to start a new export. $($_.Exception.Message)"
             }
 
+            # Legacy millisecond-aligned chunks used equivalent service bounds.
+            # Fractional legacy parts may be hash-valid while missing boundary events.
+            $boundsCompatible = if ($manifest.ContainsKey('RequestBoundsVersion')) {
+                [string]$manifest.RequestBoundsVersion -eq '1'
+            } else {
+                $legacyBounds = @($manifest.FromDateUtc, $manifest.ToDateUtc) + @(
+                    foreach ($chunk in @($manifest.Chunks)) { $chunk.FromDateUtc; $chunk.ToDateUtc }
+                )
+                @($legacyBounds | Where-Object {
+                    ([datetime]$_).Ticks % [timespan]::TicksPerMillisecond -ne 0
+                }).Count -eq 0
+            }
+            if (-not $boundsCompatible) {
+                throw "Manifest '$manifestPath' uses incompatible request bounds. Use -Force to recollect or choose another Path; existing artifacts were preserved."
+            }
+
             $compatible =
                 [int]$manifest.SchemaVersion -eq 1 -and
                 [string]$manifest.DeviceId -eq $DeviceId -and
@@ -276,6 +292,7 @@
             )
             $manifest = [ordered]@{
                 SchemaVersion         = 1
+                RequestBoundsVersion  = 1
                 State                 = 'InProgress'
                 DeviceId              = $DeviceId
                 FromDateUtc           = $rangeStart.ToString('o')

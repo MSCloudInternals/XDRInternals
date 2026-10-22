@@ -9,7 +9,9 @@
         /v2/rest/query. Commands beginning with a period use /v1/rest/mgmt.
 
         Configure the default endpoint and database with Set-XdrKustainer, or provide both values
-        directly with ClusterUri and Database.
+        directly with ClusterUri and Database. Ordinary query output supports at most one
+        PrimaryResult table. Multiple primary tables are rejected before emitting rows;
+        use -Raw to retain all tables, their schemas, and completion frames.
 
     .PARAMETER Query
         The KQL query or management command to execute.
@@ -148,13 +150,11 @@
             $response
         }
         else {
-            [pscustomobject]@{
-                Tables = @(
-                    $response |
-                        Where-Object { $_.FrameType -eq 'DataTable' -and $_.TableKind -eq 'PrimaryResult' } |
-                        Select-Object -First 1
-                )
+            $primaryResults = @($response | Where-Object { $_.FrameType -eq 'DataTable' -and $_.TableKind -eq 'PrimaryResult' })
+            if ($primaryResults.Count -gt 1) {
+                throw 'Kustainer returned multiple PrimaryResult tables. Use -Raw to preserve all result tables and their schemas.'
             }
+            [pscustomobject]@{ Tables = $primaryResults }
         }
 
         ConvertFrom-XdrAzureDataExplorerResponseTable -Response $tableResponse

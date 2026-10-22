@@ -2861,6 +2861,38 @@
             }
         }
 
+        It 'rejects multiple primary tables before any row output (<AsJson>)' -ForEach @(
+            @{ AsJson = $false }
+            @{ AsJson = $true }
+        ) {
+            InModuleScope XDRInternals -Parameters @{ AsJson = $AsJson } {
+                param($AsJson)
+                $script:multipleTables = @(
+                    @{ FrameType = 'DataTable'; TableKind = 'PrimaryResult'; TableId = 0
+                        Columns = @(@{ ColumnName = 'First'; ColumnType = 'string' }); Rows = @(, @('one')) },
+                    @{ FrameType = 'DataTable'; TableKind = 'PrimaryResult'; TableId = 1
+                        Columns = @(@{ ColumnName = 'Second'; ColumnType = 'long' }); Rows = @(, @(2)) },
+                    @{ FrameType = 'DataSetCompletion'; HasErrors = $false; Cancelled = $false }
+                )
+                if ($AsJson) { $script:multipleTables = ConvertTo-Json -InputObject $script:multipleTables -Depth 10 }
+                Mock Invoke-XdrAzureDataExplorerRestRequest { $script:multipleTables }
+                $rows = [System.Collections.Generic.List[object]]::new()
+
+                { Invoke-XdrKustainerQuery -Query 'synthetic two-result query' | ForEach-Object { $rows.Add($_) } } |
+                    Should -Throw '*multiple PrimaryResult tables*Use -Raw*'
+                $rows.Count | Should -Be 0
+
+                $raw = @(Invoke-XdrKustainerQuery -Query 'synthetic two-result query' -Raw)
+                $raw | Should -HaveCount 3
+                $raw[0].Columns[0].ColumnName | Should -Be 'First'
+                $raw[1].Columns[0].ColumnName | Should -Be 'Second'
+                $raw[1].Columns[0].ColumnType | Should -Be 'long'
+                $raw[0].Rows[0][0] | Should -Be 'one'
+                $raw[1].Rows[0][0] | Should -Be 2
+                $raw[2].FrameType | Should -Be 'DataSetCompletion'
+            }
+        }
+
         It 'rejects partial query results before emitting rows (<AsJson>)' -TestCases @(
             @{ AsJson = $false }
             @{ AsJson = $true }

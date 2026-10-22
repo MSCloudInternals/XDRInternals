@@ -38,7 +38,7 @@ Describe 'Identity timeline fractional API envelope' {
         @{ Case = 'both margins and exact logical boundaries'; Pages = @('02.900,02.750,02.749,00.250,00.100'); PageSize = 10; Expected = @('at-02.749','at-00.250'); UpperBounds = @(1767225603); Fails = $false }
         @{ Case = 'full pages withholding the oldest raw second'; Pages = @('02.900,02.749,01.900,01.100','01.900,01.100,00.250,00.100','00.250,00.100'); PageSize = 4; Expected = @('at-02.749','at-01.900','at-01.100','at-00.250'); UpperBounds = @(1767225603,1767225602,1767225601); Fails = $false }
         @{ Case = 'padding-only full page still advances'; Pages = @('02.900,00.100','00.100'); PageSize = 2; Expected = @(); UpperBounds = @(1767225603,1767225601); Fails = $false }
-        @{ Case = 'exclusive API lower bound violation'; Pages = @('00.000'); PageSize = 10; Expected = @(); Fails = $true }
+        @{ Case = 'below API lower bound violation'; Pages = @('-00.0000001'); PageSize = 10; Expected = @(); Fails = $true }
         @{ Case = 'exclusive API upper bound violation'; Pages = @('03.000'); PageSize = 10; Expected = @(); Fails = $true }
         @{ Case = 'padding participates in raw ordering'; Pages = @('02.500,02.900'); PageSize = 10; Expected = @(); Fails = $true }
         @{ Case = 'padding-filled single second remains unpageable'; Pages = @('02.900,02.800'); PageSize = 2; Expected = @(); Fails = $true }
@@ -54,7 +54,7 @@ Describe 'Identity timeline fractional API envelope' {
             $script:FractionalUpperBounds.Add($request.filters.Timeframe.between[1])
             if ($script:FractionalCall -ge $script:FractionalPages.Count) { throw 'Unexpected extra page' }
             $events = @($script:FractionalPages[$script:FractionalCall].Split(',') | ForEach-Object {
-                [pscustomobject]@{ EventId = "at-$_"; Timestamp = "2026-01-01T00:00:${_}Z" }
+                [pscustomobject]@{ EventId = "at-$_"; Timestamp = $(if ($_ -eq '-00.0000001') { '2025-12-31T23:59:59.9999999Z' } else { "2026-01-01T00:00:${_}Z" }) }
             })
             $script:FractionalCall++
             [pscustomobject]@{ count = $events.Count; data = $events; errors = $null }

@@ -252,7 +252,10 @@
                             $missingTimestampCount++
                             throw "Chunk $chunkIndex received an event without a parseable Timestamp."
                         }
-                        if ($timestamp -le $requestFromDate -or $timestamp -ge $requestToDate) {
+                        # The portal may echo its exact lower bound. Accept that echo only
+                        # as padding below the logical interval; retain every raw paging check.
+                        if ($timestamp -lt $requestFromDate -or $timestamp -ge $requestToDate -or
+                            ($timestamp -eq $requestFromDate -and $timestamp -ge $chunkFromDate)) {
                             throw "Chunk $chunkIndex received an event outside the API's exclusive interval: $($timestamp.ToString('o'))."
                         }
                         if ($null -ne $previousTimestamp -and $timestamp -gt $previousTimestamp) {

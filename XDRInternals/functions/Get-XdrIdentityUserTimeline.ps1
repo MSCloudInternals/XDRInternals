@@ -882,7 +882,10 @@
                                     throw "Chunk $chunkIndex : Timeline event Timestamp could not be parsed"
                                 }
                                 $eventTimestamp = $parsedTimestamp.UtcDateTime
-                                if ($eventTimestamp -le $requestFromDate -or $eventTimestamp -ge $requestToDate) {
+                                # The portal may echo its exact lower bound. Accept that echo only
+                                # as padding below the logical interval; retain every raw paging check.
+                                if ($eventTimestamp -lt $requestFromDate -or $eventTimestamp -ge $requestToDate -or
+                                    ($eventTimestamp -eq $requestFromDate -and $eventTimestamp -ge $chunkFromUtc)) {
                                     throw "Chunk $chunkIndex : Timeline event fell outside the API's exclusive interval"
                                 }
                                 if ($null -ne $previousTimestamp -and $eventTimestamp -gt $previousTimestamp) {

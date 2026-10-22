@@ -80,13 +80,19 @@ The exporter therefore sends `skip = 0` and pages by timestamp. It validates tha
 
 - `count` equals the number of returned records;
 - `errors` has no properties (the successful response is an empty object);
-- every `Timestamp` is parseable, descending, and inside the requested interval;
+- every `Timestamp` is parseable, descending, and inside the service envelope
+  with only the exact lower-bound padding exception described below;
 - only representations differing in observed volatile fields share a duplicate key.
 
-The service treats its Unix-second bounds as exclusive. To implement a conventional
-half-open `[FromDate, ToDate)` interval, the worker sends
-`(ceil(FromDate)-1 second, ceil(ToDate))` and validates the returned timestamps again.
-This prevents an event exactly on an adjacent window boundary from being lost.
+To implement a conventional half-open `[FromDate, ToDate)` interval, the worker sends
+Unix-second bounds `(ceil(FromDate)-1 second, ceil(ToDate))`. Portal probes also observed
+rows exactly equal to the sent lower bound. Both identity collectors tolerate that
+equality only when it is below the logical `FromDate`, and omit it from output. Rows
+strictly below the sent lower bound or at/above the sent upper bound still fail closed.
+Raw ordering, page length and complete-second withholding include the padding rows;
+filtering them does not turn a full page into a short response. An entirely full
+single-second page still fails with `UnpageableBoundary`. Exact logical half-open
+filtering prevents an event on an adjacent window boundary from being duplicated or lost.
 
 For every full 1,000-row response, the worker withholds the complete oldest API-second
 group, commits only the newer prefix, and repeats `skip = 0` with that second included
@@ -197,8 +203,8 @@ documented service guarantee.
 
 On a separate midnight-aligned dense range, the service repeatedly returned an event
 one second outside its stated exclusive lower bound. Six-, 12-, and 24-hour variants
-all rejected it after fresh-window restarts. This safe failure is preferable to silently
-duplicating an event across adjacent windows.
+all rejected it after fresh-window restarts. Such strictly below-bound rows remain
+rejected; the exact lower-bound padding exception does not accept them.
 
 Independent streaming validation confirmed line count, range, global order, length,
 SHA-256, interruption/resume, and equality across adjacent-window splits. A fixed

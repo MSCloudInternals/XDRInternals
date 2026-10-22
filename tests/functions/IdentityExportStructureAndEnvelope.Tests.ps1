@@ -51,7 +51,7 @@
         @{ Case='full mixed page with withheld oldest second'; Times=@(@('03.8','03.5','02.8','01.7'),@('01.7','01.5','01.2')); Size=4; Expected=@('02.8','01.7','01.5'); Success=$true; Pages=2 }
         @{ Case='padding-only full page keeps raw progress'; Times=@(@('03.9','03.8','01.4','01.3'),@('01.4','01.3')); Size=4; Expected=@(); Success=$true; Pages=2 }
         @{ Case='padding-only full single second is unpageable'; Times=@(@('03.9','03.8','03.7','03.6')); Size=4; Expected=@(); Success=$false; Error='*cannot prove completeness*' }
-        @{ Case='API exclusive lower bound'; Times=@(@('01.0')); Size=10; Expected=@(); Success=$false; Error='*exclusive interval*' }
+        @{ Case='below API lower bound'; Times=@(@('00.9999999')); Size=10; Expected=@(); Success=$false; Error='*exclusive interval*' }
         @{ Case='API exclusive upper bound'; Times=@(@('04.0')); Size=10; Expected=@(); Success=$false; Error='*exclusive interval*' }
         @{ Case='ascending padding is invalid'; Times=@(@('03.6','03.8')); Size=10; Expected=@(); Success=$false; Error='*descending timestamp order*' }
     ) {

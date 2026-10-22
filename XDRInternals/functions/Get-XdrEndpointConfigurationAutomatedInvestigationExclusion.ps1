@@ -50,16 +50,21 @@
         }
 
         try {
-            $result = Invoke-RestMethod -Uri $uri -Method Get -ContentType 'application/json' -WebSession $script:session -Headers $script:headers
+            $result = Invoke-RestMethod -Uri $uri -Method Get -ContentType 'application/json' -WebSession $script:session -Headers $script:headers -MaximumRedirection 0 -ErrorAction Stop
             $page = $result
             $results = @($result.results)
             $visited = [System.Collections.Generic.HashSet[string]]::new()
             while ($page.PSObject.Properties['next'] -and $page.next) {
                 $nextUri = [uri]::new([uri]$uri, [string]$page.next)
-                if ($nextUri.Host -ne 'security.microsoft.com' -or $nextUri.AbsolutePath -ne ([uri]$uri).AbsolutePath -or -not $visited.Add($nextUri.AbsoluteUri)) {
+                if ($nextUri.Scheme -ne ([uri]$uri).Scheme -or
+                    $nextUri.Port -ne ([uri]$uri).Port -or
+                    $nextUri.UserInfo -ne '' -or
+                    $nextUri.Host -ne 'security.microsoft.com' -or
+                    $nextUri.AbsolutePath -ne ([uri]$uri).AbsolutePath -or
+                    -not $visited.Add($nextUri.AbsoluteUri)) {
                     throw 'Invalid automated investigation exclusion continuation link.'
                 }
-                $page = Invoke-RestMethod -Uri $nextUri.AbsoluteUri -Method Get -ContentType 'application/json' -WebSession $script:session -Headers $script:headers
+                $page = Invoke-RestMethod -Uri $nextUri.AbsoluteUri -Method Get -ContentType 'application/json' -WebSession $script:session -Headers $script:headers -MaximumRedirection 0 -ErrorAction Stop
                 $results += @($page.results)
             }
             if ($visited.Count -gt 0) {

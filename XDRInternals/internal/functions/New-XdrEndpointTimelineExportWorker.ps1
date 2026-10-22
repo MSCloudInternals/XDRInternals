@@ -54,12 +54,21 @@
                 $webSession.Cookies.Add($cookie)
             }
 
+            # The portal request uses milliseconds; retain the exact logical interval
+            # separately and request an outward envelope so no fractional event is lost.
+            $serviceFromDate = $chunkFromDate.AddTicks(-($chunkFromDate.Ticks % [timespan]::TicksPerMillisecond))
+            $serviceToDate = $chunkToDate
+            $toRemainder = $chunkToDate.Ticks % [timespan]::TicksPerMillisecond
+            if ($toRemainder -ne 0) {
+                $serviceToDate = $chunkToDate.AddTicks([timespan]::TicksPerMillisecond - $toRemainder)
+            }
+
             $queryParameters = @(
                 'generateIdentityEvents=true'
                 'includeIdentityEvents=true'
                 'supportMdiOnlyEvents=true'
-                "fromDate=$([System.Uri]::EscapeDataString($chunkFromDate.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')))"
-                "toDate=$([System.Uri]::EscapeDataString($chunkToDate.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')))"
+                "fromDate=$([System.Uri]::EscapeDataString($serviceFromDate.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')))"
+                "toDate=$([System.Uri]::EscapeDataString($serviceToDate.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')))"
                 "correlationId=$([guid]::NewGuid())"
                 'doNotUseCache=false'
                 'forceUseCache=false'
@@ -68,7 +77,7 @@
             )
             $requestUri = "$($sharedParameters.BaseUrl)/apiproxy/mtp/mdeTimelineExperience/machines/$($sharedParameters.DeviceId)/events/?$($queryParameters -join '&')"
             $seenUris = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
-            $currentRequestToUtc = $chunkToDate
+            $currentRequestToUtc = $serviceToDate
 
             $fileStream = [System.IO.FileStream]::new(
                 $partialPath,
@@ -243,7 +252,7 @@
                         $missingTimestampCount++
                         throw "Chunk $chunkIndex received an event without a parseable timestamp."
                     }
-                    if ($utcTimestamp -lt $chunkFromDate -or $utcTimestamp -gt $chunkToDate) {
+                    if ($utcTimestamp -lt $serviceFromDate -or $utcTimestamp -gt $serviceToDate) {
                         throw "Chunk $chunkIndex received an event outside its requested interval: $($utcTimestamp.ToString('o'))."
                     }
                     if ($null -ne $previousTimestampUtc -and $utcTimestamp -gt $previousTimestampUtc) {
@@ -254,7 +263,7 @@
                     if ($utcTimestamp -eq $chunkFromDate -or $utcTimestamp -eq $chunkToDate) {
                         $boundaryTimestampCount++
                     }
-                    if ($utcTimestamp -eq $chunkToDate) {
+                    if ($utcTimestamp -lt $chunkFromDate -or $utcTimestamp -ge $chunkToDate) {
                         continue
                     }
 
@@ -346,7 +355,7 @@
                         [System.Globalization.CultureInfo]::InvariantCulture,
                         $continuationDateStyles,
                         [ref]$continuationFromUtc
-                    ) -and $continuationFromUtc.UtcDateTime -eq $chunkFromDate
+                    ) -and $continuationFromUtc.UtcDateTime -eq $serviceFromDate
                     $toDateWasParsed = $queryValues.ContainsKey('toDate') -and [datetimeoffset]::TryParse(
                         $queryValues['toDate'],
                         [System.Globalization.CultureInfo]::InvariantCulture,
@@ -354,7 +363,7 @@
                         [ref]$continuationToUtc
                     )
                     $toDateIsValid = $toDateWasParsed -and
-                        $continuationToUtc.UtcDateTime -lt $chunkToDate -and
+                        $continuationToUtc.UtcDateTime -lt $serviceToDate -and
                         $continuationToUtc.UtcDateTime -le $currentRequestToUtc
                     if ($toDateIsValid) {
                         if ($null -ne $oldestPageTimestampUtc) {
@@ -362,7 +371,7 @@
                                 $continuationToUtc.UtcDateTime -eq $oldestPageTimestampUtc.AddTicks(-1)
                         }
                         else {
-                            $toDateIsValid = $continuationToUtc.UtcDateTime -ge $chunkFromDate
+                            $toDateIsValid = $continuationToUtc.UtcDateTime -ge $serviceFromDate
                         }
                     }
                     $reportIdIsValid = $queryValues.ContainsKey('ReportIdForScrolling') -and

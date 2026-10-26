@@ -14,6 +14,8 @@
 	[string[]]$Exclude = @()
 )
 
+$ErrorActionPreference = 'Stop'
+
 Write-Host "Starting Tests"
 
 Write-Host "Importing Module"

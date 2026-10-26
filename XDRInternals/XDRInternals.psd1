@@ -137,6 +137,7 @@
         "Get-XdrIncident",
         "Get-XdrIncidentAssociatedAlert",
         "Get-XdrMtoTenantList",
+        "Get-XdrSentinelConfigurationSetting",
         "Get-XdrStreamingApiConfiguration",
         "Get-XdrSuppressionRule",
         "Get-XdrTenantContext",

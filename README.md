@@ -40,6 +40,8 @@ Get-XdrTenantContext
 Get-XdrTenantContext -Force
 ```
 
+Portal reporting is available through `Get-XdrReportDefinition`, `Get-XdrReport`, and `Get-XdrEndpointDeviceControlReport`. See [report coverage and validation](docs/reporting.md) for examples, discovered operations, and availability limits.
+
 ## Available Cmdlets
 
 | Cmdlet | Description |
@@ -93,6 +95,7 @@ Get-XdrTenantContext -Force
 | Get-XdrEndpointConfigurationPurviewSharing                      | Retrieves the Purview alert sharing configuration for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointDevice                                           | Retrieves endpoint devices from Microsoft Defender XDR. |
 | Get-XdrEndpointDeviceActionResult                               | Gets device action results and download URIs from Microsoft Defender XDR. |
+| Get-XdrEndpointDeviceControlReport                              | Retrieves Microsoft Defender for Endpoint Device Control report data. |
 | Get-XdrEndpointDeviceLiveResponseLibrary                        | Retrieves the Live Response library files from Microsoft Defender XDR. |
 | Get-XdrEndpointDeviceLiveResponseLibraryFile                    | Downloads a script file from the Live Response library. |
 | Get-XdrEndpointDeviceModel                                      | Retrieves all device models from Microsoft Defender for Endpoint. |
@@ -119,6 +122,8 @@ Get-XdrTenantContext -Force
 | Get-XdrIncident                                                 | Retrieves incidents from Microsoft Defender XDR. |
 | Get-XdrIncidentAssociatedAlert                                  | Retrieves alerts associated with a specific incident from Microsoft Defender XDR. |
 | Get-XdrMtoTenantList                                            | Retrieves the list of accessible tenants from Microsoft Defender XDR. |
+| Get-XdrReport                                                   | Retrieves Microsoft Defender portal report data. |
+| Get-XdrReportDefinition                                         | Lists supported Microsoft Defender portal report operations. |
 | Get-XdrStreamingApiConfiguration                                | Retrieves Streaming API configuration from Microsoft Defender XDR. |
 | Get-XdrSuppressionRule                                          | Retrieves alert suppression rules from Microsoft Defender XDR. |
 | Get-XdrTenantContext                                            | Retrieves the tenant context information from Microsoft Defender XDR. |

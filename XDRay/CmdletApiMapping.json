@@ -318,6 +318,10 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/requests/logscollection/downloaduribyguid/V2"
   },
   {
+    "Cmdlet": "Get-XdrEndpointDeviceControlReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepdevicecontrol/m365/devicecontrolservice/{ReportType}"
+  },
+  {
     "Cmdlet": "Get-XdrEndpointDeviceLiveResponseLibrary",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/liveResponseApi/library/get_files"
   },
@@ -451,6 +455,2845 @@
   {
     "Cmdlet": "Get-XdrMtoTenantList",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtoapi/tenants/TenantPicker"
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/historicalsearch/GetList",
+    "Parameters": {
+      "Name": "fixed:Email.DownloadableReports"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportDefinition/",
+    "Parameters": {
+      "Name": "fixed:Email.CompromisedUsers.Definition"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "reportId": "CompromisedUsers"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportDefinition/",
+    "Parameters": {
+      "Name": "fixed:Email.SpoofMailReport.Definition"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "reportId": "SpoofMailReport"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportDefinition/",
+    "Parameters": {
+      "Name": "fixed:Email.TopMalware.Definition"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "reportId": "TopMalware"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportDefinition/",
+    "Parameters": {
+      "Name": "fixed:Email.TPSAggregateReportATP.Definition"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "reportId": "TPSAggregateReportATP"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportDefinition/",
+    "Parameters": {
+      "Name": "fixed:Email.URLProtectionActionReport.Definition"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "reportId": "URLProtectionActionReport"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportDefinition/",
+    "Parameters": {
+      "Name": "fixed:Email.ZapReport.Definition"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "reportId": "ZapReport"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportDetailData/",
+    "Parameters": {
+      "Name": "fixed:Email.CompromisedUsers.Detail"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "CompromiseReportDetailData",
+      "reportId": "CompromisedUsers"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportDetailData/",
+    "Parameters": {
+      "Name": "fixed:Email.SpoofMailReport.Detail"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "SpoofMailReport",
+      "reportId": "SpoofMailReport"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportDetailData/",
+    "Parameters": {
+      "Name": "fixed:Email.TopMalware.Detail"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "MailTrafficSummaryReport",
+      "reportId": "TopMalware"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportDetailData/",
+    "Parameters": {
+      "Name": "fixed:Email.URLProtectionActionReport.Detail"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "DetailSafeLinksReport",
+      "reportId": "URLProtectionActionReport"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportDetailData/",
+    "Parameters": {
+      "Name": "fixed:Email.ZapReport.Detail"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "DetailZapReport",
+      "reportId": "ZapReport"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportSummaryData/",
+    "Parameters": {
+      "Name": "fixed:Email.CompromisedUsers.Summary"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "AggCompromiseReport",
+      "reportId": "CompromisedUsers"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportSummaryData/",
+    "Parameters": {
+      "Name": "fixed:Email.SpoofMailReport.Summary"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "SpoofMailCompAuthReport",
+      "reportId": "SpoofMailReport"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportSummaryData/",
+    "Parameters": {
+      "Name": "fixed:Email.TopMalware.Summary"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "MailTrafficSummaryReport",
+      "reportId": "TopMalware"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportSummaryData/",
+    "Parameters": {
+      "Name": "fixed:Email.TPSAggregateReportATP.Summary"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "AggTPSReportData",
+      "reportId": "TPSAggregateReportATP"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportSummaryData/",
+    "Parameters": {
+      "Name": "fixed:Email.URLProtectionActionReport.Summary"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "AggSafeLinksReport",
+      "reportId": "URLProtectionActionReport"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/Report/GetReportSummaryData/",
+    "Parameters": {
+      "Name": "fixed:Email.ZapReport.Summary"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "AggZapReport",
+      "reportId": "ZapReport"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/reportschedule/GetList",
+    "Parameters": {
+      "Name": "fixed:Email.ReportSchedules"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/ReportV2/GetReportDetailData/",
+    "Parameters": {
+      "Name": "fixed:Email.MailFlowStatusReport.Detail"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "MailFlowStatusDetail",
+      "reportId": "MailFlowStatusReport"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/api/ReportV2/GetReportSummaryData/",
+    "Parameters": {
+      "Name": "fixed:Email.MailFlowStatusReport.Summary"
+    },
+    "Method": "Post",
+    "QueryMatch": {
+      "dataSourceId": "MailFlowStatusSummary",
+      "reportId": "MailFlowStatusReport"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataSourceId",
+      "reportId"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/reports/LateralMovementPaths",
+    "Parameters": {
+      "Name": "fixed:Identity.LateralMovementPaths.Download"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "endTime",
+      "isV2",
+      "localeId",
+      "startTime",
+      "utcOffset"
+    ],
+    "ReportBinary": true
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/reports/LateralMovementPaths/validate",
+    "Parameters": {
+      "Name": "fixed:Identity.LateralMovementPaths.Validate"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "endTime",
+      "isV2",
+      "startTime"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/reports/LdapCleartextPasswords",
+    "Parameters": {
+      "Name": "fixed:Identity.LdapCleartextPasswords.Download"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "endTime",
+      "isV2",
+      "localeId",
+      "startTime",
+      "utcOffset"
+    ],
+    "ReportBinary": true
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/reports/LdapCleartextPasswords/validate",
+    "Parameters": {
+      "Name": "fixed:Identity.LdapCleartextPasswords.Validate"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "endTime",
+      "isV2",
+      "startTime"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/reports/SensitiveGroupMembershipChanges",
+    "Parameters": {
+      "Name": "fixed:Identity.SensitiveGroupMembershipChanges.Download"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "endTime",
+      "isV2",
+      "localeId",
+      "startTime",
+      "utcOffset"
+    ],
+    "ReportBinary": true
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/reports/SensitiveGroupMembershipChanges/validate",
+    "Parameters": {
+      "Name": "fixed:Identity.SensitiveGroupMembershipChanges.Validate"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "endTime",
+      "isV2",
+      "startTime"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/reports/Summary",
+    "Parameters": {
+      "Name": "fixed:Identity.Summary.Download"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "endTime",
+      "isV2",
+      "localeId",
+      "startTime",
+      "utcOffset"
+    ],
+    "ReportBinary": true
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/aatp/api/reports/Summary/validate",
+    "Parameters": {
+      "Name": "fixed:Identity.Summary.Validate"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "endTime",
+      "isV2",
+      "startTime"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/astgws/AttackSimulator/api/v1/AdvanceReporting/chart/NRT/RepeatOffender",
+    "Parameters": {
+      "Name": "fixed:AttackSimulation.NRT.RepeatOffender"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/astgws/AttackSimulator/api/v1/AdvanceReporting/chart/NRT/TrainingCompletion",
+    "Parameters": {
+      "Name": "fixed:AttackSimulation.NRT.TrainingCompletion"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/astgws/AttackSimulator/api/v1/AdvanceReporting/chart/TrainingEfficacy",
+    "Parameters": {
+      "Name": "fixed:AttackSimulation.TrainingEfficacy"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/astgws/AttackSimulator/api/v1/AdvanceReporting/chart/UserCoverage",
+    "Parameters": {
+      "Name": "fixed:AttackSimulation.UserCoverage"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/di/Find/MailLatencyData",
+    "Parameters": {
+      "Name": "fixed:Email.MailLatencyData"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "EndTime",
+      "Filter",
+      "PageSize",
+      "StartTime",
+      "tenantid"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/di/Find/MailLatencyDataExtension",
+    "Parameters": {
+      "Name": "fixed:Email.MailLatencyDataExtension"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "EndTime",
+      "Filter",
+      "PageSize",
+      "StartTime",
+      "tenantid"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/di/Find/MailTopTrafficReport",
+    "Parameters": {
+      "Name": "fixed:Email.TopMailRecipient"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "filter": "Category eq 'TopMailRecipient' and TagIds eq 'All'"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "endTime",
+      "filter",
+      "startTime",
+      "tenantid"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/di/Find/MailTopTrafficReport",
+    "Parameters": {
+      "Name": "fixed:Email.TopMailSender"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "filter": "Category eq 'TopMailSender' and TagIds eq 'All'"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "endTime",
+      "filter",
+      "startTime",
+      "tenantid"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/di/Search/SubmissionDIESData",
+    "Parameters": {
+      "Name": "fixed:Email.AdminSubmissions.Detail"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "QueryFilter.Filter.Value": 2
+    },
+    "ReportQueryKeys": [
+      "EndTime",
+      "StartTime",
+      "tenantid"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/di/Search/SubmissionDIESData",
+    "Parameters": {
+      "Name": "fixed:Email.UserSubmissions.Detail"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "QueryFilter.Filter.Value": "1,4,5,6"
+    },
+    "ReportQueryKeys": [
+      "EndTime",
+      "StartTime",
+      "tenantid"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/di/Search/SubmissionDIESDataAggregation",
+    "Parameters": {
+      "Name": "fixed:Email.AdminSubmissions.Summary"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "QueryFilter.Expressions.0.Filter.Value": 2
+    },
+    "ReportQueryKeys": [
+      "EndTime",
+      "StartTime",
+      "tenantid"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/di/Search/SubmissionDIESDataAggregation",
+    "Parameters": {
+      "Name": "fixed:Email.UserSubmissions.Summary"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "QueryFilter.Expressions.0.Filter.Value": "1,4,5,6"
+    },
+    "ReportQueryKeys": [
+      "EndTime",
+      "StartTime",
+      "tenantid"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/hunting/huntingService/reports",
+    "Parameters": {
+      "Name": "fixed:Hunting.QueryResources"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/hunting/huntingService/reports/quota",
+    "Parameters": {
+      "Name": "fixed:Hunting.Quota"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "aggregationType",
+      "endTime",
+      "startTime"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/custom_reports/",
+    "Parameters": {
+      "Name": "fixed:CloudApps.ExportedReports"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/custom_reports/metadata/",
+    "Parameters": {
+      "Name": "fixed:CloudApps.ExportedReports.Metadata"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mcas/cas/api/v1/discovery/snapshot_reports/",
+    "Parameters": {
+      "Name": "fixed:CloudApps.DiscoverySnapshotReports"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/dashboards/executive-catalog/rule-collections",
+    "Parameters": {
+      "Name": "fixed:Cloud.executive-catalog"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "$expand",
+      "$filter"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/dashboards/personal-catalog/rule-collections",
+    "Parameters": {
+      "Name": "fixed:Cloud.personal-catalog"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "$expand",
+      "$filter"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/dashboards/public-catalog/rule-collections",
+    "Parameters": {
+      "Name": "fixed:Cloud.CloudPosture.Definition"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "$filter": "Identifier Eq 8cd8e724-0a8a-4118-86d2-76bb63db0f78"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "$expand",
+      "$filter"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/dashboards/public-catalog/rule-collections",
+    "Parameters": {
+      "Name": "fixed:Cloud.CnappExecutiveSummary.Definition"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "$filter": "Identifier Eq 901899bd-08ca-4484-bb87-4bb9e98dfc74"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "$expand",
+      "$filter"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/dashboards/public-catalog/rule-collections",
+    "Parameters": {
+      "Name": "fixed:Cloud.public-catalog"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "$expand",
+      "$filter"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.AlertsData"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_AlertsData"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.AssetCountByCloudProvider"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_AssetCountByCloudProvider"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.AssetCountByCloudWorkload"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_AssetCountByCloudWorkload"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.AssetCountByCriticality"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_AssetCountByCriticality"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.CloudCvesInsights"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_CloudCvesInsights"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.CloudVulnerabilitiesRecommendationCountByFixAvailable"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_CloudVulnerabilitiesRecommendationCountByFixAvailable"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.CoverageByPlan"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_CoverageByPlan"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.CoverageByWorkload"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_CoverageByWorkload"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.RecommendationCountByCategory"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_RecommendationCountByCategory"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.RecommendationCountByCloudProvider"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_RecommendationCountByCloudProvider"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.RecommendationCountByWorkload"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_RecommendationCountByWorkload"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.RegulatoryCompliance"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_RegulatoryCompliance"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.RemediationEffort"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_RemediationEffort"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.TopCloudRecommendations"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_TopCloudRecommendations"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.TopRecommendationsByCriticality"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_TopRecommendationsByCriticality"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/metrics",
+    "Parameters": {
+      "Name": "fixed:Cloud.DcspmCoverageByScope"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_DcspmCoverageByScope"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.Alerts.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.metricId": "b88fc1ae-7689-4f0e-bf5a-cee3b682cbbf"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.Coverage.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.metricId": "b91982bd-5197-4fb7-bcd0-52c3a3ccd361"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.Recommendations.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "category",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "All",
+      "metricsProperties.0.metricId": "28eed83f-c704-4729-992b-305f089932b6"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.RecommendationsByCategory.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "category",
+      "metricsProperties.0.dimensionsFilters.0.operator": "NotEquals",
+      "metricsProperties.0.dimensionsFilters.0.value": "All",
+      "metricsProperties.0.dimensionsFilters.1.id": "riskLevel",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "All",
+      "metricsProperties.0.metricId": "371a0598-b0dd-4b40-8dd0-de3896d56802"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.AI.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "AI",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "All",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.API.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "api",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "All",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.ByWorkload.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "NotEquals",
+      "metricsProperties.0.dimensionsFilters.0.value": "All",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "All",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.Category.Misconfigurations.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "All",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "Misconfigurations",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.Category.Secrets.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "All",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "Secrets",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.Category.Vulnerabilities.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "All",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "Vulnerabilities",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.Compute.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "compute",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "All",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.Containers.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "container",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "All",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.Data.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "data",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "All",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.DevOps.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "devops",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "All",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.Identity.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "identity",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "All",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.Network.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "network",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "All",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.Secrets.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "secret",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "All",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScore.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "Workload",
+      "metricsProperties.0.dimensionsFilters.0.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.0.value": "All",
+      "metricsProperties.0.dimensionsFilters.1.id": "AssessmentCategory",
+      "metricsProperties.0.dimensionsFilters.1.operator": "Equals",
+      "metricsProperties.0.dimensionsFilters.1.value": "All",
+      "metricsProperties.0.metricId": "bfe1ef21-4a0f-4403-8c3b-974634756076"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/overtimeData",
+    "Parameters": {
+      "Name": "fixed:Cloud.Vulnerabilities.Trend"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "metricsProperties.0.dimensionsFilters.0.id": "severity",
+      "metricsProperties.0.dimensionsFilters.0.operator": "NotEquals",
+      "metricsProperties.0.dimensionsFilters.0.value.0": 0,
+      "metricsProperties.0.metricId": "02b6c709-62b7-47af-9a65-786f53eae965"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/dashboards/schema",
+    "Parameters": {
+      "Name": "fixed:Cloud.Coverage.Schema"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_CoverageByPlan"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/secureScore/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScoreByScope"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "CloudInitiative_SecureScoreByScope"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/secureScore/items",
+    "Parameters": {
+      "Name": "fixed:Cloud.SecureScoreByWorkload"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "CloudInitiative_SecureScoreByWorkload"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdc/views/vulnerabilities/topCloudCVEsItems",
+    "Parameters": {
+      "Name": "fixed:Cloud.TopCloudCVEs"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {
+      "schemaId": "dashboardsAndReports_TopCloudCVEs"
+    },
+    "ReportQueryKeys": [
+      "c",
+      "v"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepasrdetections/m365/reporting/asrinsights/AsrDetections",
+    "Parameters": {
+      "Name": "fixed:AttackSurfaceReduction.AsrDetections"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "$filter",
+      "$orderby",
+      "$top"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepasrdetections/m365/reporting/asrinsights/AsrDetectionsTrend",
+    "Parameters": {
+      "Name": "fixed:AttackSurfaceReduction.AsrDetectionsTrend"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "$filter"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepasrdetections/m365/reporting/asrinsights/TopFiles",
+    "Parameters": {
+      "Name": "fixed:AttackSurfaceReduction.TopFiles"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "$top"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepdevicecontrol/m365/devicecontrolservice/AhQuery",
+    "Parameters": {
+      "Name": "fixed:DeviceControl.AhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "actionMode",
+      "deviceClassName",
+      "deviceId",
+      "lookbackInDays",
+      "policies"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepdevicecontrol/m365/devicecontrolservice/CookMark",
+    "Parameters": {
+      "Name": "fixed:DeviceControl.CookMark"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepdevicecontrol/m365/devicecontrolservice/EventDetails",
+    "Parameters": {
+      "Name": "fixed:DeviceControl.EventDetails"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "actionMode",
+      "deviceClassName",
+      "deviceId",
+      "lookbackInDays",
+      "policies"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepdevicecontrol/m365/devicecontrolservice/Policies",
+    "Parameters": {
+      "Name": "fixed:DeviceControl.Policies"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepdevicecontrol/m365/devicecontrolservice/SummaryStatistics",
+    "Parameters": {
+      "Name": "fixed:DeviceControl.SummaryStatistics"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackInDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallBlockedApp/blockedAppProfileConnection",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallBlockedApp.blockedAppProfileConnection"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallBlockedApp/blockSummary",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallBlockedApp.blockSummary"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallBlockedApp/blockSummaryAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallBlockedApp.blockSummaryAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallBlockedApp/topBlockedAppComputers",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallBlockedApp.topBlockedAppComputers"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallBlockedApp/topBlockedAppComputersAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallBlockedApp.topBlockedAppComputersAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallBlockedApp/topBlockedAppProcesses",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallBlockedApp.topBlockedAppProcesses"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallBlockedApp/topBlockedAppProcessesAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallBlockedApp.topBlockedAppProcessesAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallInbound/blockSummary",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallInbound.blockSummary"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallInbound/blockSummaryAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallInbound.blockSummaryAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallInbound/topComputers",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallInbound.topComputers"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallInbound/topComputersAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallInbound.topComputersAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallInbound/topLocalPorts",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallInbound.topLocalPorts"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallInbound/topLocalPortsAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallInbound.topLocalPortsAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallInbound/topProcesses",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallInbound.topProcesses"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallInbound/topProcessesAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallInbound.topProcessesAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallInbound/topRemoteIPsToComputers",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallInbound.topRemoteIPsToComputers"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallInbound/topRemoteIPsToComputersAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallInbound.topRemoteIPsToComputersAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallInbound/topRemoteIPsToConnections",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallInbound.topRemoteIPsToConnections"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallInbound/topRemoteIPsToConnectionsAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallInbound.topRemoteIPsToConnectionsAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallOutbound/blockSummary",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallOutbound.blockSummary"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallOutbound/blockSummaryAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallOutbound.blockSummaryAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallOutbound/topComputers",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallOutbound.topComputers"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallOutbound/topComputersAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallOutbound.topComputersAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallOutbound/topLocalPorts",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallOutbound.topLocalPorts"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallOutbound/topLocalPortsAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallOutbound.topLocalPortsAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallOutbound/topProcesses",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallOutbound.topProcesses"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallOutbound/topProcessesAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallOutbound.topProcessesAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallOutbound/topRemoteIPsToComputers",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallOutbound.topRemoteIPsToComputers"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallOutbound/topRemoteIPsToComputersAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallOutbound.topRemoteIPsToComputersAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallOutbound/topRemoteIPsToConnections",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallOutbound.topRemoteIPsToConnections"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdepfirewall/m365/firewallservice/firewallOutbound/topRemoteIPsToConnectionsAhQuery",
+    "Parameters": {
+      "Name": "fixed:Firewall.firewallOutbound.topRemoteIPsToConnectionsAhQuery"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/pdProtection/mdaReports/PasswordHygiene",
+    "Parameters": {
+      "Name": "fixed:Identity.PasswordHygiene"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/pdProtection/mdaReports/PasswordPolicies",
+    "Parameters": {
+      "Name": "fixed:Identity.PasswordPolicies"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/pdProtection/reportDefinitions/ExposedPasswords",
+    "Parameters": {
+      "Name": "fixed:Identity.ExposedPasswords.Definition"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/pdProtection/reportDefinitions/LeakedCredentials",
+    "Parameters": {
+      "Name": "fixed:Identity.LeakedCredentials.Definition"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/pdProtection/reportDefinitions/PasswordHygiene",
+    "Parameters": {
+      "Name": "fixed:Identity.PasswordHygiene.Definition"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mdi/identity/userapiservice/pdProtection/reportDefinitions/PasswordPolicies",
+    "Parameters": {
+      "Name": "fixed:Identity.PasswordPolicies.Definition"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/reports/userHistory",
+    "Parameters": {
+      "Name": "fixed:Hunting.UserHistory"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/k8sMachineApi/ine/machineapiservice/machines/skuReport",
+    "Parameters": {
+      "Name": "fixed:EndpointLicense.SkuUsage"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdepDnH/reports/machineHealth/healthStatus",
+    "Parameters": {
+      "Name": "fixed:DeviceHealth.healthStatus"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "alignToPeriod",
+      "fromDate",
+      "toDate"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdepDnH/reports/machineHealth/osPlatform",
+    "Parameters": {
+      "Name": "fixed:DeviceHealth.osPlatform"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "alignToPeriod",
+      "fromDate",
+      "toDate"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdepDnH/reports/machineHealth/osVersion",
+    "Parameters": {
+      "Name": "fixed:DeviceHealth.osVersion"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "alignToPeriod",
+      "fromDate",
+      "toDate"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/autoir",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.autoir"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/avblocks",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.avblocks"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/custom-detection",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.custom-detection"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/devices",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.devices"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/disrupt",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.disrupt"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/disrupt/incidents",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.disrupt.incidents"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/emails/blocked",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.emails.blocked"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/emails/zapped",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.emails.zapped"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/incidents/top",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.incidents.top"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/mdi/mpu",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.mdi.mpu"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/optimize/coverage/risk",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.optimize.coverage.risk"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/optimize/coverage/threat",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.optimize.coverage.threat"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/phishing-ransomware",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.phishing-ransomware"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/saas-score",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.saas-score"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/secure-score",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.secure-score"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/summary",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.summary"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/summary/trend",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.summary.trend"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/phoenixValueReflectionApi/webcontentfiltering",
+    "Parameters": {
+      "Name": "fixed:UnifiedSecurity.webcontentfiltering"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookbackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/asrconfiguration/configurationstates",
+    "Parameters": {
+      "Name": "fixed:AttackSurfaceReductionConfiguration.configurationstates"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "asrRuleIds"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/asrconfiguration/MachineSecurityStates",
+    "Parameters": {
+      "Name": "fixed:AttackSurfaceReductionConfiguration.MachineSecurityStates"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/deviceHealth/avengine",
+    "Parameters": {
+      "Name": "fixed:AntivirusHealth.avengine"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/deviceHealth/avmode",
+    "Parameters": {
+      "Name": "fixed:AntivirusHealth.avmode"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/deviceHealth/avplatform",
+    "Parameters": {
+      "Name": "fixed:AntivirusHealth.avplatform"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/deviceHealth/avscan",
+    "Parameters": {
+      "Name": "fixed:AntivirusHealth.avscan"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/deviceHealth/avsignature",
+    "Parameters": {
+      "Name": "fixed:AntivirusHealth.avsignature"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/vulnerableDevicesReport/exploitAvailability",
+    "Parameters": {
+      "Name": "fixed:VulnerableDevices.exploitAvailability"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "$filter"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/vulnerableDevicesReport/operationSystem",
+    "Parameters": {
+      "Name": "fixed:VulnerableDevices.operationSystem"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "$filter"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/vulnerableDevicesReport/severityLevel",
+    "Parameters": {
+      "Name": "fixed:VulnerableDevices.severityLevel"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "$filter"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/tvm/analytics/vulnerableDevicesReport/vulnerabilityAge",
+    "Parameters": {
+      "Name": "fixed:VulnerableDevices.vulnerabilityAge"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "$filter"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/valueReport/mdb/securityreport/test/providers/fetch",
+    "Parameters": {
+      "Name": "fixed:MonthlySecurity.DeviceInventory"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "dataProviders": "DeviceInventory"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataProviders",
+      "lookBackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/valueReport/mdb/securityreport/test/providers/fetch",
+    "Parameters": {
+      "Name": "fixed:MonthlySecurity.Incidents"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "dataProviders": "Incidents"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataProviders",
+      "lookBackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/valueReport/mdb/securityreport/test/providers/fetch",
+    "Parameters": {
+      "Name": "fixed:MonthlySecurity.SecureScore"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "dataProviders": "SecureScore"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataProviders",
+      "lookBackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/valueReport/mdb/securityreport/test/providers/fetch",
+    "Parameters": {
+      "Name": "fixed:MonthlySecurity.WebContentFiltering"
+    },
+    "Method": "Get",
+    "QueryMatch": {
+      "dataProviders": "WebContentFiltering"
+    },
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "dataProviders",
+      "lookBackDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/webThreatProtection/WebContentFiltering/Reports/CategoryLookup",
+    "Parameters": {
+      "Name": "fixed:WebContentFiltering.CategoryLookup"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/webThreatProtection/WebContentFiltering/Reports/CategoryReports",
+    "Parameters": {
+      "Name": "fixed:WebContentFiltering.CategoryReports"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "activityType",
+      "lookBackInDays",
+      "parentCategory",
+      "rbacGroupIds"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/webThreatProtection/WebContentFiltering/Reports/DomainReports",
+    "Parameters": {
+      "Name": "fixed:WebContentFiltering.DomainReports"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "activityType",
+      "lookBackInDays",
+      "parentCategory",
+      "rbacGroupIds"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/webThreatProtection/WebContentFiltering/Reports/MachineList",
+    "Parameters": {
+      "Name": "fixed:WebContentFiltering.MachineList"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookBackInDays",
+      "rbacGroupIds"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/webThreatProtection/WebContentFiltering/Reports/TopParentCategories",
+    "Parameters": {
+      "Name": "fixed:WebContentFiltering.TopParentCategories"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "includeActivityChange",
+      "lookBackInDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/webThreatProtection/webThreats/domains/allDomains/",
+    "Parameters": {
+      "Name": "fixed:WebThreat.allDomains"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookBackInDays",
+      "severity",
+      "status",
+      "webThreatCategory"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/webThreatProtection/webThreats/domains/exposedMachines/",
+    "Parameters": {
+      "Name": "fixed:WebThreat.exposedMachines"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "fullList",
+      "id",
+      "lookBackInDays",
+      "severity",
+      "status",
+      "webThreatCategory"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/webThreatProtection/webThreats/domains/urls/",
+    "Parameters": {
+      "Name": "fixed:WebThreat.urls"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "fullList",
+      "id",
+      "lookBackInDays",
+      "severity",
+      "status",
+      "webThreatCategory"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/webThreatProtection/webThreats/reports/webThreatHealthStatus",
+    "Parameters": {
+      "Name": "fixed:WebThreat.webThreatHealthStatus"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [
+      "lookBackInDays"
+    ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/webThreatProtection/webThreats/reports/webThreatSummary",
+    "Parameters": {
+      "Name": "fixed:WebThreat.webThreatSummary"
+    },
+    "Method": "Get",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
+    "ReportBinary": false
   },
   {
     "Cmdlet": "Get-XdrStreamingApiConfiguration",

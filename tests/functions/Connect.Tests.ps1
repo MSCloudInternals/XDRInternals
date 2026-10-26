@@ -1,4 +1,42 @@
-﻿Describe 'Connect-XdrByTemporaryAccessPass' {
+﻿Describe 'Update-XdrConnectionSettings header preservation' {
+    BeforeEach {
+        InModuleScope XDRInternals {
+            $script:session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            $script:session.Cookies.Add([System.Net.Cookie]::new('xsrf-token', 'old-token', '/', 'security.microsoft.com'))
+            $script:session.Cookies.Add([System.Net.Cookie]::new('sccauth', 'auth-cookie', '/', 'security.microsoft.com'))
+            $script:headers = @{ 'x-tid' = '00000000-0000-0000-0000-000000000001'; 'tenant-id' = '00000000-0000-0000-0000-000000000001'; 'X-XSRF-TOKEN' = 'old-token'; 'm-scopes' = '[]' }
+        }
+        Mock Get-XdrCache {
+            if ($CacheKey -eq 'XdrTenantId') { [pscustomobject]@{ Value = '00000000-0000-0000-0000-000000000001' } }
+        } -ModuleName XDRInternals
+        Mock Set-XdrCache {} -ModuleName XDRInternals
+        Mock Invoke-WebRequest {
+            $WebSession.Cookies.SetCookies([uri]'https://security.microsoft.com', 'xsrf-token=new-token; Path=/')
+        } -ModuleName XDRInternals
+    }
+
+    It 'refreshes XSRF without discarding tenant or scope headers' {
+        InModuleScope XDRInternals {
+            Update-XdrConnectionSettings
+            $script:headers['X-XSRF-TOKEN'] | Should -Be 'new-token'
+            $script:headers['x-tid'] | Should -Be '00000000-0000-0000-0000-000000000001'
+            $script:headers['tenant-id'] | Should -Be '00000000-0000-0000-0000-000000000001'
+            $script:headers['m-scopes'] | Should -Be '[]'
+        }
+        Should -Invoke Set-XdrCache -ModuleName XDRInternals -Times 1 -ParameterFilter { $CacheKey -eq 'XsrfToken' -and $TTLMinutes -eq 5 }
+    }
+
+    It 'keeps valid cached authentication on the fast path' {
+        Mock Get-XdrCache { [pscustomobject]@{ NotValidAfter = (Get-Date).AddMinutes(1) } } -ModuleName XDRInternals -ParameterFilter { $CacheKey -eq 'XsrfToken' }
+        InModuleScope XDRInternals {
+            Update-XdrConnectionSettings
+            $script:headers['X-XSRF-TOKEN'] | Should -Be 'old-token'
+        }
+        Should -Invoke Invoke-WebRequest -ModuleName XDRInternals -Times 0
+    }
+}
+
+Describe 'Connect-XdrByTemporaryAccessPass' {
     BeforeAll {
         function New-TestSecureString {
             [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '', Justification = 'Uses fixed placeholder values in unit tests only.')]

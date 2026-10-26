@@ -84,9 +84,9 @@ Get-XdrTenantContext -Force
 | Get-XdrDatalakeTableSchema                                      | Retrieves database entities schema from Microsoft Defender XDR datalake. |
 | Get-XdrEndpointAdvancedFeatures                                 | Retrieves comprehensive advanced features configuration for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointConfigurationAdvancedFeatures                    | Retrieves the advanced features configuration settings for Microsoft Defender for Endpoint. |
-| Get-XdrEndpointConfigurationAttackDisruptionExclusion           | Retrieves IP, device tag, or default device tag exclusions from automated attack disruption. |
+| Get-XdrEndpointConfigurationAttackDisruptionExclusion           | Retrieves device exclusions from automated attack disruption. |
 | Get-XdrEndpointConfigurationAuthenticatedTelemetry              | Retrieves the Authenticated Telemetry status for Microsoft Defender for Endpoint. |
-| Get-XdrEndpointConfigurationCustomCollectionModel               | Retrieves the platform and table model for Endpoint custom data collection. |
+| Get-XdrEndpointConfigurationCustomCollectionModel               | Retrieves the available custom data collection platforms and tables for Defender for Endpoint. |
 | Get-XdrEndpointConfigurationCustomCollectionRule                | Retrieves custom collection rules for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointConfigurationIntuneConnection                    | Retrieves the Intune connection status for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointConfigurationLiveResponse                        | Retrieves the Live Response configuration settings for Microsoft Defender for Endpoint. |
@@ -457,6 +457,20 @@ Notes:
 - `Connect-XdrEndpointDeviceLiveResponse -NonInteractive` accepts pipeline input from `Get-XdrEndpointDevice` and supports `-NoStatusTable` when connecting to multiple devices.
 - `Invoke-XdrEndpointDeviceLiveResponseCommand` expands common table outputs such as `processes`, `services`, `drivers`, `connections`, `dir`, and `persistence` into typed row objects by default. Use `-RawCommandResult` to keep the original API response shape, or `-IncludeCommandResult` together with `-ExpandTableOutput` to emit both forms.
 - `Disconnect-XdrEndpointDeviceLiveResponse` accepts session objects or raw session IDs from the pipeline.
+## Contributing
+
+Include generated cmdlet documentation in the same PR as its source changes. Repair it with one command:
+
+```powershell
+./build/Sync-CmdletDocumentation.ps1
+```
+
+Use PowerShell Core **7.6.x** (`pwsh`) for generation and verification. The canonical CI environment is the `ubuntu-24.04` hosted image with its preinstalled PowerShell; verification enforces the supported major/minor version and reports the actual patch, OS, and runner image version. Validation has exercised hosted PowerShell 7.6.6 and local Windows PowerShell Core 7.6.9. Image and patch updates are observable rather than frozen; they must continue to pass byte-for-byte output verification. CI installs no generation runtime.
+
+Commit the README cmdlet table, manifest `FunctionsToExport`, and both browser `CmdletApiMapping.json` copies together with the feature. The generator preserves surrounding prose and manifest metadata/version. Both mapping copies are persisted inputs; reconcile intentional differences between them before generation. Do not delete them to regenerate: retained mappings for surviving cmdlets may contain information that cannot be inferred from source.
+
+After committing generated outputs, run `./build/Test-CmdletDocumentationSync.ps1`. It runs actual generation in a temporary directory and compares all four files without changing the working tree. It rejects dirty, missing, or untracked outputs. `-WhatIf` previews generator actions; it is not verification. The required `validate` job verifies every PR, including internal catalog and generated-only changes. A passing check proves a generation fixed point; mapping semantics still need review.
+
 ## License
 
 See LICENSE file for details.

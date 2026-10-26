@@ -446,7 +446,11 @@
   },
   {
     "Cmdlet": "Get-XdrIncidentAssociatedAlert",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidents/{IncidentId}/AssociatedAlerts"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/incidents/{IncidentId}/AssociatedAlerts",
+    "Parameters": {
+      "PageIndex": "body.PageIndex",
+      "PageSize": "body.PageSize"
+    }
   },
   {
     "Cmdlet": "Get-XdrMtoTenantList",

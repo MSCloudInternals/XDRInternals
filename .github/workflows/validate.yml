@@ -1,11 +1,19 @@
 on: [pull_request]
 
+permissions:
+  contents: read
+
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify cmdlet documentation
+        run: ./build/Test-CmdletDocumentationSync.ps1
+        shell: pwsh
       - name: Install Prerequisites
         run: ./build/vsts-prerequisites.ps1
         shell: pwsh
@@ -18,6 +26,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22

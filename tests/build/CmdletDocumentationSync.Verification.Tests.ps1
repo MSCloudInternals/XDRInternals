@@ -1,4 +1,4 @@
-Describe 'Documentation fixed point verification' {
+﻿Describe 'Documentation fixed point verification' {
     BeforeAll {
         $sourceRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         function Invoke-FixtureScript {

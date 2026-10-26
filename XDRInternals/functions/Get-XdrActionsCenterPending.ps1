@@ -91,10 +91,14 @@
 
         Write-Verbose "Retrieving XDR Action Center pending actions (Page: $PageIndex, Size: $PageSize, Sort: $SortByField $SortOrder)"
         try {
-            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers | Select-Object -ExpandProperty Results
-            return $result
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers -ErrorAction Stop
+            if ($result -isnot [pscustomobject] -or $result.Results -isnot [array]) { throw 'invalid_response' }
+            foreach ($item in $result.Results) {
+                if ($item -isnot [pscustomobject]) { throw 'invalid_response' }
+            }
+            return $result.Results
         } catch {
-            Write-Error "Failed to retrieve Action Center pending actions: $_"
+            Write-Error -Exception $_.Exception -Message "Failed to retrieve Action Center pending actions: $_"
         }
     }
 

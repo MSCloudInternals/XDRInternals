@@ -200,6 +200,8 @@ Import-Module .\XDRInternals\XDRInternals.psd1
 
 ## Usage
 
+For a local, investigation-only MCP integration, see [the read-only MCP server](mcp/README.md). It is optional and does not expose Defender actions or accept credentials as tool inputs.
+
 ### Connect to Microsoft Defender XDR
 
 ```powershell

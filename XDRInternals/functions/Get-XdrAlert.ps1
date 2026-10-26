@@ -220,7 +220,7 @@
                     return @()
                 }
             } catch {
-                Write-Error "Failed to retrieve alerts: $($_.Exception.Message)"
+                Write-Error -Exception $_.Exception -Message "Failed to retrieve alerts: $($_.Exception.Message)"
             }
         }
     }

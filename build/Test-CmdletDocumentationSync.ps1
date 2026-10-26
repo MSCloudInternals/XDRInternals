@@ -6,6 +6,10 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+Write-Host "Generation runtime: PowerShell $($PSVersionTable.PSVersion) ($($PSVersionTable.PSEdition)); OS: $($PSVersionTable.OS); runner image: $env:ImageOS $env:ImageVersion"
+if ($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion.Major -ne 7 -or $PSVersionTable.PSVersion.Minor -ne 6) {
+    throw 'Documentation verification requires PowerShell Core 7.6.x (pwsh), matching the supported CI generation runtime.'
+}
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $outputs = @('README.md', 'XDRInternals/XDRInternals.psd1', 'XDRay/CmdletApiMapping.json', 'XDRay Firefox/CmdletApiMapping.json')
 

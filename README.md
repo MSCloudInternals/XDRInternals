@@ -463,6 +463,8 @@ Include generated cmdlet documentation in the same PR as its source changes. Rep
 ./build/Sync-CmdletDocumentation.ps1
 ```
 
+Use PowerShell Core **7.6.x** (`pwsh`) for generation and verification. The canonical CI environment is the `ubuntu-24.04` hosted image with its preinstalled PowerShell; verification enforces the supported major/minor version and reports the actual patch, OS, and runner image version. Validation has exercised hosted PowerShell 7.6.6 and local Windows PowerShell Core 7.6.9. Image and patch updates are observable rather than frozen; they must continue to pass byte-for-byte output verification. CI installs no generation runtime.
+
 Commit the README cmdlet table, manifest `FunctionsToExport`, and both browser `CmdletApiMapping.json` copies together with the feature. The generator preserves surrounding prose and manifest metadata/version. Both mapping copies are persisted inputs; reconcile intentional differences between them before generation. Do not delete them to regenerate: retained mappings for surviving cmdlets may contain information that cannot be inferred from source.
 
 After committing generated outputs, run `./build/Test-CmdletDocumentationSync.ps1`. It runs actual generation in a temporary directory and compares all four files without changing the working tree. It rejects dirty, missing, or untracked outputs. `-WhatIf` previews generator actions; it is not verification. The required `validate` job verifies every PR, including internal catalog and generated-only changes. A passing check proves a generation fixed point; mapping semantics still need review.

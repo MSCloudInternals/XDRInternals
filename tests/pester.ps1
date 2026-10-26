@@ -65,6 +65,7 @@ if ($TestGeneral)
 			{
 				$totalRun += $result.TotalCount
 				$totalFailed += $result.FailedCount
+				$totalFailed += $result.FailedContainersCount + $result.FailedBlocksCount
 				$result.Tests | Where-Object Result -ne 'Passed' | ForEach-Object {
 					$testresults += [pscustomobject]@{
 						Block    = $_.Block
@@ -100,6 +101,7 @@ if ($TestFunctions)
 		{
 			$totalRun += $result.TotalCount
 			$totalFailed += $result.FailedCount
+			$totalFailed += $result.FailedContainersCount + $result.FailedBlocksCount
 			$result.Tests | Where-Object Result -ne 'Passed' | ForEach-Object {
 				$testresults += [pscustomobject]@{
 					Block    = $_.Block
@@ -115,6 +117,7 @@ if ($TestFunctions)
 
 $testresults | Sort-Object Describe, Context, Name, Result, Message | Format-List
 
+if ($totalRun -eq 0) { throw 'No tests were discovered. Validation cannot succeed without tests.' }
 if ($totalFailed -eq 0) { Write-Host  "All $totalRun tests executed without a single failure!" }
 else { Write-Host "$totalFailed tests out of $totalRun tests failed!" }
 

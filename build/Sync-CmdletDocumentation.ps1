@@ -43,8 +43,7 @@ Write-Verbose "Scanning cmdlet files in: $functionsPath"
 $cmdletFiles = Get-ChildItem -Path $functionsPath -Filter "*.ps1" | Sort-Object Name
 
 if ($cmdletFiles.Count -eq 0) {
-    Write-Warning "No cmdlet files found in $functionsPath"
-    exit 1
+    throw "No cmdlet files found in $functionsPath"
 }
 
 Write-Verbose "Found $($cmdletFiles.Count) cmdlet files"
@@ -116,7 +115,7 @@ function Get-CmdletFunctionAst {
     $scriptAst = [System.Management.Automation.Language.Parser]::ParseInput($Content, [ref]$tokens, [ref]$parseErrors)
 
     if ($parseErrors.Count -gt 0) {
-        return $null
+        throw "PowerShell parse failure in $ExpectedFunctionName : $($parseErrors.Message -join '; ')"
     }
 
     $functionAsts = @(
@@ -126,23 +125,11 @@ function Get-CmdletFunctionAst {
             }, $true)
     )
 
-    if ($functionAsts.Count -eq 0) {
-        return $null
+    $expected = @($functionAsts | Where-Object { $_.Name -ceq $ExpectedFunctionName })
+    if ($expected.Count -ne 1) {
+        throw "Expected exactly one function named $ExpectedFunctionName; found $($expected.Count)."
     }
-
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedFunctionName)) {
-        $expectedFunctionAst = @(
-            $functionAsts |
-                Where-Object { $_.Name -ceq $ExpectedFunctionName } |
-                Select-Object -First 1
-        )[0]
-
-        if ($expectedFunctionAst) {
-            return $expectedFunctionAst
-        }
-    }
-
-    return @($functionAsts | Select-Object -First 1)[0]
+    return $expected[0]
 }
 
 function Get-ApiParameterMapping {
@@ -530,8 +517,7 @@ foreach ($file in $cmdletFiles) {
     $functionAst = Get-CmdletFunctionAst -Content $content -ExpectedFunctionName $file.BaseName
 
     if ($null -eq $functionAst) {
-        Write-Warning "Could not extract function name from $($file.Name)"
-        continue
+        throw "Could not extract function name from $($file.Name)"
     }
 
     $cmdletName = $functionAst.Name
@@ -612,108 +598,72 @@ Write-Verbose "Extracted metadata from $($cmdlets.Count) cmdlets"
 # Sort cmdlets alphabetically
 $cmdlets = $cmdlets | Sort-Object Name
 
-# ============================================================================
-# Update README.md
-# ============================================================================
-
-Write-Verbose "`nUpdating README.md..."
-
-$readmeContent = Get-Content -Path $readmePath -Raw
-
-# Find the cmdlet table section
-if ($readmeContent -match '(?s)(## Available Cmdlets\s*\n+\|[^\n]+\|\s*\n\|[^\n]+\|\s*\n)(.+?)(\n+##\s+\w+)') {
-    $tableHeader = $Matches[1]
-    $tableEnd = $Matches[3]
-    
-    # Build new table rows
-    $tableRows = foreach ($cmdlet in $cmdlets) {
-        $description = if ($cmdlet.Synopsis) { $cmdlet.Synopsis } else { "TODO: Add description" }
-        "| $($cmdlet.Name.PadRight(63)) | $description |"
-    }
-    
-    $newTable = $tableHeader + ($tableRows -join "`n") + $tableEnd
-    
-    $newReadmeContent = $readmeContent -replace '(?s)(## Available Cmdlets\s*\n+\|[^\n]+\|\s*\n\|[^\n]+\|\s*\n)(.+?)(\n+##\s+\w+)', $newTable
-    
-    if ($PSCmdlet.ShouldProcess($readmePath, "Update cmdlet table")) {
-        $utf8Bom = New-Object System.Text.UTF8Encoding $true
-        [System.IO.File]::WriteAllText($readmePath, $newReadmeContent, $utf8Bom)
-        Write-Verbose "Updated cmdlet table with $($cmdlets.Count) entries"
-    }
-} else {
-    Write-Warning "Could not find cmdlet table in README.md"
+# Validate all inputs before any output is written. Replace table rows and the
+# manifest value by extent, preserving surrounding prose and metadata.
+$readmeContent = [IO.File]::ReadAllText($readmePath)
+$psd1Content = [IO.File]::ReadAllText($psd1Path)
+$pattern = '(?m)^## Available Cmdlets\r?\n(?:\r?\n)*\|[^\r\n]+\|\r?\n\|[^\r\n]+\|\r?\n(?<rows>(?:\|[^\r\n]*\|\r?\n)+)'
+$tables = [regex]::Matches($readmeContent, $pattern)
+if ([regex]::Matches($readmeContent, '(?m)^## Available Cmdlets\s*$').Count -ne 1 -or $tables.Count -ne 1) {
+    throw 'Expected exactly one Available Cmdlets table in README.md.'
 }
-
-# ============================================================================
-# Update XDRInternals.psd1
-# ============================================================================
-
-Write-Verbose "`nUpdating XDRInternals.psd1..."
-
-$psd1Content = Get-Content -Path $psd1Path -Raw
-
-# Find FunctionsToExport array
-if ($psd1Content -match '(?s)FunctionsToExport\s*=\s*@\([^)]+\)') {
-    $functionNames = $cmdlets.Name | ForEach-Object { "        `"$_`"" }
-    $newFunctionsArray = "FunctionsToExport = @(`n" + ($functionNames -join ",`n") + "`n    )"
-    
-    $newPsd1Content = $psd1Content -replace '(?s)FunctionsToExport\s*=\s*@\([^)]+\)', $newFunctionsArray
-    
-    if ($PSCmdlet.ShouldProcess($psd1Path, "Update FunctionsToExport array")) {
-        $utf8Bom = New-Object System.Text.UTF8Encoding $true
-        [System.IO.File]::WriteAllText($psd1Path, $newPsd1Content, $utf8Bom)
-        Write-Verbose "Updated FunctionsToExport with $($cmdlets.Count) entries"
-    }
-} else {
-    Write-Warning "Could not find FunctionsToExport array in PSD1"
+$tokens = $null
+$parseErrors = $null
+$manifestAst = [System.Management.Automation.Language.Parser]::ParseInput($psd1Content, [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw "Manifest parse failure: $($parseErrors.Message -join '; ')" }
+$exports = @($manifestAst.FindAll({
+    param($node)
+    $node -is [System.Management.Automation.Language.HashtableAst]
+}, $true) | ForEach-Object {
+    $_.KeyValuePairs | Where-Object { $_.Item1.Value -eq 'FunctionsToExport' }
+})
+if ($exports.Count -ne 1 -or $exports[0].Item2.Extent.Text -notmatch '^@\(') {
+    throw 'Expected exactly one FunctionsToExport array in the manifest.'
 }
+$readmeNewline = if ($readmeContent.Contains("`r`n")) { "`r`n" } else { "`n" }
+$manifestNewline = if ($psd1Content.Contains("`r`n")) { "`r`n" } else { "`n" }
+$tableRows = foreach ($cmdlet in $cmdlets) {
+    $description = if ($cmdlet.Synopsis) { $cmdlet.Synopsis } else { 'TODO: Add description' }
+    "| $($cmdlet.Name.PadRight(63)) | $description |"
+}
+$rows = $tables[0].Groups['rows']
+$newReadmeContent = $readmeContent.Substring(0, $rows.Index) + ($tableRows -join $readmeNewline) + $readmeNewline + $readmeContent.Substring($rows.Index + $rows.Length)
+$extent = $exports[0].Item2.Extent
+$functionNames = $cmdlets.Name | ForEach-Object { "        ""$_""" }
+$newArray = "@($manifestNewline" + ($functionNames -join ",$manifestNewline") + "$manifestNewline    )"
+$newPsd1Content = $psd1Content.Substring(0, $extent.StartOffset) + $newArray + $psd1Content.Substring($extent.EndOffset)
 
-# ============================================================================
-# Update API Mapping JSON files
-# ============================================================================
-
-Write-Verbose "`nBuilding API mappings..."
+# Both copies are persisted inputs. Refuse divergence rather than silently
+# discarding intentional mappings from either browser.
+$mappingInputs = foreach ($path in @($jsonPath, $firefoxJsonPath)) {
+    $raw = [IO.File]::ReadAllText($path)
+    if (-not $raw.TrimStart().StartsWith('[')) { throw "Expected a mapping JSON array: $path" }
+    $parsed = ConvertFrom-Json -InputObject $raw -ErrorAction Stop
+    foreach ($mapping in $parsed) {
+        if ($mapping -isnot [pscustomobject] -or [string]::IsNullOrWhiteSpace($mapping.Cmdlet) -or [string]::IsNullOrWhiteSpace($mapping.ApiUri)) {
+            throw "Incomplete API mapping in $path"
+        }
+    }
+    ConvertTo-Json -InputObject @($parsed) -Depth 100 -Compress
+}
+if ($mappingInputs[0] -cne $mappingInputs[1]) { throw 'Browser mapping inputs differ. Reconcile both copies before generation.' }
 
 # Step 1: Load existing mappings and filter to only cmdlets that still exist
 $validCmdletNames = @($cmdlets.Name)
 $existingMappings = @{}
 $deletedCount = 0
 
-if (Test-Path $jsonPath) {
-    try {
-        $existingApiMappings = Get-Content -Path $jsonPath -Raw | ConvertFrom-Json
-        foreach ($mapping in $existingApiMappings) {
-            if ($validCmdletNames -contains $mapping.Cmdlet) {
-                # Normalize the existing API URI
-                $normalizedUri = ConvertTo-NormalizedApiUri -Uri $mapping.ApiUri
-                
-                # Skip incomplete URIs (just domain + placeholder)
-                if (Test-IncompleteUri -Uri $normalizedUri) {
-                    Write-Verbose "Removing incomplete URI pattern from cache: $($mapping.Cmdlet) - $normalizedUri"
-                    $deletedCount++
-                    continue
-                }
-                
-                # Cmdlet still exists, keep the mapping
-                $key = "$($mapping.Cmdlet)|$normalizedUri"
-                
-                # Update the mapping with normalized URI
-                $updatedMapping = [ordered]@{
-                    Cmdlet = $mapping.Cmdlet
-                    ApiUri = $normalizedUri
-                }
-                if ($mapping.Parameters) {
-                    $updatedMapping.Parameters = ConvertTo-SortedHashtableFromObject -InputObject $mapping.Parameters
-                }
-                
-                $existingMappings[$key] = $updatedMapping
-            } else {
-                $deletedCount++
-            }
-        }
-        Write-Verbose "Loaded $($existingMappings.Count) existing API mappings ($deletedCount orphaned entries removed)"
-    } catch {
-        Write-Warning "Could not load existing API mappings: $_"
+$existingApiMappings = ConvertFrom-Json -InputObject $mappingInputs[0]
+foreach ($mapping in $existingApiMappings) {
+    if ($validCmdletNames -contains $mapping.Cmdlet) {
+        # Preserve extra discriminator fields and retained intentional URIs.
+        $key = "$($mapping.Cmdlet)|$($mapping.ApiUri)"
+        $extraFields = @($mapping.PSObject.Properties.Name | Where-Object { $_ -notin @('Cmdlet', 'ApiUri', 'Parameters') })
+        if ($extraFields.Count) { $key += '|' + (ConvertTo-Json -InputObject $mapping -Depth 100 -Compress) }
+        if ($existingMappings.ContainsKey($key)) { throw "Duplicate mapping: $key" }
+        $existingMappings[$key] = $mapping
+    } else {
+        $deletedCount++
     }
 }
 
@@ -734,10 +684,12 @@ foreach ($cmdletGroup in @($getCmdlets, $setCmdlets, $otherCmdlets)) {
             
             if ($existingMappings.ContainsKey($key)) {
                 # Update existing mapping (in case parameters changed)
-                $existingMappings[$key] = $mapping
+                $existingMappings[$key].PSObject.Properties.Remove('Parameters')
+                if ($mapping.Parameters) { $existingMappings[$key] | Add-Member -NotePropertyName Parameters -NotePropertyValue $mapping.Parameters }
                 $updatedCount++
             } else {
-                # Add new mapping
+                # Retained discriminator-specific entries already represent this URI.
+                if (@($existingMappings.Values | Where-Object { $_.Cmdlet -eq $mapping.Cmdlet -and $_.ApiUri -eq $mapping.ApiUri }).Count) { continue }
                 $existingMappings[$key] = $mapping
                 $newCount++
             }
@@ -752,16 +704,8 @@ $apiMappingArray = [System.Collections.ArrayList]@()
 $existingMappings.Values | ForEach-Object {
     # Convert ordered hashtable to PSCustomObject
     [PSCustomObject]$_
-} | Sort-Object -Property @{Expression = { $_.Cmdlet }; Ascending = $true }, @{Expression = { $_.ApiUri }; Ascending = $true } | ForEach-Object {
-    # Convert back to ordered hashtable for JSON serialization
-    $mapping = [ordered]@{
-        Cmdlet = $_.Cmdlet
-        ApiUri = $_.ApiUri
-    }
-    if ($_.Parameters) {
-        $mapping.Parameters = ConvertTo-SortedHashtableFromObject -InputObject $_.Parameters
-    }
-    [void]$apiMappingArray.Add($mapping)
+} | Sort-Object -Property @{Expression = { $_.Cmdlet }; Ascending = $true }, @{Expression = { $_.ApiUri }; Ascending = $true }, @{Expression = { ConvertTo-Json -InputObject $_ -Depth 100 -Compress }; Ascending = $true } | ForEach-Object {
+    [void]$apiMappingArray.Add($_)
 }
 
 # Debug: Show first few entries to verify sort
@@ -770,7 +714,11 @@ Write-Verbose "First 5 cmdlets in sorted array: $($apiMappingArray[0..4].Cmdlet 
 Write-Verbose "API mappings: $($apiMappingArray.Count) total ($newCount new, $updatedCount updated, $deletedCount removed)"
 
 # Convert to JSON with proper formatting
-$jsonContent = ($apiMappingArray | ConvertTo-Json -Depth 10) + [Environment]::NewLine
+$jsonNewline = if ([IO.File]::ReadAllText($jsonPath).Contains("`r`n")) { "`r`n" } else { "`n" }
+$jsonContent = ((ConvertTo-Json -InputObject @($apiMappingArray.ToArray()) -Depth 100) -replace '\r?\n', $jsonNewline) + $jsonNewline
+$utf8Bom = [Text.UTF8Encoding]::new($true)
+if ($PSCmdlet.ShouldProcess($readmePath, 'Update cmdlet table')) { [IO.File]::WriteAllText($readmePath, $newReadmeContent, $utf8Bom) }
+if ($PSCmdlet.ShouldProcess($psd1Path, 'Update FunctionsToExport array')) { [IO.File]::WriteAllText($psd1Path, $newPsd1Content, $utf8Bom) }
 
 # Update XDRay/CmdletApiMapping.json
 if ($PSCmdlet.ShouldProcess($jsonPath, "Update API mappings")) {

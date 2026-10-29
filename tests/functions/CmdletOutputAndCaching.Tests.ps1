@@ -28,7 +28,7 @@ Describe 'Cmdlet output and caching behavior' -Tag 'Functions', 'Output', 'Cachi
 
         $status = $null
         try {
-            Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/mtp/huntingService/schema' -ErrorAction Stop
+            Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/hunting/huntingService/schema' -ErrorAction Stop
         } catch {
             if ($null -eq $_.Exception.Response) { throw "unexpected_exception_type: $($_.Exception.GetType().Name) $($_.Exception.Message)" }
             $status = $_.Exception.Response.StatusCode

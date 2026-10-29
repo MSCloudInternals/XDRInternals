@@ -31,7 +31,7 @@
   },
   {
     "Cmdlet": "Get-XdrAdvancedHuntingTableSchema",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/schema"
+    "ApiUri": "https://security.microsoft.com/apiproxy/hunting/huntingService/schema"
   },
   {
     "Cmdlet": "Get-XdrAdvancedHuntingUnifiedDetectionRules",
@@ -39,7 +39,7 @@
   },
   {
     "Cmdlet": "Get-XdrAdvancedHuntingUserHistory",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/reports/userHistory",
+    "ApiUri": "https://security.microsoft.com/apiproxy/hunting/huntingService/reports/userHistory",
     "Parameters": {
       "MaxResults": "body.maxResults"
     }
@@ -1268,6 +1268,18 @@
       "endTime",
       "startTime"
     ],
+    "ReportBinary": false
+  },
+  {
+    "Cmdlet": "Get-XdrReport",
+    "ApiUri": "https://security.microsoft.com/apiproxy/hunting/huntingService/reports/userHistory",
+    "Parameters": {
+      "Name": "fixed:Hunting.UserHistory"
+    },
+    "Method": "Post",
+    "QueryMatch": {},
+    "BodyMatch": {},
+    "ReportQueryKeys": [],
     "ReportBinary": false
   },
   {
@@ -2701,18 +2713,6 @@
       "Name": "fixed:Identity.PasswordPolicies.Definition"
     },
     "Method": "Get",
-    "QueryMatch": {},
-    "BodyMatch": {},
-    "ReportQueryKeys": [],
-    "ReportBinary": false
-  },
-  {
-    "Cmdlet": "Get-XdrReport",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/reports/userHistory",
-    "Parameters": {
-      "Name": "fixed:Hunting.UserHistory"
-    },
-    "Method": "Post",
     "QueryMatch": {},
     "BodyMatch": {},
     "ReportQueryKeys": [],

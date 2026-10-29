@@ -63,7 +63,7 @@
         # Convert to ISO 8601 format with milliseconds
         $startTimeString = $calculatedStartTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
         # Alternative would be https://security.microsoft.com/apiproxy/mtp/sentinelOnboarding/sentinel/workspaces/isOnboarded
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/huntingService/reports/userHistory"
+        $Uri = "https://security.microsoft.com/apiproxy/hunting/huntingService/reports/userHistory"
         $Body = @{
             startTime  = $startTimeString
             maxResults = $MaxResults

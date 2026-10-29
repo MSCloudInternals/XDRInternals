@@ -96,7 +96,7 @@ function Invoke-BoundedPortalHunt {
         EndTime          = $end.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
         MaxRecordCount   = $PageSize
     } | ConvertTo-Json -Compress
-    try { $result = Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/mtp/huntingService/queryExecutor' -Method Post -Body $body -ErrorAction Stop } catch { throw (Get-UpstreamErrorCode $_) }
+    try { $result = Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/hunting/huntingService/queryExecutor' -Method Post -Body $body -ErrorAction Stop } catch { throw (Get-UpstreamErrorCode $_) }
     if ($result -isnot [pscustomobject] -or $result.Results -isnot [array] -or $result.Results.Count -gt $PageSize) { throw 'invalid_response' }
     return , @($result.Results)
 }
@@ -469,7 +469,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                 break
             }
             'get_hunting_table_schema' {
-                try { $result = Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/mtp/huntingService/schema' -ErrorAction Stop } catch { throw (Get-UpstreamErrorCode $_) }
+                try { $result = Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/hunting/huntingService/schema' -ErrorAction Stop } catch { throw (Get-UpstreamErrorCode $_) }
                 if ($result -isnot [pscustomobject] -or $result.Tables -isnot [array]) { throw 'invalid_response' }
                 $tables = @($result.Tables | Where-Object { $_ -is [pscustomobject] -and $_.Name -is [string] -and $_.Name -ceq $parameters.table })
                 if ($tables.Count -eq 0) { throw 'not_found' }

@@ -107,7 +107,7 @@ function Get-XdrEndpointDevice {
 
 function Invoke-XdrRestMethod {
     param([string]$Uri, [string]$Method, [string]$Body)
-    if ($Uri -eq 'https://security.microsoft.com/apiproxy/mtp/huntingService/queryExecutor') {
+    if ($Uri -eq 'https://security.microsoft.com/apiproxy/hunting/huntingService/queryExecutor') {
         $request = $Body | ConvertFrom-Json -AsHashtable
         if ($env:XDR_MCP_TEST_HUNT_FORBIDDEN -eq '1') {
             $failure = [System.InvalidOperationException]::new('portal rejection')
@@ -168,7 +168,7 @@ function Invoke-XdrRestMethod {
     if ($Uri -eq 'https://security.microsoft.com/apiproxy/mtp/alertsApiService/alerts/alert-2') {
         return [pscustomobject]@{ alertId = 'alert-2'; alertDisplayName = 'Example'; severity = 'High'; status = 'New'; incidentId = 42; timeGenerated = '2026-01-01T00:00:00Z'; credential = 'secret-cookie-should-not-leak' }
     }
-    if ($Uri -eq 'https://security.microsoft.com/apiproxy/mtp/huntingService/schema') {
+    if ($Uri -eq 'https://security.microsoft.com/apiproxy/hunting/huntingService/schema') {
         if ($env:XDR_MCP_TEST_SCHEMA_ARRAY -eq '1') {
             return , @([pscustomobject]@{ Tables = @() }, [pscustomobject]@{ Tables = @([pscustomobject]@{ Name = 'DeviceEvents'; Schema = @() }) })
         }

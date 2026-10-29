@@ -172,7 +172,7 @@
     }
     [pscustomobject]@{ Name = 'Email.DownloadableReports'; Family = 'Email'; Method = 'Post'; Path = '/api/historicalsearch/GetList'; Query = @{}; Body = $null; Source = 'Browser' }
     [pscustomobject]@{ Name = 'Email.ReportSchedules'; Family = 'Email'; Method = 'Post'; Path = '/api/reportschedule/GetList'; Query = @{}; Body = $null; Source = 'Browser' }
-    [pscustomobject]@{ Name = 'Hunting.UserHistory'; Family = 'Hunting'; Method = 'Post'; Path = '/apiproxy/mtp/huntingService/reports/userHistory'; Query = @{}; Body = @{ startTime = '{FromDate}'; maxResults = '{Top}' }; Source = 'Existing cmdlet' }
+    [pscustomobject]@{ Name = 'Hunting.UserHistory'; Family = 'Hunting'; Method = 'Post'; Path = '/apiproxy/hunting/huntingService/reports/userHistory'; Query = @{}; Body = @{ startTime = '{FromDate}'; maxResults = '{Top}' }; Source = 'Existing cmdlet' }
     foreach ($chart in @('NRT/RepeatOffender', 'NRT/TrainingCompletion', 'TrainingEfficacy', 'UserCoverage')) {
         [pscustomobject]@{ Name = "AttackSimulation.$($chart.Replace('/', '.'))"; Family = 'AttackSimulation'; Method = 'Get'; Path = "/apiproxy/astgws/AttackSimulator/api/v1/AdvanceReporting/chart/$chart"; Query = @{}; Body = $null; Source = 'nodoc' }
     }

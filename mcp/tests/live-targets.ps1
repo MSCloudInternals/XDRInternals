@@ -22,7 +22,7 @@ try {
             EndTime          = $end.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
             MaxRecordCount   = 20
         } | ConvertTo-Json -Compress
-        $result = Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/mtp/huntingService/queryExecutor' -Method Post -Body $body -ErrorAction Stop
+        $result = Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/hunting/huntingService/queryExecutor' -Method Post -Body $body -ErrorAction Stop
         if ($result.Results -isnot [array] -or $result.Results.Count -gt 20) { throw 'invalid_discovery' }
         $targets[$entry.Key] = @($result.Results)
     }

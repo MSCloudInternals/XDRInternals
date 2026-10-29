@@ -89,8 +89,8 @@ Describe 'Sentinel connection refresh' -Tag 'Functions', 'Sentinel' {
                 $script:headers['tenant-id'] | Should -Be 'test-tenant'
                 $script:headers['X-XSRF-TOKEN'] | Should -Be 'new'
             } finally {
-                if ($hadSession) { $script:session = $previousSession } else { Remove-Variable -Name session -Scope Script -ErrorAction SilentlyContinue }
-                if ($hadHeaders) { $script:headers = $previousHeaders } else { Remove-Variable -Name headers -Scope Script -ErrorAction SilentlyContinue }
+                if ($hadSession) { $script:session = $previousSession } else { Remove-Item variable:script:session -ErrorAction SilentlyContinue }
+                if ($hadHeaders) { $script:headers = $previousHeaders } else { Remove-Item variable:script:headers -ErrorAction SilentlyContinue }
             }
             (Test-Path variable:script:session) | Should -Be $hadSession
             (Test-Path variable:script:headers) | Should -Be $hadHeaders
@@ -120,8 +120,8 @@ Describe 'Sentinel connection refresh' -Tag 'Functions', 'Sentinel' {
                 $script:headers['x-tid'] | Should -Be 'test-tenant'
                 $script:headers['tenant-id'] | Should -Be 'test-tenant'
             } finally {
-                if ($hadSession) { $script:session = $previousSession } else { Remove-Variable -Name session -Scope Script -ErrorAction SilentlyContinue }
-                if ($hadHeaders) { $script:headers = $previousHeaders } else { Remove-Variable -Name headers -Scope Script -ErrorAction SilentlyContinue }
+                if ($hadSession) { $script:session = $previousSession } else { Remove-Item variable:script:session -ErrorAction SilentlyContinue }
+                if ($hadHeaders) { $script:headers = $previousHeaders } else { Remove-Item variable:script:headers -ErrorAction SilentlyContinue }
             }
             (Test-Path variable:script:session) | Should -Be $hadSession
             (Test-Path variable:script:headers) | Should -Be $hadHeaders

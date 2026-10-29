@@ -214,6 +214,28 @@
             (Get-XdrAuthenticationFailure -DefaultCode $Code).Retryable | Should -Be $Retryable
         }
 
+        It 'rejects free text while retaining typed diagnostic evidence' {
+            $unsafe = Get-XdrAuthenticationFailure -SafeEvidence @{
+                PageTitle = 'Sign in return code synthetic-oauth-secret'
+                Status = 'Bearer synthetic-bearer-secret'
+                Attempt = 'ESTS:synthetic-attempt-secret'
+                Field = 'synthetic-field-secret'
+                BrowserState = 'synthetic-browser-secret'
+                Host = 'synthetic host secret'
+            }
+            @($unsafe.SafeEvidence).Count | Should -Be 0
+            ($unsafe | ConvertTo-Json -Depth 8) | Should -Not -Match 'synthetic-'
+
+            $safe = Get-XdrAuthenticationFailure -SafeEvidence @{
+                Attempt = 'ESTS:SessionUnavailable; Portal:BootstrapFailed'
+                Status = '429'
+                Field = 'correlation_id'
+                BrowserState = 'Closed'
+                Host = 'login.microsoftonline.com'
+            }
+            @($safe.SafeEvidence).Count | Should -Be 5
+        }
+
         It 'adds only allowlisted and bounded safe evidence' {
             $failure = Get-XdrAuthenticationFailure -SafeEvidence ([ordered]@{
                     Attempt = 'ESTS'
@@ -225,11 +247,10 @@
 
             $failure.SafeEvidence.Name | Should -Contain 'Attempt'
             $failure.SafeEvidence.Name | Should -Contain 'Host'
-            $failure.SafeEvidence.Name | Should -Contain 'PageTitle'
+            $failure.SafeEvidence.Name | Should -Not -Contain 'PageTitle'
             $failure.SafeEvidence.Name | Should -Not -Contain 'Unsafe'
             $failure.SafeEvidence.Name | Should -Not -Contain 'Status'
             ($failure.SafeEvidence | Where-Object Name -EQ 'Host').Value | Should -Be 'login.microsoftonline.com'
-            ($failure.SafeEvidence | Where-Object Name -EQ 'PageTitle').Value.Length | Should -Be 256
             ($failure | ConvertTo-Json -Depth 8) | Should -Not -Match 'secret-code|secret-password|must-not-appear'
         }
     }

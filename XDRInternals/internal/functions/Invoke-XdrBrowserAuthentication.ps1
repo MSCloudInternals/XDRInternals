@@ -813,9 +813,7 @@ function Format-XdrBrowserTargetDescription {
     [OutputType([string])]
     [CmdletBinding()]
     param(
-        [string]$Url,
-
-        [string]$Title
+        [string]$Url
     )
 
     if ([string]::IsNullOrWhiteSpace($Url)) {
@@ -824,16 +822,11 @@ function Format-XdrBrowserTargetDescription {
 
     try {
         $parsedUrl = [uri]$Url
-        $safeUrl = "$($parsedUrl.Scheme)://$($parsedUrl.Host)$($parsedUrl.AbsolutePath)"
+        if ($parsedUrl.Scheme -notin @('http', 'https') -or -not $parsedUrl.Host) { return $null }
+        return "$($parsedUrl.Scheme)://$($parsedUrl.Host)"
     } catch {
         return $null
     }
-
-    if ([string]::IsNullOrWhiteSpace($Title)) {
-        return $safeUrl
-    }
-
-    return "$Title [$safeUrl]"
 }
 
 function Invoke-XdrBrowserCdpCommand {
@@ -1167,7 +1160,6 @@ function Invoke-XdrBrowserAuthentication {
         $selectedXsrfToken = $null
         $firstEstsCookieObservedAt = $null
         $lastObservedTargetDescription = $null
-        $lastObservedTargetTitle = $null
         $lastObservedTargetHost = $null
         $lastObservedPageErrorState = $null
 
@@ -1178,7 +1170,6 @@ function Invoke-XdrBrowserAuthentication {
                 $browserProcess.Refresh()
                 if ($browserProcess.HasExited) {
                     $failure = Get-XdrAuthenticationFailure -AuthenticationMethod Browser -Stage BrowserSignIn -DefaultCode BrowserClosed -SafeEvidence @{
-                        PageTitle = $lastObservedTargetTitle
                         Host = $lastObservedTargetHost
                     }
                     throw (New-XdrAuthenticationErrorRecord -Failure $failure)
@@ -1187,10 +1178,9 @@ function Invoke-XdrBrowserAuthentication {
 
             try {
                 $targetContext = Get-XdrBrowserPreferredTargetContext -Port $debugPort -FallbackWebSocketUrl $versionInfo.webSocketDebuggerUrl
-                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url -Title $targetContext.Title
+                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url
                 if ($currentTargetDescription -and $currentTargetDescription -ne $lastObservedTargetDescription) {
                     $lastObservedTargetDescription = $currentTargetDescription
-                    $lastObservedTargetTitle = [string]$targetContext.Title
                     try { $lastObservedTargetHost = ([uri]$targetContext.Url).Host } catch { $lastObservedTargetHost = $null }
                     Write-Verbose "Observed browser page: $currentTargetDescription"
                 }
@@ -1234,7 +1224,6 @@ function Invoke-XdrBrowserAuthentication {
                 Stage = 'BrowserSignIn'
                 DefaultCode = 'BrowserTimeout'
                 SafeEvidence = @{
-                    PageTitle = $lastObservedTargetTitle
                     Host = $lastObservedTargetHost
                 }
             }

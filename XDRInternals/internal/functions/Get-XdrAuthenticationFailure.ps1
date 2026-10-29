@@ -296,16 +296,33 @@
     }
 
     $evidence = @()
-    $allowedEvidenceKeys = @('Attempt', 'PageTitle', 'Host', 'Status', 'Field', 'BrowserState')
+    # Evidence values cross a diagnostic boundary: accept typed values, never page text.
+    $allowedEvidenceKeys = @('Attempt', 'Host', 'Status', 'Field', 'BrowserState')
     if ($SafeEvidence) {
         foreach ($key in $SafeEvidence.Keys) {
             if ([string]$key -notin $allowedEvidenceKeys) { continue }
             $value = [string]$SafeEvidence[$key]
-            if ($value.Length -gt 256) { $value = $value.Substring(0, 256) }
-            if ($value -match '(?i)(password|cookie|assertion|authorization.?code|token|sft|sctx|canary|session.?id)\s*[:=]') { continue }
-            if ($value -match 'https?://') {
-                try { $value = ([uri]$value).Host } catch { continue }
+            if ($value.Length -gt 256) { continue }
+            $valid = switch ([string]$key) {
+                'Host' {
+                    if ($value -match '^https?://') {
+                        try { $value = ([uri]$value).DnsSafeHost } catch { $value = '' }
+                    }
+                    $value -match '^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$'
+                }
+                'Attempt' {
+                    $parts = @($value -split '; ')
+                    $invalid = @($parts | Where-Object {
+                        $pair = $_ -split ':', 2
+                        $pair[0] -notin @('ESTS', 'Portal') -or ($pair.Count -eq 2 -and -not $definitions.ContainsKey($pair[1]))
+                    })
+                    $parts.Count -le 2 -and $invalid.Count -eq 0
+                }
+                'Status' { $value -match '^(?:[0-9]{1,3}|Success|Failure|Failed|Pending|Denied|Approved|Complete|Completed)$' }
+                'Field' { $value -in @('code', 'id_token', 'state', 'session_state', 'correlation_id') }
+                'BrowserState' { $value -in @('Starting', 'Running', 'Closed', 'Exited', 'TimedOut') }
             }
+            if (-not $valid) { continue }
             $evidence += [pscustomobject]@{ Name = [string]$key; Value = $value }
             if ($evidence.Count -ge 6) { break }
         }

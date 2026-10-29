@@ -357,7 +357,6 @@ function Invoke-XdrSsoAuthentication {
         $xsrfToken = $null
         $firstEstsCookieObservedAt = $null
         $lastObservedTargetDescription = $null
-        $lastObservedTargetTitle = $null
         $lastObservedTargetHost = $null
         $lastObservedPageErrorState = $null
 
@@ -368,7 +367,6 @@ function Invoke-XdrSsoAuthentication {
                 $browserProcess.Refresh()
                 if ($browserProcess.HasExited) {
                     $failure = Get-XdrAuthenticationFailure -AuthenticationMethod SSO -Stage BrowserSignIn -DefaultCode BrowserClosed -SafeEvidence @{
-                        PageTitle = $lastObservedTargetTitle
                         Host = $lastObservedTargetHost
                     }
                     throw (New-XdrAuthenticationErrorRecord -Failure $failure)
@@ -377,10 +375,9 @@ function Invoke-XdrSsoAuthentication {
 
             try {
                 $targetContext = Get-XdrBrowserPreferredTargetContext -Port $debugPort -FallbackWebSocketUrl $versionInfo.webSocketDebuggerUrl
-                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url -Title $targetContext.Title
+                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url
                 if ($currentTargetDescription -and $currentTargetDescription -ne $lastObservedTargetDescription) {
                     $lastObservedTargetDescription = $currentTargetDescription
-                    $lastObservedTargetTitle = [string]$targetContext.Title
                     try { $lastObservedTargetHost = ([uri]$targetContext.Url).Host } catch { $lastObservedTargetHost = $null }
                     Write-Verbose "Observed browser page: $currentTargetDescription"
                 }
@@ -426,7 +423,6 @@ function Invoke-XdrSsoAuthentication {
                 Stage = 'BrowserSignIn'
                 DefaultCode = 'BrowserTimeout'
                 SafeEvidence = @{
-                    PageTitle = $lastObservedTargetTitle
                     Host = $lastObservedTargetHost
                 }
             }

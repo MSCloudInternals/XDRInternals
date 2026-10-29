@@ -333,7 +333,7 @@ Describe 'Browser authentication failure boundaries' {
             $caught.FullyQualifiedErrorId | Should -BeLike 'XdrAuthentication.BrowserTimeout*'
             $metadata = $caught.Exception.Data['XdrAuthenticationFailure']
             ($metadata.SafeEvidence | Where-Object Name -EQ Host).Value | Should -Be 'login.microsoftonline.com'
-            ($metadata.SafeEvidence | Where-Object Name -EQ PageTitle).Value | Should -Be 'Sign in to your account'
+            $metadata.SafeEvidence.Name | Should -Not -Contain 'PageTitle'
             ($metadata | ConvertTo-Json -Depth 8) | Should -Not -Match 'secret-code|oauth2/authorize'
         }
 

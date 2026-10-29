@@ -711,17 +711,25 @@ InModuleScope XDRInternals {
             $result.WebSocketUrl | Should -Be 'ws://defender-target'
         }
 
-        It 'formats a browser target description from title and URL' {
-            $result = Format-XdrBrowserTargetDescription -Title 'Microsoft Defender' -Url 'https://security.microsoft.com/'
+        It 'formats a browser target description from its origin' {
+            $result = Format-XdrBrowserTargetDescription -Url 'https://security.microsoft.com/'
 
-            $result | Should -Be 'Microsoft Defender [https://security.microsoft.com/]'
+            $result | Should -Be 'https://security.microsoft.com'
         }
 
         It 'removes query and fragment values from browser target descriptions' {
-            $result = Format-XdrBrowserTargetDescription -Title 'Sign in' -Url 'https://login.microsoftonline.com/common/oauth2/authorize?login_hint=user%40contoso.com&nonce=secret-nonce#code=secret-code'
+            $result = Format-XdrBrowserTargetDescription -Url 'https://login.microsoftonline.com/common/oauth2/authorize?login_hint=user%40contoso.com&nonce=secret-nonce#code=secret-code'
 
-            $result | Should -Be 'Sign in [https://login.microsoftonline.com/common/oauth2/authorize]'
+            $result | Should -Be 'https://login.microsoftonline.com'
             $result | Should -Not -Match 'user|nonce|code|secret'
+        }
+
+        It 'omits URL paths from descriptions and exposes no title parameter' {
+            $result = Format-XdrBrowserTargetDescription -Url 'https://login.microsoftonline.com/synthetic-path-secret?code=synthetic-query-secret#synthetic-fragment-secret'
+            $result | Should -Be 'https://login.microsoftonline.com'
+            $result | Should -Not -Match 'synthetic|Bearer'
+            (Get-Command Format-XdrBrowserTargetDescription).Parameters.ContainsKey('Title') | Should -BeFalse
+            Format-XdrBrowserTargetDescription -Url 'data:text/plain,synthetic-path-secret' | Should -BeNullOrEmpty
         }
 
         It 'reads only allowlisted authentication error fields through CDP' {

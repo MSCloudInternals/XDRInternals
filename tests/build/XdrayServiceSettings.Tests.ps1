@@ -58,7 +58,7 @@ Describe 'XDRay service-settings generator and replay' {
         $existing = @($script:Generated | Where-Object Cmdlet -EQ $script:Existing.Cmdlet)
         $existing | Should -HaveCount 1
         $existing[0].ApiUri | Should -Be $script:Existing.ApiUri
-        $existing[0].PSObject.Properties.Name | Should -Be @('Cmdlet', 'ApiUri')
+        @($existing[0].PSObject.Properties.Name | Sort-Object) | Should -Be @('ApiUri', 'Cmdlet')
     }
 
     It 'generates identical Chromium and Firefox bytes and is stable on a second run' {

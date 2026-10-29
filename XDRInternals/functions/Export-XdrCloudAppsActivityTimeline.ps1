@@ -189,6 +189,23 @@
             }
         }
 
+        # Both publication paths must independently recheck overwrite permission and identity.
+        $assertPublicationDestination = {
+            if (-not (Test-Path -LiteralPath $outputPath -PathType Leaf)) { return $false }
+            $replacement = $manifest.Replacement
+            $authorized = [bool]$manifest.ReplaceExisting -and $replacement -and
+                $null -ne $replacement.FileBytes -and
+                -not [string]::IsNullOrWhiteSpace([string]$replacement.FileSha256)
+            if ($authorized) {
+                $authorized = (Get-Item -LiteralPath $outputPath -ErrorAction Stop).Length -eq [long]$replacement.FileBytes -and
+                    (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256 -ErrorAction Stop).Hash -eq [string]$replacement.FileSha256
+            }
+            if (-not $authorized) {
+                throw 'The destination does not match an authorized replacement. It was not overwritten. Use -Force to start a new replacement or choose another Path.'
+            }
+            return $true
+        }
+
         if ($manifest -and [string]$manifest.State -in @('Publishing', 'Complete')) {
             $expectedBytes = [long]$manifest.Summary.FileBytes
             $expectedHash = [string]$manifest.Summary.FileSha256
@@ -206,7 +223,8 @@
                     $validPartial = (Get-FileHash -LiteralPath $outputPartialPath -Algorithm SHA256).Hash.ToLowerInvariant() -eq $expectedHash
                 }
                 if ($validPartial) {
-                    [System.IO.File]::Move($outputPartialPath, $outputPath, $true)
+                    $replaceDestination = & $assertPublicationDestination
+                    [System.IO.File]::Move($outputPartialPath, $outputPath, $replaceDestination)
                     $validOutput = $true
                 }
             }
@@ -297,7 +315,13 @@
                 FromDateUtc = $rangeStart.ToString('o'); ToDateUtc = $rangeEnd.ToString('o')
                 ArchiveBoundaryUtc = $archiveBoundary.ToString('o'); ChunkHours = $chunkHours
                 PageSize = $pageSize; PaginationStrategy = $paginationStrategy
-                Ordering = 'NewestTimeWindowFirst;ApiTimestampDescending'; ReplaceExisting = $existingOutputAtStart
+                Ordering = 'NewestTimeWindowFirst;ApiTimestampDescending'; ReplaceExisting = ($Force.IsPresent -and $existingOutputAtStart)
+                Replacement = if ($Force.IsPresent -and $existingOutputAtStart) {
+                    [ordered]@{
+                        FileBytes = (Get-Item -LiteralPath $outputPath -ErrorAction Stop).Length
+                        FileSha256 = (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+                    }
+                } else { $null }
                 CreatedUtc = [datetime]::UtcNow.ToString('o'); UpdatedUtc = [datetime]::UtcNow.ToString('o')
                 Chunks = $manifestChunks; Summary = $null
             }
@@ -651,7 +675,8 @@
             CompletedUtc = [datetime]::UtcNow.ToString('o')
         }
         & $writeManifest $manifest
-        [System.IO.File]::Move($outputPartialPath, $outputPath, $true)
+        $replaceDestination = & $assertPublicationDestination
+        [System.IO.File]::Move($outputPartialPath, $outputPath, $replaceDestination)
 
         $partsRetained = $false
         try { Remove-Item -LiteralPath $partsPath -Recurse -Force -ErrorAction Stop }

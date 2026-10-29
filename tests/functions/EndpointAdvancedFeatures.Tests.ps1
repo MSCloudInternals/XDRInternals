@@ -45,20 +45,28 @@ Describe 'Endpoint automated attack disruption exclusions' -Tag 'Functions', 'En
     BeforeEach {
         Mock Update-XdrConnectionSettings {} -ModuleName XDRInternals
         Mock Get-XdrCache { $null } -ModuleName XDRInternals
+        Mock Clear-XdrCache {} -ModuleName XDRInternals
         Mock Set-XdrCache {} -ModuleName XDRInternals
         Mock Invoke-RestMethod {
-            [pscustomobject]@{ ExclusionType = 'DeviceTag'; DefaultIdentifiers = @() }
+            if ($Uri -like '*/IP') {
+                [pscustomobject]@{ ExclusionType = 'IP'; Exclusions = @() }
+            } elseif ($Uri -like '*/deviceTag/default') {
+                [pscustomobject]@{ ExclusionType = 'DeviceTag'; DefaultIdentifiers = @() }
+            } else {
+                [pscustomobject]@{ ExclusionType = 'DeviceTag'; Exclusions = @() }
+            }
         } -ModuleName XDRInternals
     }
 
     It 'routes each supported device exclusion type to its captured endpoint' -ForEach @(
-        @{ Type = 'IP'; Path = 'IP' }
-        @{ Type = 'DeviceTag'; Path = 'DeviceTag' }
-        @{ Type = 'DefaultDeviceTag'; Path = 'deviceTag/default' }
+        @{ Type = 'IP'; Path = 'IP'; ResponseType = 'IP'; Collection = 'Exclusions' }
+        @{ Type = 'DeviceTag'; Path = 'DeviceTag'; ResponseType = 'DeviceTag'; Collection = 'Exclusions' }
+        @{ Type = 'DefaultDeviceTag'; Path = 'deviceTag/default'; ResponseType = 'DeviceTag'; Collection = 'DefaultIdentifiers' }
     ) {
         $result = Get-XdrEndpointConfigurationAttackDisruptionExclusion -Type $Type
 
-        $result.ExclusionType | Should -Be 'DeviceTag'
+        $result.ExclusionType | Should -Be $ResponseType
+        $result.PSObject.Properties.Name | Should -Contain $Collection
         Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 1 -ParameterFilter {
             $Method -eq 'Get' -and $Uri -eq "https://security.microsoft.com/apiproxy/mtp/disrupt/api/exclusions/$Path"
         }
@@ -86,6 +94,25 @@ Describe 'Endpoint automated attack disruption exclusions' -Tag 'Functions', 'En
         (Get-XdrEndpointConfigurationAttackDisruptionExclusion -Type IP).ExclusionType | Should -Be 'IP'
         Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 0
     }
+
+    It 'bypasses a valid exclusion cache entry with Force' {
+        Mock Get-XdrCache {
+            [pscustomobject]@{ NotValidAfter = (Get-Date).AddMinutes(5); Value = [pscustomobject]@{ ExclusionType = 'IP' } }
+        } -ModuleName XDRInternals
+
+        (Get-XdrEndpointConfigurationAttackDisruptionExclusion -Type DeviceTag -Force).ExclusionType | Should -Be 'DeviceTag'
+        Should -Invoke Clear-XdrCache -ModuleName XDRInternals -Times 1 -ParameterFilter {
+            $CacheKey -eq 'GetXdrEndpointConfigurationAttackDisruptionExclusionDeviceTag'
+        }
+        Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 1
+    }
+
+    It 'does not cache a failed exclusion request' {
+        Mock Invoke-RestMethod { throw 'Request failed' } -ModuleName XDRInternals
+
+        { Get-XdrEndpointConfigurationAttackDisruptionExclusion -Type IP -ErrorAction Stop } | Should -Throw
+        Should -Invoke Set-XdrCache -ModuleName XDRInternals -Times 0
+    }
 }
 
 Describe 'Endpoint custom data collection model' -Tag 'Functions', 'Endpoint' {
@@ -110,6 +137,22 @@ Describe 'Endpoint custom data collection model' -Tag 'Functions', 'Endpoint' {
             $CacheKey -eq 'GetXdrEndpointConfigurationCustomCollectionModel' -and $TTLMinutes -eq 30
         }
         Should -Invoke Clear-XdrCache -ModuleName XDRInternals -Times 1
+    }
+
+    It 'returns a valid cached model without a request' {
+        Mock Get-XdrCache {
+            [pscustomobject]@{ NotValidAfter = (Get-Date).AddMinutes(5); Value = [pscustomobject]@{ platforms = @() } }
+        } -ModuleName XDRInternals
+
+        (Get-XdrEndpointConfigurationCustomCollectionModel).PSObject.Properties.Name | Should -Contain 'platforms'
+        Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 0
+    }
+
+    It 'does not cache a failed model request' {
+        Mock Invoke-RestMethod { throw 'Request failed' } -ModuleName XDRInternals
+
+        { Get-XdrEndpointConfigurationCustomCollectionModel -ErrorAction Stop } | Should -Throw
+        Should -Invoke Set-XdrCache -ModuleName XDRInternals -Times 0
     }
 }
 

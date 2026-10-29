@@ -14,7 +14,7 @@
 
     .OUTPUTS
         Object
-        Returns the API response with platforms, each containing its tables.
+        Returns the API response with its platforms and tables.
     #>
     [CmdletBinding()]
     param (

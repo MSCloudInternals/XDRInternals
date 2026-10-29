@@ -355,6 +355,50 @@ test("identity SID lookup is bounded and verifies the resolved target", () => {
     assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
 });
 
+test("PowerShell accepts normalized SID case while rejecting a different numeric target", () => {
+    const sid = "S-1-5-21-111-222-333-1001";
+    const result = runHost([
+        { id: "1", operation: "get_identity", args: { sid } },
+        { id: "2", operation: "get_identity", args: { sid: "S-1-5-21-111-222-333-1002" } },
+    ], true, { XDR_MCP_TEST_LOWERCASE_SID: "1" });
+    assert.equal(result[0].ok, true);
+    assert.equal(result[0].data.sid, sid.toLowerCase());
+    assert.equal(result[1].error, "invalid_response");
+    assert.doesNotMatch(JSON.stringify(result), /secret-cookie-should-not-leak/);
+});
+
+test("real stdio SID lookup preserves normalized case and rejects the wrong target", { skip: process.platform !== "linux" }, async () => {
+    const realPwsh = spawnSync("pwsh", ["-NoProfile", "-NonInteractive", "-Command", "(Get-Process -Id $PID).Path"], { encoding: "utf8", timeout: 15_000 });
+    assert.equal(realPwsh.status, 0, realPwsh.stderr);
+    const harness = mkdtempSync(join(tmpdir(), "xdr-mcp-sid-test-"));
+    const shim = join(harness, "pwsh");
+    writeFileSync(shim, '#!/bin/sh\nexec "$XDR_MCP_TEST_REAL_PWSH" "$@" -ModulePath "$XDR_MCP_TEST_MODULE"\n');
+    chmodSync(shim, 0o700);
+    const client = new Client({ name: "stdio-sid-test", version: "1.0.0" });
+    const transport = new StdioClientTransport({
+        command: process.execPath,
+        args: [fileURLToPath(new URL("../dist/index.js", import.meta.url))],
+        env: { ...process.env, XDR_MCP_AUTH: "browser", XDR_MCP_PASSKEY_FILE: "", XDR_MCP_TEST_LOWERCASE_SID: "1", XDR_MCP_TEST_REAL_PWSH: realPwsh.stdout.trim(), XDR_MCP_TEST_MODULE: fixture, PATH: `${harness}${delimiter}${process.env.PATH}` },
+        stderr: "pipe",
+    });
+    let stderr = "";
+    transport.stderr.on("data", (chunk) => { stderr += chunk; });
+    try {
+        await client.connect(transport);
+        const result = await client.callTool({ name: "xdr_get_identity", arguments: { sid: "S-1-5-21-111-222-333-1001" } });
+        assert.equal(result.isError, undefined);
+        assert.equal(result.structuredContent.items.sid, "s-1-5-21-111-222-333-1001");
+        const wrongTarget = await client.callTool({ name: "xdr_get_identity", arguments: { sid: "S-1-5-21-111-222-333-1002" } });
+        assert.equal(wrongTarget.isError, true);
+        assert.equal(wrongTarget.content[0].text, "invalid_response");
+        assert.doesNotMatch(JSON.stringify([result, wrongTarget]), /secret-cookie-should-not-leak/);
+    } finally {
+        await client.close();
+        rmSync(harness, { recursive: true, force: true });
+    }
+    assert.equal(stderr, "");
+});
+
 test("MCP accepts exactly one identity identifier including SID", async () => {
     const sid = "S-1-5-21-111-222-333-1001";
     const calls = [];

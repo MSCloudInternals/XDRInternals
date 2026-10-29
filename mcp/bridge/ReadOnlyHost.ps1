@@ -497,7 +497,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                 if ($null -eq $item) { throw 'not_found' }
                 if ($item -is [array]) { throw 'invalid_response' }
                 if ($parameters.ContainsKey('objectId') -and $item.ids.aad -ne $parameters.objectId) { throw 'invalid_response' }
-                if ($parameters.ContainsKey('sid') -and $item.ids.sid -cne $parameters.sid) { throw 'invalid_response' }
+                if ($parameters.ContainsKey('sid') -and $item.ids.sid -ine $parameters.sid) { throw 'invalid_response' }
                 if ($parameters.ContainsKey('upn') -and $item.userPrincipalName -and $item.userPrincipalName -ne $parameters.upn) { throw 'invalid_response' }
                 @{ upn = Limit-Text $item.userPrincipalName; name = Limit-Text $item.displayName; objectId = Limit-Text $item.ids.aad; sid = Limit-Text $item.ids.sid; firstSeen = Limit-Date $item.firstSeen; lastSeen = Limit-Date $item.lastSeen }
                 break

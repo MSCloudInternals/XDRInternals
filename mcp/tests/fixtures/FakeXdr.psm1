@@ -201,7 +201,10 @@ function Get-XdrIdentityIdentity {
 function Get-XdrIdentityUser {
     param([string]$Upn, [string]$AadId, [string]$Sid, [switch]$ResolveOnly)
     if (-not $ResolveOnly) { throw 'unbounded identity enrichment' }
-    if ($Sid) { return [pscustomobject]@{ displayName = 'Domain analyst'; ids = [pscustomobject]@{ sid = 'S-1-5-21-111-222-333-1001' }; Credential = 'secret-cookie-should-not-leak' } }
+    if ($Sid) {
+        $resolvedSid = if ($env:XDR_MCP_TEST_LOWERCASE_SID -eq '1') { 's-1-5-21-111-222-333-1001' } else { 'S-1-5-21-111-222-333-1001' }
+        return [pscustomobject]@{ displayName = 'Domain analyst'; ids = [pscustomobject]@{ sid = $resolvedSid }; Credential = 'secret-cookie-should-not-leak' }
+    }
     if ($Upn -eq 'other@example.test') { return [pscustomobject]@{ userPrincipalName = 'analyst@example.test' } }
     if ($AadId -eq 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') { return [pscustomobject]@{ ids = [pscustomobject]@{ aad = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' } } }
     [pscustomobject]@{ displayName = 'Analyst'; userPrincipalName = 'analyst@example.test'; ids = [pscustomobject]@{ aad = '12345678-1234-1234-1234-123456789abc' }; firstSeen = '2026-01-01'; lastSeen = '2026-01-02'; Credential = 'secret-cookie-should-not-leak' }

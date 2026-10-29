@@ -231,11 +231,47 @@
         }
     }
 
-    It 'skips null activity payload items when writing chunk files' {
+    It 'rejects caller-supplied date filters for bounded requests' {
+        $from = [datetime]::UtcNow.AddHours(-2)
+        $to = [datetime]::UtcNow.AddHours(-1)
+
+        {
+            Get-XdrCloudAppsActivityTimeline -FromDate $from -ToDate $to -Filters @{ date = @{ gte = 1 } }
+        } | Should -Throw -ExpectedMessage '*Filters cannot contain date for a bounded request*'
+    }
+
+    It 'rejects created filters when bounded requests include archived activity' {
+        $from = [datetime]::UtcNow.AddDays(-31)
+        $to = [datetime]::UtcNow.AddDays(-30).AddHours(-1)
+
+        {
+            Get-XdrCloudAppsActivityTimeline -FromDate $from -ToDate $to -Filters @{ created = @{ gte = 1 } }
+        } | Should -Throw -ExpectedMessage '*archived API does not support that filter*'
+    }
+
+    It 'does not collapse distinct payloads that reuse an activity identifier' {
+        InModuleScope XDRInternals {
+            $sha256 = [System.Security.Cryptography.SHA256]::Create()
+            try {
+                $first = Get-XdrCloudAppsActivityStableKey -Activity ([pscustomobject]@{ _id = 'shared'; detail = 'first' }) -Sha256 $sha256
+                $second = Get-XdrCloudAppsActivityStableKey -Activity ([pscustomobject]@{ _id = 'shared'; detail = 'second' }) -Sha256 $sha256
+
+                $first | Should -Not -Be $second
+            }
+            finally {
+                $sha256.Dispose()
+            }
+        }
+    }
+
+    It 'fails closed on null activity payload items' {
         $eventTime = [datetime]::UtcNow.AddMinutes(-5)
         $eventTimestamp = [long](($eventTime - [datetime]'1970-01-01').TotalMilliseconds)
 
         Mock Invoke-RestMethod {
+            if ($Uri -like '*/count/') {
+                return [pscustomobject]@{ total = 1; moreThanTotal = $false; searchedSince = 'test' }
+            }
             [pscustomobject]@{
                 data    = @(
                     $null,
@@ -262,15 +298,9 @@
             try {
                 $script:PSVersionTable = @{ PSVersion = [version]'5.1.0' }
 
-                $result = @(Get-XdrCloudAppsActivityTimeline -FromDate $EventTime.AddHours(-1) -ToDate $EventTime.AddHours(1) -OutputPath $TempPath -KeepTempFiles)
-
-                $result | Should -HaveCount 1
-                $result[0]._id | Should -Be 'activity-1'
-
-                $chunkPath = Get-ChildItem -Path $TempPath -Recurse -Filter 'chunk_*.json' | Select-Object -First 1 -ExpandProperty FullName
-                $chunkContent = Get-Content -Path $chunkPath -Raw
-
-                $chunkContent | Should -Not -Match 'null'
+                {
+                    Get-XdrCloudAppsActivityTimeline -FromDate $EventTime.AddMinutes(-30) -ToDate $EventTime.AddMinutes(1) -ChunkHours 1 -OutputPath $TempPath
+                } | Should -Throw -ExpectedMessage '*received a null activity record*'
             }
             finally {
                 if ($hadScriptVersionTable) {
@@ -287,6 +317,9 @@
         $eventTime = [datetime]::UtcNow.AddMinutes(-5)
         $eventTimestamp = [long](($eventTime - [datetime]'1970-01-01').TotalMilliseconds)
         Mock Invoke-RestMethod {
+            if ($Uri -like '*/count/') {
+                return [pscustomobject]@{ total = 1; moreThanTotal = $false; searchedSince = 'test' }
+            }
             @{
                 data = @(
                     @{
@@ -311,7 +344,7 @@
             try {
                 $script:PSVersionTable = @{ PSVersion = [version]'5.1.0' }
 
-                $result = @(Get-XdrCloudAppsActivityTimeline -FromDate $EventTime.AddHours(-1) -ToDate $EventTime.AddHours(1) -OutputPath $TempPath -KeepTempFiles)
+                $result = @(Get-XdrCloudAppsActivityTimeline -FromDate $EventTime.AddMinutes(-30) -ToDate $EventTime.AddMinutes(1) -ChunkHours 1 -OutputPath $TempPath -KeepTempFiles)
 
                 $result | Should -HaveCount 1
                 $result[0]._id | Should -Be 'activity-string-1'
@@ -327,28 +360,27 @@
         }
     }
 
-    It 'skips unreadable activity chunk files when partial data is allowed' {
-        $chunkPath = Join-Path $TestDrive 'chunk_bad.json'
-        Set-Content -Path $chunkPath -Value '{"Events":[{"_id":"activity-1"}' -Encoding UTF8
+    It 'skips unreadable activity part files when partial data is allowed' {
+        $chunkPath = Join-Path $TestDrive 'chunk_bad.ndjson'
+        Set-Content -Path $chunkPath -Value '{"_id":"activity-1"' -Encoding UTF8
 
         InModuleScope -ModuleName XDRInternals -Parameters @{ ChunkPath = $chunkPath } {
             param($ChunkPath)
 
-            $result = Read-XdrCloudAppsActivityChunkFile -File (Get-Item -Path $ChunkPath) -AllowPartial -WarningAction SilentlyContinue
+            $result = @(Read-XdrCloudAppsActivityPartFile -File (Get-Item -Path $ChunkPath) -AllowPartial -WarningAction SilentlyContinue)
 
             $result | Should -BeNullOrEmpty
         }
     }
 
-    It 'reads activity chunk files that contain keys differing only by case' {
-        $chunkPath = Join-Path $TestDrive 'chunk_case_keys.json'
-        Set-Content -Path $chunkPath -Value '{"Events":[{"_id":"activity-1","timestamp":1710000000000,"level":"low","Level":"High"}],"EventCount":1}' -Encoding UTF8
+    It 'reads activity part files that contain keys differing only by case' {
+        $chunkPath = Join-Path $TestDrive 'chunk_case_keys.ndjson'
+        Set-Content -Path $chunkPath -Value '{"_id":"activity-1","timestamp":1710000000000,"level":"low","Level":"High"}' -Encoding UTF8
 
         InModuleScope -ModuleName XDRInternals -Parameters @{ ChunkPath = $chunkPath } {
             param($ChunkPath)
 
-            $result = Read-XdrCloudAppsActivityChunkFile -File (Get-Item -Path $ChunkPath)
-            $activity = @(Get-XdrCloudAppsObjectValue -InputObject $result -Name 'Events')[0]
+            $activity = @(Read-XdrCloudAppsActivityPartFile -File (Get-Item -Path $ChunkPath))[0]
 
             (Get-XdrCloudAppsObjectValue -InputObject $activity -Name 'level') | Should -Be 'low'
             (Get-XdrCloudAppsObjectValue -InputObject $activity -Name 'Level') | Should -Be 'High'
@@ -356,14 +388,14 @@
         }
     }
 
-    It 'throws unreadable activity chunk errors when partial data is not allowed' {
-        $chunkPath = Join-Path $TestDrive 'chunk_bad_strict.json'
-        Set-Content -Path $chunkPath -Value '{"Events":[{"_id":"activity-1"}' -Encoding UTF8
+    It 'throws unreadable activity part errors when partial data is not allowed' {
+        $chunkPath = Join-Path $TestDrive 'chunk_bad_strict.ndjson'
+        Set-Content -Path $chunkPath -Value '{"_id":"activity-1"' -Encoding UTF8
 
         InModuleScope -ModuleName XDRInternals -Parameters @{ ChunkPath = $chunkPath } {
             param($ChunkPath)
 
-            { Read-XdrCloudAppsActivityChunkFile -File (Get-Item -Path $ChunkPath) } |
+            { Read-XdrCloudAppsActivityPartFile -File (Get-Item -Path $ChunkPath) } |
                 Should -Throw -ExpectedMessage '*Conversion from JSON failed*'
         }
     }

@@ -55,6 +55,7 @@ Get-XdrTenantContext -Force
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encodes an Advanced Hunting query for use in Microsoft Defender XDR. |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
 | Export-XdrAzureDataExplorer                                     | Exports pipeline data to Azure Data Explorer using queued ingestion. |
+| Export-XdrCloudAppsActivityTimeline                             | Exports Microsoft Defender for Cloud Apps activity timeline data to NDJSON. |
 | Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |
 | Get-XdrActionsCenterHistory                                     | Retrieves historical actions from the Microsoft Defender XDR Action Center. |
 | Get-XdrActionsCenterPending                                     | Retrieves pending actions from the Microsoft Defender XDR Action Center. |
@@ -314,6 +315,12 @@ Get-XdrCloudAppsActivityTimeline -LastNDays 1
 # Push harder for time-sensitive incident response while preserving completeness checks
 Get-XdrCloudAppsActivityTimeline -LastNDays 7 -Aggressive -ExportPath ".\cloud-apps-activity.ndjson" -ExportFormat Ndjson
 
+# Export a large, resumable activity timeline without retaining it in memory
+Export-XdrCloudAppsActivityTimeline `
+    -FromDate (Get-Date).ToUniversalTime().AddDays(-90) `
+    -ToDate (Get-Date).ToUniversalTime() `
+    -Path ".\cloud-apps-activity-90d.ndjson"
+
 # Explore grouped app and discovery surfaces
 Get-XdrCloudAppsApp -Type Discovered -Limit 50
 Get-XdrCloudAppsDiscovery -ListStreams
@@ -323,6 +330,24 @@ Get-XdrCloudAppsConfiguration -Type DiscoveryStream
 Get-XdrCloudAppsGovernance
 Get-XdrCloudAppsPolicy -Type OAuth -Metadata
 ```
+
+`Export-XdrCloudAppsActivityTimeline` writes six-hour recent or archived parts with up to
+eight concurrent workers. It uses timestamp-keyset pagination because the activity APIs
+cap pages at 250 records. Dense recent timestamps are further paginated by creation time;
+dense archived timestamps use bounded, stable-ID-validated offset sweeps because the
+archived API does not expose creation time as a filter. Completed parts are length- and
+SHA-256-validated, so rerunning the same command resumes
+only incomplete or corrupted windows. The final file is published atomically after every
+part and the merged SHA-256 are validated; `-Force` keeps an existing final export in place
+until its replacement is complete.
+
+The Cloud Apps count API is used as a consistency signal, but it is not an exact snapshot
+of the activity list. A shortfall restarts the affected window once with a fresh request
+contexts. Persistent count differences are recorded in the result and manifest as
+`CountDelta`, while the exporter preserves the complete unique payload returned by the
+list API. Exact repeated payloads are suppressed at pagination boundaries. Normal keyset
+pagination retains records that reuse identifiers but differ in content; archived dense
+timestamp recovery requires stable activity IDs to verify convergence.
 
 #### Azure Data Explorer export
 

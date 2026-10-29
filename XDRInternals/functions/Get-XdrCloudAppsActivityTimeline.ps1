@@ -1,4 +1,4 @@
-﻿function Read-XdrCloudAppsActivityChunkFile {
+﻿function Read-XdrCloudAppsActivityPartFile {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -8,21 +8,27 @@
         [switch]$AllowPartial
     )
 
+    $lineNumber = 0
     try {
-        $json = Get-Content -Path $File.FullName -Raw -ErrorAction Stop
-        if ((Get-Command ConvertFrom-Json -ErrorAction Stop).Parameters.ContainsKey('AsHashtable')) {
-            return $json | ConvertFrom-Json -AsHashtable -ErrorAction Stop
-        }
+        foreach ($line in [System.IO.File]::ReadLines($File.FullName)) {
+            $lineNumber++
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
 
-        Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
-        $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
-        $serializer.MaxJsonLength = [int]::MaxValue
-        return $serializer.DeserializeObject($json)
+            if ((Get-Command ConvertFrom-Json -ErrorAction Stop).Parameters.ContainsKey('AsHashtable')) {
+                $line | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+            }
+            else {
+                Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
+                $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+                $serializer.MaxJsonLength = [int]::MaxValue
+                $serializer.DeserializeObject($line)
+            }
+        }
     }
     catch {
         if ($AllowPartial) {
-            Write-Warning "Skipping unreadable Cloud Apps activity chunk file '$($File.Name)': $($_.Exception.Message)"
-            return $null
+            Write-Warning "Skipping unreadable Cloud Apps activity part '$($File.Name)' at line $lineNumber`: $($_.Exception.Message)"
+            return
         }
 
         throw
@@ -101,13 +107,6 @@ function Get-XdrCloudAppsActivityStableKey {
         [System.Security.Cryptography.SHA256]$Sha256
     )
 
-    foreach ($name in @('_id', 'id', 'recordId')) {
-        $value = Get-XdrCloudAppsObjectValue -InputObject $Activity -Name $name
-        if ($value) {
-            return [string]$value
-        }
-    }
-
     $stableJson = $Activity | ConvertTo-Json -Depth 20 -Compress
     return [System.BitConverter]::ToString($Sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($stableJson))).Replace('-', '')
 }
@@ -120,6 +119,8 @@ function Get-XdrCloudAppsActivityTimeline {
     .DESCRIPTION
         Retrieves Cloud Apps activity events with reliable chunking, retry handling,
         recent/archived API routing, export support, and typed admin-friendly output.
+        Bounded requests reuse the same endpoint-specific pagination worker as
+        Export-XdrCloudAppsActivityTimeline.
 
     .PARAMETER Metadata
         Returns filter metadata for the recent activities API.
@@ -131,7 +132,9 @@ function Get-XdrCloudAppsActivityTimeline {
         Returns raw API metadata or response data when supported.
 
     .PARAMETER CountOnly
-        Returns activity counts without retrieving full activity records.
+        Returns activity count snapshots without retrieving full activity records.
+        The Cloud Apps count API is a diagnostic consistency signal and may not
+        exactly match a concurrently changing activity-list query.
 
     .PARAMETER FromDate
         Start of the timeline range.
@@ -146,7 +149,9 @@ function Get-XdrCloudAppsActivityTimeline {
         Number of activities to request per page.
 
     .PARAMETER Filters
-        Cloud Apps activity filters to include in the query body.
+        Cloud Apps activity filters to include in the query body. For bounded
+        requests, the date filter is managed by this command and cannot be supplied.
+        The created filter cannot be used when the range includes archived activity.
 
     .PARAMETER IncludeThreatScores
         Adds threat score data for recent activities when available.
@@ -358,6 +363,12 @@ function Get-XdrCloudAppsActivityTimeline {
             if ($rangeDays -gt $maxDaysTotal) {
                 throw "Date range cannot exceed $maxDaysTotal days. Requested range: $([math]::Round($rangeDays, 1)) days."
             }
+            if (@($Filters.Keys | Where-Object { [string]$_ -ieq 'date' }).Count -gt 0) {
+                throw 'Filters cannot contain date for a bounded request because the command manages the date filter.'
+            }
+            if ($FromDate -lt $regularBoundaryUtc -and @($Filters.Keys | Where-Object { [string]$_ -ieq 'created' }).Count -gt 0) {
+                throw 'Filters cannot contain created when the request includes archived activity because the archived API does not support that filter.'
+            }
         }
 
         if ($Aggressive) {
@@ -446,6 +457,9 @@ function Get-XdrCloudAppsActivityTimeline {
                     ToDate   = $chunkEnd
                     Archived = $Archived
                     Index    = $dateChunks.Count
+                    DurationTicks = ($chunkEnd - $cursor).Ticks
+                    FileName = ('chunk_{0:D4}_{1}_{2:yyyyMMddTHHmmssfffZ}_{3:yyyyMMddTHHmmssfffZ}.ndjson' -f $dateChunks.Count, $(if ($Archived) { 'archived' } else { 'recent' }), $cursor, $chunkEnd)
+                    Attempt  = 0
                 })
                 $cursor = $chunkEnd
             }
@@ -470,162 +484,36 @@ function Get-XdrCloudAppsActivityTimeline {
         foreach ($key in $script:headers.Keys) { $headersData[$key] = $script:headers[$key] }
 
         $baseParams = @{
-            RegularApiPath        = "https://security.microsoft.com/apiproxy$regularApiPath"
-            ArchivedApiPath       = "https://security.microsoft.com/apiproxy$archivedApiPath"
+            BaseUrl               = $xdrBaseUrl
             Filters               = $Filters
             PageSize              = $PageSize
             MaxRetries            = $MaxRetries
             RetryDelaySeconds     = $RetryDelaySeconds
             RequestTimeoutSeconds = $RequestTimeoutSeconds
-            TempPath              = $runTempPath
+            MaxPagesPerChunk      = 10000
+            MaxCountMismatchRestarts = 1
+            PartsPath             = $runTempPath
+            CookieData            = $cookieData
+            HeadersData           = $headersData
         }
 
+        $workerScriptText = (New-XdrCloudAppsActivityTimelineExportWorker).ToString()
+        $statusMap = [System.Collections.Concurrent.ConcurrentDictionary[int, object]]::new()
         $chunkScript = {
-            param($Chunk, $Params, $CookieInfo, $HeaderInfo)
+            param($Chunk, $Params, $StatusMap, $WorkerText)
 
-            $webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
-            foreach ($c in $CookieInfo) {
-                $webSession.Cookies.Add([System.Net.Cookie]::new($c.Name, $c.Value, $c.Path, $c.Domain))
-            }
-
-            $chunkStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-            $fileName = 'chunk_{0:D4}_{1:yyyyMMdd_HHmmss}_{2:yyyyMMdd_HHmmss}.json' -f $Chunk.Index, $Chunk.FromDate, $Chunk.ToDate
-            $filePath = Join-Path $Params.TempPath $fileName
-            $progressPath = Join-Path $Params.TempPath ('progress_{0:D4}.txt' -f $Chunk.Index)
-            $writer = $null
-            $eventCount = 0
-            $pagesRetrieved = 0
-            $retryCount = 0
-            $retryErrors = [System.Collections.Generic.List[string]]::new()
-
-            try {
-                $uri = if ($Chunk.Archived) { $Params.ArchivedApiPath } else { $Params.RegularApiPath }
-                $epochStart = [long]($Chunk.FromDate.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds
-                $epochEnd = [long]($Chunk.ToDate.ToUniversalTime() - [datetime]'1970-01-01').TotalMilliseconds
-                $filters = $Params.Filters.Clone()
-                if ($Chunk.Archived) {
-                    $filters.date = @{ range = @( @{ start = $epochStart; end = $epochEnd } ) }
+            $worker = [scriptblock]::Create($WorkerText)
+            do {
+                $result = & $worker -chunk $Chunk -sharedParameters $Params -statusMap $StatusMap
+                if ($result.Success -or
+                    [string]$result.FailureClass -notin @('PartialResponse', 'TransientHttp', 'Transport', 'Protocol') -or
+                    [int]$Chunk.Attempt -ge [int]$Params.MaxCountMismatchRestarts) {
+                    break
                 }
-                else {
-                    $filters.date = @{ gte = $epochStart; lte = $epochEnd }
-                }
+                $Chunk.Attempt = [int]$Chunk.Attempt + 1
+            } while ($true)
 
-                $writer = [System.IO.StreamWriter]::new($filePath, $false, [System.Text.Encoding]::UTF8)
-                $writer.Write('{"ChunkIndex":' + $Chunk.Index + ',"FromDate":"' + $Chunk.FromDate.ToString('o') + '","ToDate":"' + $Chunk.ToDate.ToString('o') + '","Archived":' + $Chunk.Archived.ToString().ToLowerInvariant() + ',"Events":[')
-                $first = $true
-                $skip = 0
-                $hasMore = $true
-                while ($hasMore -and $pagesRetrieved -lt 10000) {
-                    $body = @{
-                        distributedId     = [guid]::NewGuid().ToString()
-                        filters           = $filters
-                        limit             = $Params.PageSize
-                        performAsyncTotal = $true
-                        skip              = $skip
-                        sortDirection     = 'desc'
-                        sortField         = 'date'
-                    } | ConvertTo-Json -Depth 20 -Compress
-
-                    $attempt = 0
-                    $response = $null
-                    while ($attempt -lt $Params.MaxRetries) {
-                        $attempt++
-                        try {
-                            $response = Invoke-RestMethod -Uri $uri -Method Post -Body $body -ContentType 'application/json' -WebSession $webSession -Headers $HeaderInfo -TimeoutSec $Params.RequestTimeoutSeconds -ErrorAction Stop
-                            break
-                        }
-                        catch {
-                            $statusCode = $null
-                            if ($_.Exception.Response) { $statusCode = [int]$_.Exception.Response.StatusCode }
-                            if ($attempt -ge $Params.MaxRetries) { throw }
-                            $retryCount++
-                            $delay = [math]::Min(300, [int]($Params.RetryDelaySeconds * [math]::Pow(2, $attempt - 1)))
-                            if ($statusCode -eq 429 -or $statusCode -eq 403) { $delay = [math]::Max($delay, 30) }
-                            $delay += Get-Random -Minimum 0 -Maximum 5
-                            $retryErrors.Add("Page $pagesRetrieved attempt $attempt failed: $($_.Exception.Message)")
-                            Start-Sleep -Seconds $delay
-                        }
-                    }
-
-                    if ($response -is [string] -and -not [string]::IsNullOrWhiteSpace($response)) {
-                        if ((Get-Command ConvertFrom-Json -ErrorAction Stop).Parameters.ContainsKey('AsHashtable')) {
-                            $response = $response | ConvertFrom-Json -AsHashtable -ErrorAction Stop
-                        }
-                        else {
-                            Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
-                            $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
-                            $serializer.MaxJsonLength = [int]::MaxValue
-                            $response = $serializer.DeserializeObject($response)
-                        }
-                    }
-                    $responseData = if ($response -is [System.Collections.IDictionary]) { $response['data'] } else { $response.data }
-                    if ($null -ne $responseData) {
-                        foreach ($item in @($responseData)) {
-                            if ($null -eq $item) {
-                                continue
-                            }
-
-                            if (-not $first) { $writer.Write(',') }
-                            $writer.Write(($item | ConvertTo-Json -Depth 20 -Compress))
-                            $first = $false
-                            $eventCount++
-                        }
-                    }
-                    $pagesRetrieved++
-                    Set-Content -Path $progressPath -Value $pagesRetrieved -Encoding UTF8
-                    $hasMoreValue = if ($response -is [System.Collections.IDictionary]) { $response['hasNext'] } else { $response.hasNext }
-                    $hasMore = $hasMoreValue -eq $true
-                    $skip += $Params.PageSize
-                }
-                $writer.Write('],"EventCount":' + $eventCount + '}')
-                $writer.Close()
-                $writer.Dispose()
-                $writer = $null
-                $chunkStopwatch.Stop()
-
-                [PSCustomObject]@{
-                    ChunkIndex     = $Chunk.Index
-                    FromDate       = $Chunk.FromDate
-                    ToDate         = $Chunk.ToDate
-                    Archived       = $Chunk.Archived
-                    FilePath       = $filePath
-                    EventCount     = $eventCount
-                    PagesRetrieved = $pagesRetrieved
-                    RetryCount     = $retryCount
-                    RetryErrors    = $retryErrors.ToArray()
-                    FileSizeKB     = [math]::Round((Get-Item $filePath).Length / 1KB, 2)
-                    ElapsedSeconds = [math]::Round($chunkStopwatch.Elapsed.TotalSeconds, 2)
-                    Success        = $true
-                }
-            }
-            catch {
-                if ($writer) {
-                    try {
-                        $writer.Dispose()
-                    }
-                    catch {
-                        Write-Verbose "Failed to dispose Cloud Apps activity chunk writer: $($_.Exception.Message)"
-                    }
-                }
-                $chunkStopwatch.Stop()
-                [PSCustomObject]@{
-                    ChunkIndex     = $Chunk.Index
-                    FromDate       = $Chunk.FromDate
-                    ToDate         = $Chunk.ToDate
-                    Archived       = $Chunk.Archived
-                    FilePath       = $filePath
-                    EventCount     = $eventCount
-                    PagesRetrieved = $pagesRetrieved
-                    RetryCount     = $retryCount
-                    RetryErrors    = $retryErrors.ToArray()
-                    ElapsedSeconds = [math]::Round($chunkStopwatch.Elapsed.TotalSeconds, 2)
-                    Success        = $false
-                    Error          = $_.Exception.Message
-                }
-            }
-            finally {
-                Remove-Item -Path $progressPath -Force -ErrorAction SilentlyContinue
-            }
+            return $result
         }
 
         $operationStart = [System.Diagnostics.Stopwatch]::StartNew()
@@ -633,11 +521,11 @@ function Get-XdrCloudAppsActivityTimeline {
         try {
             if ($PSVersionTable.PSVersion.Major -ge 7) {
                 $parallelJob = Start-ThreadJob -ScriptBlock {
-                    param($Chunks, $Throttle, $Params, $CookieInfo, $HeaderInfo, $ScriptText)
+                    param($Chunks, $Throttle, $Params, $StatusMap, $WorkerText, $WrapperText)
                     $Chunks | ForEach-Object -Parallel {
-                        & ([scriptblock]::Create($using:ScriptText)) -Chunk $_ -Params $using:Params -CookieInfo $using:CookieInfo -HeaderInfo $using:HeaderInfo
+                        & ([scriptblock]::Create($using:WrapperText)) -Chunk $_ -Params $using:Params -StatusMap $using:StatusMap -WorkerText $using:WorkerText
                     } -ThrottleLimit $Throttle
-                } -ArgumentList $dateChunks.ToArray(), $ThrottleLimit, $baseParams, $cookieData, $headersData, $chunkScript.ToString()
+                } -ArgumentList $dateChunks.ToArray(), $ThrottleLimit, $baseParams, $statusMap, $workerScriptText, $chunkScript.ToString()
 
                 $lastProgress = [System.Diagnostics.Stopwatch]::StartNew()
                 $lastCompleted = 0
@@ -646,9 +534,8 @@ function Get-XdrCloudAppsActivityTimeline {
                         Stop-Job -Job $parallelJob -ErrorAction SilentlyContinue
                         throw "Activity timeline timed out after $TimeoutSeconds seconds."
                     }
-                    $completedFiles = @(Get-ChildItem -Path $runTempPath -Filter 'chunk_*.json' -ErrorAction SilentlyContinue).Count
-                    $recentProgress = Get-ChildItem -Path $runTempPath -Filter 'progress_*.txt' -ErrorAction SilentlyContinue |
-                        Where-Object { ([datetime]::UtcNow - $_.LastWriteTimeUtc).TotalSeconds -lt 60 }
+                    $completedFiles = @(Get-ChildItem -Path $runTempPath -Filter 'chunk_*.ndjson' -ErrorAction SilentlyContinue).Count
+                    $recentProgress = @($statusMap.Values | Where-Object { ([datetime]::UtcNow - $_.UpdatedUtc).TotalSeconds -lt 60 }).Count -gt 0
                     if ($completedFiles -gt $lastCompleted -or $recentProgress) {
                         $lastCompleted = $completedFiles
                         $lastProgress.Restart()
@@ -666,7 +553,7 @@ function Get-XdrCloudAppsActivityTimeline {
             }
             else {
                 foreach ($chunk in $dateChunks) {
-                    $results += & $chunkScript -Chunk $chunk -Params $baseParams -CookieInfo $cookieData -HeaderInfo $headersData
+                    $results += & $chunkScript -Chunk $chunk -Params $baseParams -StatusMap $statusMap -WorkerText $workerScriptText
                 }
             }
 
@@ -687,7 +574,7 @@ function Get-XdrCloudAppsActivityTimeline {
 
             $fromUtc = $FromDate.ToUniversalTime()
             $toUtc = $ToDate.ToUniversalTime()
-            $jsonFiles = @(
+            $partFiles = @(
                 $results |
                     Where-Object { $_.Success -and $_.FilePath -and (Test-Path -LiteralPath $_.FilePath) } |
                     ForEach-Object { Get-Item -LiteralPath $_.FilePath } |
@@ -703,10 +590,8 @@ function Get-XdrCloudAppsActivityTimeline {
                 $exportCount = 0
                 $writer = [System.IO.StreamWriter]::new($ExportPath, $false, [System.Text.Encoding]::UTF8)
                 try {
-                    foreach ($file in @($jsonFiles | Sort-Object Name -Descending)) {
-                        $chunkData = Read-XdrCloudAppsActivityChunkFile -File $file -AllowPartial:$AllowPartial
-                        if ($null -eq $chunkData) { continue }
-                        foreach ($activity in @(Get-XdrCloudAppsObjectValue -InputObject $chunkData -Name 'Events')) {
+                    foreach ($file in @($partFiles | Sort-Object Name -Descending)) {
+                        foreach ($activity in @(Read-XdrCloudAppsActivityPartFile -File $file -AllowPartial:$AllowPartial)) {
                             $eventUtc = Get-XdrCloudAppsActivityEventTime -Activity $activity
 
                             if ($null -eq $eventUtc -or $eventUtc -lt $fromUtc -or $eventUtc -ge $toUtc) {
@@ -744,10 +629,8 @@ function Get-XdrCloudAppsActivityTimeline {
             $eventRows = [System.Collections.Generic.List[object]]::new()
             $seenKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
             $sha256 = [System.Security.Cryptography.SHA256]::Create()
-            foreach ($file in $jsonFiles) {
-                $chunkData = Read-XdrCloudAppsActivityChunkFile -File $file -AllowPartial:$AllowPartial
-                if ($null -eq $chunkData) { continue }
-                foreach ($activity in @(Get-XdrCloudAppsObjectValue -InputObject $chunkData -Name 'Events')) {
+            foreach ($file in $partFiles) {
+                foreach ($activity in @(Read-XdrCloudAppsActivityPartFile -File $file -AllowPartial:$AllowPartial)) {
                     $eventUtc = Get-XdrCloudAppsActivityEventTime -Activity $activity
 
                     if ($null -eq $eventUtc -or $eventUtc -lt $fromUtc -or $eventUtc -ge $toUtc) {

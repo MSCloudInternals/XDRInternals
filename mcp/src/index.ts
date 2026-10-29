@@ -141,10 +141,16 @@ export function createServer(bridge: Bridge): McpServer {
     server.registerTool("xdr_list_network_observations", {
         title: "List IP or domain observations",
         description: "Read up to 50 recent device network observations for an IP or domain. This is a limited evidence sample, not tenant-wide reputation statistics.",
-        inputSchema: z.discriminatedUnion("kind", [
-            z.object({ kind: z.literal("ip"), value: z.string().regex(/^[0-9a-fA-F:.]{3,45}$/), pageSize }).strict(),
-            z.object({ kind: z.literal("domain"), value: z.string().regex(/^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/), pageSize }).strict(),
-        ]), annotations,
+        // The SDK advertises object schemas; keep branch validation in a refinement
+        // so clients can discover every required argument without changing acceptance.
+        inputSchema: z.object({
+            kind: z.enum(["ip", "domain"]).describe("Select IP text or a domain name."),
+            value: z.string().describe("For ip: 3-45 hexadecimal, colon, or dot characters. For domain: a dotted ASCII hostname of up to 253 characters, with a 2-63 letter suffix."),
+            pageSize,
+        }).strict().refine((args) => args.kind === "ip"
+            ? /^[0-9a-fA-F:.]{3,45}$/.test(args.value)
+            : /^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/.test(args.value),
+            { message: "value must match the selected ip or domain grammar" }), annotations,
     }, (args, extra) => read("list_network_observations", args, extra.signal));
 
     server.registerTool("xdr_list_user_alert_evidence", {

@@ -145,7 +145,8 @@
             }
 
             if ($parsedState -and $parsedState.sErrorCode) {
-                throw "TAP authentication failed ($($parsedState.sErrorCode)): $($parsedState.sErrTxt)"
+                $failure = Get-XdrAuthenticationFailure -AuthState $parsedState -AuthenticationMethod TemporaryAccessPass -Stage PassSubmission
+                throw (New-XdrAuthenticationErrorRecord -Failure $failure)
             }
 
             break
@@ -168,7 +169,8 @@
             }
 
             if ($resolvedLocation -match 'error=') {
-                throw "TAP authentication failed: $resolvedLocation"
+                $failure = Get-XdrAuthenticationFailure -RedirectUri $resolvedLocation -AuthenticationMethod TemporaryAccessPass -Stage Redirect
+                throw (New-XdrAuthenticationErrorRecord -Failure $failure)
             }
 
             $currentUrl = $resolvedLocation
@@ -180,7 +182,8 @@
 
     $bestCookie = Get-XdrBestEstsCookieValue -Session $session
     if (-not $bestCookie) {
-        throw 'No ESTSAUTH cookie found after TAP authentication.'
+        $failure = Get-XdrAuthenticationFailure -AuthenticationMethod TemporaryAccessPass -Stage ArtifactCapture -DefaultCode NoAuthenticationArtifact
+        throw (New-XdrAuthenticationErrorRecord -Failure $failure)
     }
 
     Write-Verbose "Obtained ESTS cookie (length: $($bestCookie.Length))"

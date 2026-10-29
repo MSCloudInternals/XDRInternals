@@ -117,7 +117,8 @@
                 Write-Host "Enter credentials for Defender XDR authentication:"
                 $cred = Get-Credential -Message "Enter your Entra ID credentials for Defender XDR"
                 if (-not $cred) {
-                    throw "No credentials provided."
+                    $failure = Get-XdrAuthenticationFailure -AuthenticationMethod Credential -Stage InputValidation -DefaultCode RequestInvalid
+                    throw (New-XdrAuthenticationErrorRecord -Failure $failure)
                 }
 
                 $resolvedUsername = $cred.UserName
@@ -134,17 +135,20 @@
             Write-Host "Enter credentials for Defender XDR authentication:"
             $cred = Get-Credential -Message "Enter your Entra ID credentials for Defender XDR"
             if (-not $cred) {
-                throw "No credentials provided."
+                $failure = Get-XdrAuthenticationFailure -AuthenticationMethod Credential -Stage InputValidation -DefaultCode RequestInvalid
+                throw (New-XdrAuthenticationErrorRecord -Failure $failure)
             }
             $resolvedUsername = $cred.UserName
             $resolvedPassword = $cred.Password
         }
 
         if (-not $resolvedUsername) {
-            throw "No username provided."
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod Credential -Stage InputValidation -DefaultCode RequestInvalid
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
         if (-not $resolvedPassword) {
-            throw "No password provided."
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod Credential -Stage InputValidation -DefaultCode RequestInvalid
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         Write-Host "Authenticating as $resolvedUsername with credential flow..."
@@ -157,10 +161,16 @@
         if ($TotpSecret) { $credParams.TotpSecret = $TotpSecret }
         if ($MfaMethod) { $credParams.MfaMethod = $MfaMethod }
 
-        $estsAuth = Invoke-XdrCredentialAuthentication @credParams
+        try {
+            $estsAuth = Invoke-XdrCredentialAuthentication @credParams
+        } catch {
+            $failure = Get-XdrAuthenticationFailure -ErrorRecord $_ -AuthenticationMethod Credential -Stage SignIn
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $_)
+        }
 
         if (-not $estsAuth) {
-            throw "Credential authentication failed - no ESTS cookie was returned."
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod Credential -Stage ArtifactCapture -DefaultCode NoAuthenticationArtifact
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         Connect-XdrAuthArtifactSet -EstsAuthCookieValue $estsAuth -TenantId $TenantId -UserAgent $UserAgent -FailureLabel 'Credential authentication'

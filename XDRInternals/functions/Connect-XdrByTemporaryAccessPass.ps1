@@ -69,16 +69,23 @@
         }
 
         if (-not $resolvedUsername) {
-            throw 'No username provided.'
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod TemporaryAccessPass -Stage InputValidation -DefaultCode RequestInvalid
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         if (-not $resolvedTap) {
-            throw 'No Temporary Access Pass provided.'
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod TemporaryAccessPass -Stage InputValidation -DefaultCode RequestInvalid
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         $resolvedTenantId = $TenantId
         if (-not $resolvedTenantId) {
-            $resolvedTenantId = Resolve-XdrTenantIdFromUsername -Username $resolvedUsername -UserAgent $UserAgent
+            try {
+                $resolvedTenantId = Resolve-XdrTenantIdFromUsername -Username $resolvedUsername -UserAgent $UserAgent
+            } catch {
+                $failure = Get-XdrAuthenticationFailure -ErrorRecord $_ -AuthenticationMethod TemporaryAccessPass -Stage TenantResolution -DefaultCode InvalidTenant
+                throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $_)
+            }
         }
 
         Write-Host "Authenticating as $resolvedUsername with Temporary Access Pass..."
@@ -90,9 +97,15 @@
             UserAgent           = $UserAgent
         }
 
-        $estsAuth = Invoke-XdrTemporaryAccessPassAuthentication @tapParams
+        try {
+            $estsAuth = Invoke-XdrTemporaryAccessPassAuthentication @tapParams
+        } catch {
+            $failure = Get-XdrAuthenticationFailure -ErrorRecord $_ -AuthenticationMethod TemporaryAccessPass -Stage SignIn
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $_)
+        }
         if (-not $estsAuth) {
-            throw 'Temporary Access Pass authentication failed - no ESTS cookie was returned.'
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod TemporaryAccessPass -Stage ArtifactCapture -DefaultCode NoAuthenticationArtifact
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         Connect-XdrAuthArtifactSet -EstsAuthCookieValue $estsAuth -TenantId $resolvedTenantId -UserAgent $UserAgent -FailureLabel 'Temporary Access Pass authentication'

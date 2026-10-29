@@ -274,8 +274,28 @@
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/GetAdvancedFeaturesSetting"
   },
   {
+    "Cmdlet": "Get-XdrEndpointConfigurationAttackDisruptionExclusion",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/disrupt/api/exclusions/{path}"
+  },
+  {
     "Cmdlet": "Get-XdrEndpointConfigurationAuthenticatedTelemetry",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/senseauth/allownonauthsense"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationAutomatedInvestigation",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/ui/admin/advanced"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationAutomatedInvestigationExclusion",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/acl/all"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationAutomatedInvestigationExclusion",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/folder_exclusion/all"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationCustomCollectionModel",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdeCustomCollection/model"
   },
   {
     "Cmdlet": "Get-XdrEndpointConfigurationCustomCollectionRule",
@@ -284,6 +304,10 @@
   {
     "Cmdlet": "Get-XdrEndpointConfigurationIntuneConnection",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/responseApiPortal/onboarding/intune/status"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationIsolationAllowRule",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/customizationApi/"
   },
   {
     "Cmdlet": "Get-XdrEndpointConfigurationLiveResponse",
@@ -368,6 +392,18 @@
   {
     "Cmdlet": "Get-XdrEndpointLicenseReport",
     "ApiUri": "https://security.microsoft.com/apiproxy/mtp/k8sMachineApi/ine/machineapiservice/machines/skuReport"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointOnboardingActivator",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/packages/DownloadOnboardingWindowsActivator/{list}"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointOnboardingStatus",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/EndpointOnboardingStatus"
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointWebContentFilteringPolicy",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/userRequests/webcategory/policies"
   },
   {
     "Cmdlet": "Get-XdrExposureManagementRecommendations",

@@ -11,6 +11,19 @@
     }
 }
 
+function Get-XdrKustainerConnection {
+    [CmdletBinding()]
+    param()
+
+    process {
+        if (-not $script:KustainerConnection) {
+            throw 'Kustainer connection not configured. Run Set-XdrKustainer first or specify -ClusterUri and -Database on the Kustainer command.'
+        }
+
+        return $script:KustainerConnection
+    }
+}
+
 function Resolve-XdrAzureDataExplorerUris {
     [CmdletBinding()]
     param(
@@ -355,7 +368,6 @@ function Invoke-XdrAzureDataExplorerRestRequest {
         [Parameter(Mandatory)]
         [string]$Path,
 
-        [Parameter(Mandatory)]
         [string]$Token,
 
         [ValidateSet('GET', 'POST')]
@@ -372,11 +384,14 @@ function Invoke-XdrAzureDataExplorerRestRequest {
     $requestUri = [uri]::new($BaseUri, $Path)
     $headers = @{
         'Accept'                 = 'application/json'
-        'Authorization'          = "Bearer $Token"
         'Connection'             = 'Close'
         'x-ms-app'               = 'XDRInternals'
         'x-ms-client-version'    = 'XDRInternals/1.0.12'
         'x-ms-client-request-id' = "XDRInternals.AzureDataExplorer;$([guid]::NewGuid())"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Token)) {
+        $headers['Authorization'] = "Bearer $Token"
     }
 
     $requestParams = @{
@@ -515,8 +530,12 @@ function Invoke-XdrAzureDataExplorerManagementCommand {
         [Parameter(Mandatory)]
         [string]$Command,
 
-        [Parameter(Mandatory)]
-        [string]$Token
+        [string]$Token,
+
+        [int]$TimeoutSec,
+
+        [ValidateRange(1, 10)]
+        [int]$RetryCount = 10
     )
 
     $body = @{
@@ -524,7 +543,7 @@ function Invoke-XdrAzureDataExplorerManagementCommand {
         csl = $Command
     }
 
-    Invoke-XdrAzureDataExplorerRestRequest -BaseUri $ClusterUri -Path '/v1/rest/mgmt' -Method POST -Token $Token -Body $body
+    Invoke-XdrAzureDataExplorerRestRequest -BaseUri $ClusterUri -Path '/v1/rest/mgmt' -Method POST -Token $Token -Body $body -TimeoutSec $TimeoutSec -RetryCount $RetryCount
 }
 
 function Test-XdrAzureDataExplorerNotFound {
@@ -576,7 +595,6 @@ function Test-XdrAzureDataExplorerTable {
         [Parameter(Mandatory)]
         [string]$TableName,
 
-        [Parameter(Mandatory)]
         [string]$Token
     )
 
@@ -603,7 +621,6 @@ function Get-XdrAzureDataExplorerTableSchema {
         [Parameter(Mandatory)]
         [string]$TableName,
 
-        [Parameter(Mandatory)]
         [string]$Token
     )
 
@@ -652,7 +669,6 @@ function Get-XdrAzureDataExplorerMapping {
         [Parameter(Mandatory)]
         [string]$MappingName,
 
-        [Parameter(Mandatory)]
         [string]$Token
     )
 
@@ -690,7 +706,6 @@ function Test-XdrAzureDataExplorerMapping {
         [Parameter(Mandatory)]
         [string]$MappingName,
 
-        [Parameter(Mandatory)]
         [string]$Token
     )
 
@@ -712,7 +727,6 @@ function Initialize-XdrAzureDataExplorerTable {
         [Parameter(Mandatory)]
         [string]$MappingName,
 
-        [Parameter(Mandatory)]
         [string]$Token,
 
         [hashtable]$TableProfile,
@@ -757,7 +771,14 @@ function Initialize-XdrAzureDataExplorerTable {
 
     $mappingEntries = if ($TableProfile) {
         @($TableProfile.ColumnMappings | ForEach-Object {
-                @{ column = $_.Column; Properties = @{ path = $_.Properties.Path } }
+                $properties = @{}
+                foreach ($propertyName in @('Path', 'ConstValue', 'Transform')) {
+                    if ($_.Properties.ContainsKey($propertyName)) {
+                        $properties[$propertyName.ToLowerInvariant()] = $_.Properties[$propertyName]
+                    }
+                }
+
+                @{ column = $_.Column; Properties = $properties }
             })
     }
     else {
@@ -779,7 +800,7 @@ function Initialize-XdrAzureDataExplorerTable {
                     "$([string]$_.Column)|$([string]$_.DataType)|$([string]$_.Properties.Path)|$([string]$_.Properties.ConstValue)|$([string]$_.Properties.Transform)"
                 }) -join "`n"
             $desiredSignature = @($mappingEntries | ForEach-Object {
-                    "$([string]$_.column)||$([string]$_.Properties.path)||"
+                    "$([string]$_.column)||$([string]$_.Properties.path)|$([string]$_.Properties.constvalue)|$([string]$_.Properties.transform)"
                 }) -join "`n"
             $mappingMatches = $existingSignature -ceq $desiredSignature
         }
@@ -1024,6 +1045,107 @@ function Send-XdrAzureDataExplorerQueuedIngestion {
     }
 
     Invoke-XdrAzureDataExplorerRestRequest -BaseUri $IngestionUri -Path "/v1/rest/ingestion/queued/$Database/$TableName" -Method POST -Token $Token -Body $body
+}
+
+function Send-XdrKustainerInlineIngestion {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [uri]$ClusterUri,
+
+        [Parameter(Mandatory)]
+        [string]$Database,
+
+        [Parameter(Mandatory)]
+        [string]$TableName,
+
+        [Parameter(Mandatory)]
+        [string]$MappingName,
+
+        [Parameter(Mandatory)]
+        [string]$FilePath,
+
+        [ValidateRange(1, 3600)]
+        [int]$RequestTimeout = 600
+    )
+
+    $json = [System.IO.File]::ReadAllText($FilePath, [System.Text.Encoding]::UTF8)
+    $command = ".ingest inline into table $TableName with (format='multijson', ingestionMappingReference='$MappingName') <|`n$json"
+
+    Invoke-XdrAzureDataExplorerManagementCommand `
+        -ClusterUri $ClusterUri `
+        -Database $Database `
+        -Command $command `
+        -TimeoutSec $RequestTimeout `
+        -RetryCount 1
+}
+
+function Send-XdrKustainerStreamingIngestion {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [uri]$ClusterUri,
+
+        [Parameter(Mandatory)]
+        [string]$Database,
+
+        [Parameter(Mandatory)]
+        [string]$TableName,
+
+        [Parameter(Mandatory)]
+        [string]$MappingName,
+
+        [Parameter(Mandatory)]
+        [string]$FilePath,
+
+        [ValidateRange(0, 300)]
+        [int]$SchemaPropagationTimeoutSeconds = 300,
+
+        [ValidateRange(1, 3600)]
+        [int]$RequestTimeout = 600
+    )
+
+    $builder = [System.UriBuilder]::new($ClusterUri)
+    $basePath = $builder.Path.TrimEnd('/')
+    $databasePath = [uri]::EscapeDataString($Database)
+    $tablePath = [uri]::EscapeDataString($TableName)
+    $builder.Path = "$basePath/v1/rest/ingest/$databasePath/$tablePath"
+    $builder.Query = "streamFormat=MultiJSON&mappingName=$([uri]::EscapeDataString($MappingName))"
+    $requestUri = $builder.Uri
+    $deadline = [DateTime]::UtcNow.AddSeconds($SchemaPropagationTimeoutSeconds)
+
+    while ($true) {
+        try {
+            return Invoke-RestMethod `
+                -Uri $requestUri `
+                -Method Post `
+                -ContentType 'application/json' `
+                -InFile $FilePath `
+                -Headers @{
+                    'Accept'                 = 'application/json'
+                    'Connection'             = 'Close'
+                    'x-ms-app'               = 'XDRInternals'
+                    'x-ms-client-version'    = 'XDRInternals/1.0.12'
+                    'x-ms-client-request-id' = "XDRInternals.KustainerStreaming;$([guid]::NewGuid())"
+                } `
+                -TimeoutSec $RequestTimeout `
+                -ErrorAction Stop `
+                -Verbose:$false
+        }
+        catch {
+            $errorText = @(
+                $_.Exception.Message
+                if ($_.ErrorDetails) { $_.ErrorDetails.Message }
+            ) -join "`n"
+
+            if ($errorText -notmatch 'BadRequest_EntityNotFound' -or [DateTime]::UtcNow -ge $deadline) {
+                throw
+            }
+
+            Write-Verbose "Waiting for Kustainer streaming ingestion to discover table '$TableName' and mapping '$MappingName'."
+            Start-Sleep -Seconds 5
+        }
+    }
 }
 
 function Submit-XdrAzureDataExplorerQueuedIngestionBatch {

@@ -840,6 +840,9 @@
             $knownCommands = @($SharedParameters.KnownCommands)
 
             $webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            if (-not [string]::IsNullOrWhiteSpace([string]$SharedParameters.UserAgent)) {
+                $webSession.UserAgent = [string]$SharedParameters.UserAgent
+            }
             foreach ($cookieInfo in $SharedParameters.CookieData) {
                 $cookie = [System.Net.Cookie]::new($cookieInfo.Name, $cookieInfo.Value, $cookieInfo.Path, $cookieInfo.Domain)
                 $webSession.Cookies.Add($cookie)
@@ -1063,6 +1066,7 @@
             BaseUrl       = $requestContext.BaseUrl
             CookieData    = $requestContext.CookieData
             HeadersData   = $requestContext.HeadersData
+            UserAgent     = $requestContext.UserAgent
             KnownCommands = $knownCommands
         } -BatchStartedScript {
             param($BatchNumber, $TotalBatches, $Items)

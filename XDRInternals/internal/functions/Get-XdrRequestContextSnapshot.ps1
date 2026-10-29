@@ -13,7 +13,7 @@
 
     .OUTPUTS
         PSCustomObject
-        Returns an object with BaseUrl, CookieData, and HeadersData properties.
+        Returns an object with BaseUrl, CookieData, HeadersData, and UserAgent properties.
     #>
     [CmdletBinding()]
     param ()
@@ -52,5 +52,6 @@
         BaseUrl     = $baseUrl
         CookieData  = @($cookieData)
         HeadersData = $headersData
+        UserAgent   = [string]$script:session.UserAgent
     }
 }

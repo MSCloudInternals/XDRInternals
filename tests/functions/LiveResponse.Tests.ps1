@@ -73,8 +73,54 @@
                     BaseUrl     = 'https://security.microsoft.com'
                     CookieData  = @()
                     HeadersData = @{}
+                    UserAgent   = 'XDRInternals-Test-Browser/1.0'
                 }
             } -ModuleName XDRInternals
+        }
+
+        It 'restores the browser user-agent on requests made by connection workers' {
+            Mock Start-Sleep {} -ModuleName XDRInternals
+            Mock Invoke-RestMethod {
+                if ($Uri -like '*create_session*') {
+                    return [PSCustomObject]@{ session_id = 'CLR-worker' }
+                }
+                if ($Uri -like '*/sessions/CLR-worker`?*') {
+                    return [PSCustomObject]@{ session_status = 1 }
+                }
+                if ($Uri -like '*/sessions/CLR-worker/commands/*') {
+                    return [PSCustomObject]@{ command_id = 'cmd-worker'; status = 1 }
+                }
+                if ($Uri -like '*get_command_definitions*') {
+                    return [PSCustomObject]@{ command_definition_id = 'processes' }
+                }
+                throw "Unexpected Uri: $Uri"
+            } -ModuleName XDRInternals
+            Mock Invoke-XdrRateLimitedBatch {
+                param($Items, $ItemScript, $SharedParameters)
+                foreach ($item in $Items) {
+                    [PSCustomObject]@{
+                        Success = $true
+                        Item    = $item
+                        Result  = & $ItemScript -Item $item -SharedParameters $SharedParameters
+                    }
+                }
+            } -ModuleName XDRInternals
+
+            $devices = 1..2 | ForEach-Object {
+                [PSCustomObject]@{
+                    SenseMachineId  = ('{0:x40}' -f $_)
+                    ComputerDnsName = "device$_"
+                    LastSeen        = '2026-03-25T12:34:56Z'
+                    OsPlatform      = 'Windows10'
+                }
+            }
+            $result = @($devices | Connect-XdrEndpointDeviceLiveResponse -NonInteractive -NoStatusTable)
+
+            $result.Count | Should -Be 2
+            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 8 -Exactly
+            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 8 -Exactly -ParameterFilter {
+                $WebSession.UserAgent -eq 'XDRInternals-Test-Browser/1.0'
+            }
         }
 
         It 'throws when more than 50 devices are piped to noninteractive connect' {
@@ -123,7 +169,8 @@
                 $Items.Count -eq 27 -and
                 $Items[0].DeviceName -eq 'device1' -and
                 $Items[0].LastSeen -eq '2026-03-25T12:34:56Z' -and
-                $Items[0].OsPlatform -eq 'Windows10'
+                $Items[0].OsPlatform -eq 'Windows10' -and
+                $SharedParameters.UserAgent -eq 'XDRInternals-Test-Browser/1.0'
             }
         }
 
@@ -247,8 +294,47 @@
                     BaseUrl     = 'https://security.microsoft.com'
                     CookieData  = @()
                     HeadersData = @{}
+                    UserAgent   = 'XDRInternals-Test-Browser/1.0'
                 }
             } -ModuleName XDRInternals
+        }
+
+        It 'restores the browser user-agent on requests made by command workers' {
+            Mock Start-Sleep {} -ModuleName XDRInternals
+            Mock Invoke-RestMethod {
+                if ($Uri -like '*create_command*') {
+                    return [PSCustomObject]@{ command_id = 'cmd-worker' }
+                }
+                if ($Uri -like '*/commands/cmd-worker?*') {
+                    return [PSCustomObject]@{
+                        command_id   = 'cmd-worker'
+                        completed_on = '2026-03-26T06:30:00Z'
+                        status       = 1
+                    }
+                }
+                throw "Unexpected Uri: $Uri"
+            } -ModuleName XDRInternals
+            Mock Invoke-XdrRateLimitedBatch {
+                param($Items, $ItemScript, $SharedParameters)
+                foreach ($item in $Items) {
+                    [PSCustomObject]@{
+                        Success = $true
+                        Item    = $item
+                        Result  = & $ItemScript -Item $item -SharedParameters $SharedParameters
+                    }
+                }
+            } -ModuleName XDRInternals
+
+            $sessions = 1..2 | ForEach-Object {
+                [PSCustomObject]@{ SessionId = "CLR$_"; DeviceName = "device$_" }
+            }
+            $result = @($sessions | Invoke-XdrEndpointDeviceLiveResponseCommand -Command 'processes' -RawCommandResult)
+
+            $result.Count | Should -Be 2
+            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 4 -Exactly
+            Should -Invoke Invoke-RestMethod -ModuleName XDRInternals -Times 4 -Exactly -ParameterFilter {
+                $WebSession.UserAgent -eq 'XDRInternals-Test-Browser/1.0'
+            }
         }
 
         It 'unwraps nested command definitions for alias and positional parsing' {
@@ -601,7 +687,8 @@
                 $Items.Count -eq 2 -and
                 (@($Items | Where-Object { @($_.CommandDefinitions).Count -ne 1 }).Count -eq 0) -and
                 (@($Items | Where-Object { $_.CommandDefinitions[0] -is [System.Array] }).Count -eq 0) -and
-                (@($Items | Where-Object { $_.CommandDefinitions[0].command_definition_id -ne 'processes' }).Count -eq 0)
+                (@($Items | Where-Object { $_.CommandDefinitions[0].command_definition_id -ne 'processes' }).Count -eq 0) -and
+                $SharedParameters.UserAgent -eq 'XDRInternals-Test-Browser/1.0'
             }
         }
 

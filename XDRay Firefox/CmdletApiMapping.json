@@ -275,7 +275,27 @@
   },
   {
     "Cmdlet": "Get-XdrEndpointConfigurationAttackDisruptionExclusion",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/disrupt/api/exclusions/{path}"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/disrupt/api/exclusions/DeviceTag",
+    "Method": "GET",
+    "Parameters": {
+      "Type": "fixed:DeviceTag"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationAttackDisruptionExclusion",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/disrupt/api/exclusions/deviceTag/default",
+    "Method": "GET",
+    "Parameters": {
+      "Type": "fixed:DefaultDeviceTag"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationAttackDisruptionExclusion",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/disrupt/api/exclusions/IP",
+    "Method": "GET",
+    "Parameters": {
+      "Type": "fixed:IP"
+    }
   },
   {
     "Cmdlet": "Get-XdrEndpointConfigurationAuthenticatedTelemetry",
@@ -283,19 +303,33 @@
   },
   {
     "Cmdlet": "Get-XdrEndpointConfigurationAutomatedInvestigation",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/ui/admin/advanced"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/ui/admin/advanced",
+    "Method": "GET",
+    "Parameters": {}
   },
   {
     "Cmdlet": "Get-XdrEndpointConfigurationAutomatedInvestigationExclusion",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/acl/all"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/acl/all",
+    "Method": "GET",
+    "Query": "type=memory_content",
+    "Parameters": {
+      "Type": "fixed:MemoryContent"
+    }
   },
   {
     "Cmdlet": "Get-XdrEndpointConfigurationAutomatedInvestigationExclusion",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/folder_exclusion/all"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/autoIr/folder_exclusion/all",
+    "Method": "GET",
+    "Query": "type=folder",
+    "Parameters": {
+      "Type": "fixed:Folder"
+    }
   },
   {
     "Cmdlet": "Get-XdrEndpointConfigurationCustomCollectionModel",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdeCustomCollection/model"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/mdeCustomCollection/model",
+    "Method": "GET",
+    "Parameters": {}
   },
   {
     "Cmdlet": "Get-XdrEndpointConfigurationCustomCollectionRule",
@@ -307,7 +341,21 @@
   },
   {
     "Cmdlet": "Get-XdrEndpointConfigurationIsolationAllowRule",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/customizationApi/"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/customizationApi/",
+    "Method": "GET",
+    "Query": "customizationType=IsolationAllowRules&osPlatform=MacOs",
+    "Parameters": {
+      "OsPlatform": "fixed:MacOs"
+    }
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointConfigurationIsolationAllowRule",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/customizationApi/",
+    "Method": "GET",
+    "Query": "customizationType=IsolationAllowRules&osPlatform=Windows",
+    "Parameters": {
+      "OsPlatform": "fixed:Windows"
+    }
   },
   {
     "Cmdlet": "Get-XdrEndpointConfigurationLiveResponse",
@@ -399,15 +447,29 @@
   },
   {
     "Cmdlet": "Get-XdrEndpointOnboardingActivator",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/packages/DownloadOnboardingWindowsActivator/{list}"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/packages/DownloadOnboardingWindowsActivator/List",
+    "Method": "GET",
+    "Parameters": {}
+  },
+  {
+    "Cmdlet": "Get-XdrEndpointOnboardingActivator",
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/packages/DownloadOnboardingWindowsActivator/ListHidden",
+    "Method": "GET",
+    "Parameters": {
+      "Hidden": "switch:true"
+    }
   },
   {
     "Cmdlet": "Get-XdrEndpointOnboardingStatus",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/EndpointOnboardingStatus"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/settings/EndpointOnboardingStatus",
+    "Method": "GET",
+    "Parameters": {}
   },
   {
     "Cmdlet": "Get-XdrEndpointWebContentFilteringPolicy",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/userRequests/webcategory/policies"
+    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/userRequests/webcategory/policies",
+    "Method": "GET",
+    "Parameters": {}
   },
   {
     "Cmdlet": "Get-XdrExposureManagementRecommendations",

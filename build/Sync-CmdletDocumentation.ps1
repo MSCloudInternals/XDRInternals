@@ -513,6 +513,40 @@ function ConvertTo-NormalizedApiUri {
     return $Uri
 }
 
+# These getters select routes from public parameter values. Generic URI extraction
+# cannot infer their inverse mapping, query discriminators or switch arguments.
+$serviceSettingsMappings = @{
+    'Get-XdrEndpointConfigurationAttackDisruptionExclusion' = @(
+        @{ Path = 'disrupt/api/exclusions/IP'; Parameters = @{ Type = 'fixed:IP' } }
+        @{ Path = 'disrupt/api/exclusions/DeviceTag'; Parameters = @{ Type = 'fixed:DeviceTag' } }
+        @{ Path = 'disrupt/api/exclusions/deviceTag/default'; Parameters = @{ Type = 'fixed:DefaultDeviceTag' } }
+    )
+    'Get-XdrEndpointConfigurationAutomatedInvestigation' = @(
+        @{ Path = 'autoIr/ui/admin/advanced'; Parameters = @{} }
+    )
+    'Get-XdrEndpointConfigurationAutomatedInvestigationExclusion' = @(
+        @{ Path = 'autoIr/acl/all'; Query = 'type=memory_content'; Parameters = @{ Type = 'fixed:MemoryContent' } }
+        @{ Path = 'autoIr/folder_exclusion/all'; Query = 'type=folder'; Parameters = @{ Type = 'fixed:Folder' } }
+    )
+    'Get-XdrEndpointConfigurationCustomCollectionModel' = @(
+        @{ Path = 'mdeCustomCollection/model'; Parameters = @{} }
+    )
+    'Get-XdrEndpointConfigurationIsolationAllowRule' = @(
+        @{ Path = 'customizationApi/'; Query = 'customizationType=IsolationAllowRules&osPlatform=Windows'; Parameters = @{ OsPlatform = 'fixed:Windows' } }
+        @{ Path = 'customizationApi/'; Query = 'customizationType=IsolationAllowRules&osPlatform=MacOs'; Parameters = @{ OsPlatform = 'fixed:MacOs' } }
+    )
+    'Get-XdrEndpointOnboardingActivator' = @(
+        @{ Path = 'packages/DownloadOnboardingWindowsActivator/List'; Parameters = @{} }
+        @{ Path = 'packages/DownloadOnboardingWindowsActivator/ListHidden'; Parameters = @{ Hidden = 'switch:true' } }
+    )
+    'Get-XdrEndpointOnboardingStatus' = @(
+        @{ Path = 'settings/EndpointOnboardingStatus'; Parameters = @{} }
+    )
+    'Get-XdrEndpointWebContentFilteringPolicy' = @(
+        @{ Path = 'userRequests/webcategory/policies'; Parameters = @{} }
+    )
+}
+
 # Extract cmdlet metadata
 $cmdlets = @()
 $reportCatalog = @()
@@ -526,6 +560,7 @@ function Get-ApiMappingKey {
     param($Mapping, [string]$Uri)
     $key = "$($Mapping.Cmdlet)|$Uri"
     if ($Mapping.Cmdlet -eq 'Get-XdrReport') { $key += "|$($Mapping.Parameters.Name)" }
+    if ($serviceSettingsMappings.ContainsKey($Mapping.Cmdlet)) { $key += "|$($Mapping.Method)|$($Mapping.Query)" }
     return $key
 }
 
@@ -604,6 +639,21 @@ foreach ($file in $cmdletFiles) {
         }
     }
     
+    if ($serviceSettingsMappings.ContainsKey($cmdletName)) {
+        $apiMappings.Clear()
+        foreach ($route in $serviceSettingsMappings[$cmdletName]) {
+            $mapping = [ordered]@{
+                Cmdlet = $cmdletName
+                ApiUri = "https://security.microsoft.com/apiproxy/mtp/$($route.Path)"
+                Method = 'GET'
+            }
+            if ($route.Query) { $mapping.Query = $route.Query }
+            # Empty explicit parameters suppress query/body guessing in XDRay.
+            $mapping.Parameters = ConvertTo-SortedHashtable -InputHashtable $route.Parameters
+            [void]$apiMappings.Add($mapping)
+        }
+    }
+
     if ($cmdletName -eq 'Get-XdrReport' -and $reportCatalog.Count -gt 0) {
         $apiMappings.Clear()
         foreach ($definition in $reportCatalog) {
@@ -716,6 +766,8 @@ $deletedCount = 0
 $existingApiMappings = ConvertFrom-Json -InputObject $mappingInputs[0]
 foreach ($mapping in $existingApiMappings) {
     if ($validCmdletNames -contains $mapping.Cmdlet) {
+        # Replace stale aliases only when these getters are being regenerated.
+        if ($serviceSettingsMappings.ContainsKey($mapping.Cmdlet) -and (-not $MappingCmdlet -or $mapping.Cmdlet -in $MappingCmdlet)) { continue }
         # Preserve extra discriminator fields and retained intentional URIs.
         $key = Get-ApiMappingKey -Mapping $mapping -Uri $mapping.ApiUri
         $extraFields = @($mapping.PSObject.Properties.Name | Where-Object { $_ -notin @('Cmdlet', 'ApiUri', 'Parameters') })
@@ -757,7 +809,7 @@ foreach ($cmdletGroup in @($getCmdlets, $setCmdlets, $otherCmdlets)) {
                 $updatedCount++
             } else {
                 # Retained discriminator-specific entries already represent this URI.
-                if ($mapping.Cmdlet -ne 'Get-XdrReport' -and @($existingMappings.Values | Where-Object { $_.Cmdlet -eq $mapping.Cmdlet -and $_.ApiUri -eq $mapping.ApiUri }).Count) { continue }
+                if ($mapping.Cmdlet -ne 'Get-XdrReport' -and -not $serviceSettingsMappings.ContainsKey($mapping.Cmdlet) -and @($existingMappings.Values | Where-Object { $_.Cmdlet -eq $mapping.Cmdlet -and $_.ApiUri -eq $mapping.ApiUri }).Count) { continue }
                 $existingMappings[$key] = $mapping
                 $newCount++
             }

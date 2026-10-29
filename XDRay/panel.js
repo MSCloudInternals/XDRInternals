@@ -62,7 +62,12 @@ function processRequest(request) {
 
     for (const map of cmdletMapping) {
         if (map.Cmdlet === 'Get-XdrReport' && (map.Method.toLowerCase() !== method.toLowerCase() || Object.entries(map.QueryMatch || {}).some(([key, value]) => url.searchParams.get(key) !== value))) continue;
-        const mappingPath = new URL(map.ApiUri).pathname;
+        const mappingUrl = new URL(map.ApiUri);
+        // Scoped contracts must not suggest a getter for a write or another origin.
+        if (map.Method && (url.origin !== mappingUrl.origin || method.toLowerCase() !== map.Method.toLowerCase())) continue;
+        if (map.Query && Array.from(new URL('?' + map.Query, mappingUrl).searchParams).some(([key, value]) =>
+            url.searchParams.getAll(key).length !== 1 || url.searchParams.get(key) !== value)) continue;
+        const mappingPath = mappingUrl.pathname;
         const regexStr = '^' + mappingPath.replace(/\{[^}]+\}/g, '([^/]+)') + '$';
         const regex = new RegExp(regexStr, 'i');
 
@@ -243,6 +248,10 @@ function generatePowerShellCode(data) {
         if (data.parameters) {
             // Use explicit mapping
             for (const [paramName, sourcePath] of Object.entries(data.parameters)) {
+                if (sourcePath === 'switch:true') {
+                    code += ` -${paramName}`;
+                    continue;
+                }
                 const value = resolveValue(data, sourcePath);
                 if (value !== undefined && value !== null) {
                     const escapedValue = escapeForPowerShell(value);

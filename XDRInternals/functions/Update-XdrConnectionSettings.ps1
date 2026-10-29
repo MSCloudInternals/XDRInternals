@@ -40,6 +40,9 @@
             $TenantId = $valueProperty.Value
         }
     }
+    if (-not $TenantId -and $script:headers) {
+        $TenantId = $script:headers['x-tid']
+    }
     # Check if script variables exist
     if (Test-Path variable:script:session) {
         # Update session and headers in script scope
@@ -59,6 +62,10 @@
         Write-Verbose "XSRF token has been updated."
         [Hashtable]$script:headers = @{}
         $script:headers["X-XSRF-TOKEN"] = [System.Net.WebUtility]::UrlDecode($session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value)
+        if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
+            $script:headers['x-tid'] = $TenantId
+            $script:headers['tenant-id'] = $TenantId
+        }
 
         # Cache the updated XSRF token with 5 minute TTL
         Write-Verbose "Caching updated XSRF token with 5 minute TTL"

@@ -11,6 +11,31 @@ Describe 'Cmdlet output and caching behavior' -Tag 'Functions', 'Output', 'Cachi
         }
     }
 
+    It 'binds refreshed REST headers and preserves HTTP status for callers' {
+        Mock Update-XdrConnectionSettings {
+            InModuleScope XDRInternals {
+                $script:headers = @{ Authorization = 'refreshed' }
+                $script:session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+            }
+        } -ModuleName XDRInternals
+        Mock Invoke-RestMethod {
+            if ($Headers.Authorization -ne 'refreshed') { throw 'stale_headers' }
+            if ($null -eq $WebSession) { throw 'missing_session' }
+            $failure = [System.InvalidOperationException]::new('unauthorized')
+            $failure | Add-Member -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = 403 })
+            throw $failure
+        } -ModuleName XDRInternals
+
+        $status = $null
+        try {
+            Invoke-XdrRestMethod -Uri 'https://security.microsoft.com/apiproxy/mtp/huntingService/schema' -ErrorAction Stop
+        } catch {
+            if ($null -eq $_.Exception.Response) { throw "unexpected_exception_type: $($_.Exception.GetType().Name) $($_.Exception.Message)" }
+            $status = $_.Exception.Response.StatusCode
+        }
+        $status | Should -Be 403
+    }
+
     It 'documents and refreshes the device group cache when creating RBAC groups' {
         Mock Get-XdrEndpointDeviceRbacGroup {
             @(

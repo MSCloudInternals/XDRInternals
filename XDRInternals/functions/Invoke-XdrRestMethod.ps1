@@ -49,10 +49,10 @@
         [string]$ContentType = "application/json",
 
         [Parameter(Mandatory = $false)]
-        $WebSession = $script:session,
+        $WebSession,
 
         [Parameter(Mandatory = $false)]
-        [Hashtable]$Headers = $script:headers,
+        [Hashtable]$Headers,
 
         [Parameter()]
         $Body
@@ -63,15 +63,12 @@
     }
 
     process {
-        try {
-            if ($Body) {
-                Invoke-RestMethod -Uri $Uri -Method $Method -ContentType $ContentType -WebSession $WebSession -Headers $Headers -Body $Body
-            } else {
-                Invoke-RestMethod -Uri $Uri -Method $Method -ContentType $ContentType -WebSession $WebSession -Headers $Headers
-            }
-        } catch {
-            Write-Error "Failed to invoke XDR REST method: $_"
-            throw
+        if (-not $PSBoundParameters.ContainsKey('WebSession')) { $WebSession = $script:session }
+        if (-not $PSBoundParameters.ContainsKey('Headers')) { $Headers = $script:headers }
+        if ($Body) {
+            Invoke-RestMethod -Uri $Uri -Method $Method -ContentType $ContentType -WebSession $WebSession -Headers $Headers -Body $Body
+        } else {
+            Invoke-RestMethod -Uri $Uri -Method $Method -ContentType $ContentType -WebSession $WebSession -Headers $Headers
         }
     }
 

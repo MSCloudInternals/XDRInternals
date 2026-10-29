@@ -75,6 +75,7 @@
         "Export-XdrAzureDataExplorer",
         "Export-XdrEndpointDeviceTimeline",
         "Export-XdrIdentityUserTimeline",
+        "Export-XdrCloudAppsActivityTimeline",
         "Export-XdrToSentinel",
         "Get-XdrActionsCenterHistory",
         "Get-XdrActionsCenterPending",

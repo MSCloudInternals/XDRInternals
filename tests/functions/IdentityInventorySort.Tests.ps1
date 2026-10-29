@@ -1,4 +1,4 @@
-Describe 'Identity inventory sort direction contract' {
+﻿Describe 'Identity inventory sort direction contract' {
     BeforeEach {
         Mock Update-XdrConnectionSettings {} -ModuleName XDRInternals
         Mock Get-XdrIdentityHeaders { @{} } -ModuleName XDRInternals

@@ -1,7 +1,7 @@
-﻿function Merge-XdrEndpointTimelineNdjsonPart {
+﻿function Merge-XdrTimelineNdjsonPart {
     <#
     .SYNOPSIS
-        Concatenates validated endpoint timeline NDJSON part files.
+        Concatenates validated timeline NDJSON part files.
 
     .DESCRIPTION
         Copies part files into one destination without parsing JSON. Each part hash is
@@ -14,7 +14,7 @@
         Path to create. The destination must not already exist.
 
     .EXAMPLE
-        Merge-XdrEndpointTimelineNdjsonPart -Part $parts -DestinationPath $partialPath
+        Merge-XdrTimelineNdjsonPart -Part $parts -DestinationPath $partialPath
         Creates and hashes the combined NDJSON file.
     #>
     [OutputType([PSCustomObject])]
@@ -83,7 +83,7 @@
             $actualPartHash = [Convert]::ToHexString($partHasher.Hash).ToLowerInvariant()
             $partHasher.Dispose()
             if ($actualPartHash -ne [string]$partItem.FileSha256) {
-                throw "Endpoint timeline part '$($partItem.FilePath)' failed SHA-256 validation."
+                throw "Timeline part '$($partItem.FilePath)' failed SHA-256 validation."
             }
 
             $totalEvents += [long]$partItem.EventCount
@@ -108,4 +108,36 @@
         if ($outputHasher) { $outputHasher.Dispose() }
         if ($destination) { $destination.Dispose() }
     }
+}
+
+function Merge-XdrEndpointTimelineNdjsonPart {
+    <#
+    .SYNOPSIS
+        Preserves the endpoint-specific private helper name.
+
+    .DESCRIPTION
+        Calls the workload-neutral timeline merger so the endpoint exporter keeps
+        its original private helper contract.
+
+    .PARAMETER Part
+        Ordered endpoint timeline part metadata to validate and concatenate.
+
+    .PARAMETER DestinationPath
+        Path to the new combined NDJSON file.
+
+    .EXAMPLE
+        Merge-XdrEndpointTimelineNdjsonPart -Part $parts -DestinationPath $partialPath
+        Validates and merges endpoint timeline parts.
+    #>
+    [OutputType([PSCustomObject])]
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [object[]]$Part,
+
+        [Parameter(Mandatory)]
+        [string]$DestinationPath
+    )
+
+    Merge-XdrTimelineNdjsonPart -Part $Part -DestinationPath $DestinationPath
 }

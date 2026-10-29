@@ -1,4 +1,4 @@
-Describe 'Captured Defender hunting proxy routes' {
+﻿Describe 'Captured Defender hunting proxy routes' {
     BeforeEach {
         Mock Update-XdrConnectionSettings {} -ModuleName XDRInternals
         Mock Get-XdrCache { $null } -ModuleName XDRInternals

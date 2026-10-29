@@ -1,4 +1,4 @@
-Describe 'Legacy automated investigation route availability' {
+﻿Describe 'Legacy automated investigation route availability' {
     BeforeEach {
         Mock Update-XdrConnectionSettings {} -ModuleName XDRInternals
         Mock Get-XdrCache { $null } -ModuleName XDRInternals

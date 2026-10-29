@@ -78,6 +78,34 @@ function Get-TestWidget {
         @($apiMappings)[0].Cmdlet | Should -Be 'Get-TestWidget'
         @($firefoxApiMappings)[0].Cmdlet | Should -Be 'Get-TestWidget'
         $readmeContent | Should -Match '\| Get-TestWidget\s+\| Gets test widgets\.'
+
+                $fixtureCatalogPath = Join-Path $fixtureRoot 'XDRInternals/internal/functions'
+                $null = New-Item -Path $fixtureCatalogPath -ItemType Directory -Force
+                Copy-Item -LiteralPath (Join-Path $repoRoot 'XDRInternals/internal/functions/Get-XdrReportCatalog.ps1') -Destination $fixtureCatalogPath
+                Copy-Item -LiteralPath (Join-Path $repoRoot 'XDRInternals/functions/Get-XdrReport.ps1') -Destination $fixtureFunctionsPath
+                & (Join-Path $fixtureBuildPath 'Sync-CmdletDocumentation.ps1')
+                $reportMappings = @(Get-Content -Path $fixtureJsonPath -Raw | ConvertFrom-Json | Where-Object Cmdlet -eq 'Get-XdrReport')
+                InModuleScope XDRInternals { $script:expectedReportCount = @(Get-XdrReportCatalog).Count }
+                $expectedReportCount = InModuleScope XDRInternals { $script:expectedReportCount }
+                $reportMappings.Count | Should -Be $expectedReportCount
+                @($reportMappings.Parameters.Name | Select-Object -Unique).Count | Should -Be $expectedReportCount
+                $zap = $reportMappings | Where-Object { $_.Parameters.Name -eq 'fixed:Email.ZapReport.Summary' }
+                $zap.QueryMatch.reportId | Should -Be 'ZapReport'
+                $zap.QueryMatch.dataSourceId | Should -Be 'AggZapReport'
+                $zap.Method | Should -Be 'Post'
+                $cloud = $reportMappings | Where-Object { $_.Parameters.Name -eq 'fixed:Cloud.CoverageByPlan' }
+                $cloud.BodyMatch.schemaId | Should -Be 'dashboardsAndReports_CoverageByPlan'
+                $compute = $reportMappings | Where-Object { $_.Parameters.Name -eq 'fixed:Cloud.SecureScore.Compute.Trend' }
+                $compute.BodyMatch.'metricsProperties.0.dimensionsFilters.0.value' | Should -Be 'compute'
+                $originalReadme = Get-Content -Path $fixtureReadmePath -Raw
+                $originalManifest = Get-Content -Path $fixtureManifestPath -Raw
+                & (Join-Path $fixtureBuildPath 'Sync-CmdletDocumentation.ps1') -MappingCmdlet 'Get-XdrReport'
+                (Get-Content -Path $fixtureReadmePath -Raw) | Should -BeExactly $originalReadme
+                (Get-Content -Path $fixtureManifestPath -Raw) | Should -BeExactly $originalManifest
+                $generatedJson = Get-Content -Path $fixtureJsonPath -Raw
+                & (Join-Path $fixtureBuildPath 'Sync-CmdletDocumentation.ps1')
+                (Get-Content -Path $fixtureJsonPath -Raw) | Should -BeExactly $generatedJson
+                (Get-Content -Path $fixtureFirefoxJsonPath -Raw) | Should -BeExactly $generatedJson
     }
 
         It 'adds a newly introduced cmdlet to generated outputs' {

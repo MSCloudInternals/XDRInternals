@@ -60,7 +60,7 @@
 
     if ($PreviousXSRFValue -ne $script:session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value) {
         Write-Verbose "XSRF token has been updated."
-        [Hashtable]$script:headers = @{}
+        if ($null -eq $script:headers) { [Hashtable]$script:headers = @{} }
         $script:headers["X-XSRF-TOKEN"] = [System.Net.WebUtility]::UrlDecode($session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value)
         if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
             $script:headers['x-tid'] = $TenantId

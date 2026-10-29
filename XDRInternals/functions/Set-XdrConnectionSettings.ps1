@@ -61,6 +61,12 @@
         [switch]$ResetWebSession
     )
 
+    # Explicit connection replacement may change accounts within the same tenant.
+    # Retain cached data only when resetting the existing authenticated session.
+    if ($PSBoundParameters.ContainsKey('SccAuth') -or $PSBoundParameters.ContainsKey('WebSession')) {
+        Clear-XdrCache
+    }
+
     # Determine sccauth and xsrf format, then create session and cookies
     Write-Verbose "Setting session cookies for XDR webpage requests"
     if ($PSBoundParameters.ContainsKey('SccAuth')) {

@@ -114,7 +114,6 @@
         $manifestPartialPath = "$manifestPath.partial"
         $partsPath = "$outputPath.parts"
         $outputPartialPath = "$outputPath.partial"
-        $resumingReplacement = $false
         $replaceExistingOutput = $Force.IsPresent -and (Test-Path -LiteralPath $outputPath -PathType Leaf)
 
         $writeManifest = {
@@ -219,7 +218,6 @@
                     throw "Path '$outputPath' already exists and does not match an authorized replacement or a published Finalizing export. Use -Force to replace it."
                 }
                 $replaceExistingOutput = $true
-                $resumingReplacement = $true
             }
             else {
                 $partsRetained = $false

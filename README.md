@@ -57,9 +57,9 @@ Portal reporting is available through `Get-XdrReportDefinition`, `Get-XdrReport`
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encodes an Advanced Hunting query for use in Microsoft Defender XDR. |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
 | Export-XdrAzureDataExplorer                                     | Exports pipeline data to Azure Data Explorer using queued ingestion. |
+| Export-XdrCloudAppsActivityTimeline                             | Exports Microsoft Defender for Cloud Apps activity timeline data to NDJSON. |
 | Export-XdrEndpointDeviceTimeline                                | Exports a Microsoft Defender XDR device timeline to NDJSON. |
 | Export-XdrIdentityUserTimeline                                  | Exports a Microsoft Defender for Identity user timeline to NDJSON. |
-| Export-XdrCloudAppsActivityTimeline                             | Exports Microsoft Defender for Cloud Apps activity timeline data to NDJSON. |
 | Export-XdrKustainer                                             | Exports pipeline data to a local Kusto emulator (Kustainer). |
 | Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |
 | Get-XdrActionsCenterHistory                                     | Retrieves historical actions from the Microsoft Defender XDR Action Center. |
@@ -134,9 +134,9 @@ Portal reporting is available through `Get-XdrReportDefinition`, `Get-XdrReport`
 | Get-XdrIncident                                                 | Retrieves incidents from Microsoft Defender XDR. |
 | Get-XdrIncidentAssociatedAlert                                  | Retrieves alerts associated with a specific incident from Microsoft Defender XDR. |
 | Get-XdrMtoTenantList                                            | Retrieves the list of accessible tenants from Microsoft Defender XDR. |
-| Get-XdrSentinelConfigurationSetting                             | Retrieves a Microsoft Sentinel workspace service setting. |
 | Get-XdrReport                                                   | Retrieves Microsoft Defender portal report data. |
 | Get-XdrReportDefinition                                         | Lists supported Microsoft Defender portal report operations. |
+| Get-XdrSentinelConfigurationSetting                             | Retrieves a Microsoft Sentinel workspace service setting. |
 | Get-XdrStreamingApiConfiguration                                | Retrieves Streaming API configuration from Microsoft Defender XDR. |
 | Get-XdrSuppressionRule                                          | Retrieves alert suppression rules from Microsoft Defender XDR. |
 | Get-XdrTenantContext                                            | Retrieves the tenant context information from Microsoft Defender XDR. |

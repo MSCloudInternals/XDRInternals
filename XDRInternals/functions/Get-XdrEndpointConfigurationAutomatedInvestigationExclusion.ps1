@@ -5,7 +5,8 @@
 
     .DESCRIPTION
         Gets memory-content ACL or folder exclusions from Defender for Endpoint.
-        Responses are cached for 30 minutes per exclusion type.
+        Responses are cached for 30 minutes per exclusion type. Legacy route availability
+        varies independently by exclusion type; HTTP 410 reports unavailable without partial results.
 
     .PARAMETER Type
         Selects memory-content or folder exclusions.
@@ -15,6 +16,23 @@
 
     .EXAMPLE
         Get-XdrEndpointConfigurationAutomatedInvestigationExclusion -Type Folder
+
+    .NOTES
+        HTTP 410 emits XdrEndpointAutomatedInvestigationExclusionUnavailable with category
+        NotImplemented and constant Route, Type, and StatusCode target metadata.
+
+        Microsoft documents retirement of the separate AIR investigation experience on
+        September 1, 2026. This does not establish retirement of these exact portal routes;
+        automation upload and folder exclusion settings remain documented separately.
+
+    .LINK
+        https://learn.microsoft.com/en-us/defender-endpoint/configure-automated-investigations-remediation
+
+    .LINK
+        https://learn.microsoft.com/en-us/defender-endpoint/manage-automation-file-uploads
+
+    .LINK
+        https://learn.microsoft.com/en-us/defender-endpoint/automation-folder-exclusions-configure
 
     .OUTPUTS
         Object
@@ -74,7 +92,19 @@
             Set-XdrCache -CacheKey $cacheKey -Value $result -TTLMinutes 30
             return $result
         } catch {
-            Write-Error "Failed to retrieve automated investigation $Type exclusions: $_"
+            if ($_.Exception -is [Microsoft.PowerShell.Commands.HttpResponseException] -and
+                $_.Exception.Response.StatusCode -eq [System.Net.HttpStatusCode]::Gone) {
+                $unavailableTarget = if ($Type -eq 'Folder') {
+                    [pscustomobject]@{ Route = '/apiproxy/mtp/autoIr/folder_exclusion/all'; Type = 'Folder'; StatusCode = 410 }
+                } else {
+                    [pscustomobject]@{ Route = '/apiproxy/mtp/autoIr/acl/all'; Type = 'MemoryContent'; StatusCode = 410 }
+                }
+                Write-Error -ErrorId 'XdrEndpointAutomatedInvestigationExclusionUnavailable' -Category NotImplemented `
+                    -TargetObject $unavailableTarget `
+                    -Message 'Legacy automated investigation exclusions are unavailable for the requested type (HTTP 410). Verify availability in the Defender portal.'
+            } else {
+                Write-Error -ErrorRecord $_
+            }
         }
     }
 }

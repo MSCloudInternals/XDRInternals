@@ -169,7 +169,9 @@
         $manifest.Replacement.FileBytes | Should -Be 11
     }
 
-    It 'rechecks the prior destination immediately before publishing a resumed replacement' {
+    It 'rechecks the prior destination immediately before publication with Force=<FreshForce>' -ForEach @(
+        @{ FreshForce = $false }; @{ FreshForce = $true }
+    ) {
         $fixture = New-ReplacementRecoveryFixture -Root $TestDrive
         Mock Merge-XdrEndpointTimelineNdjsonPart {
             param($Part, $DestinationPath)
@@ -180,7 +182,7 @@
             }
         } -ModuleName XDRInternals
         $arguments = $fixture.Arguments
-        { Export-XdrEndpointDeviceTimeline @arguments } | Should -Throw '*destination changed during replacement recovery*'
+        { Export-XdrEndpointDeviceTimeline @arguments -Force:$FreshForce } | Should -Throw '*destination changed during replacement*'
         [IO.File]::ReadAllText($fixture.Output) | Should -BeExactly "{`"id`":`"C`"}`n"
         Test-Path $fixture.Part | Should -BeTrue
         Test-Path "$($fixture.Output).partial" | Should -BeTrue

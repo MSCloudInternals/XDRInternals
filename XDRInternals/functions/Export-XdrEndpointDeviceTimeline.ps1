@@ -690,14 +690,14 @@
         & $writeManifest $manifest $manifestPath $manifestPartialPath
 
         try {
-            if ($resumingReplacement) {
+            if ($replaceExistingOutput) {
                 $priorOutputIsValid = Test-Path -LiteralPath $outputPath -PathType Leaf
                 if ($priorOutputIsValid) {
                     $priorOutputIsValid = (Get-Item -LiteralPath $outputPath -ErrorAction Stop).Length -eq [long]$manifest.Replacement.FileBytes -and
                         (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256 -ErrorAction Stop).Hash -eq [string]$manifest.Replacement.FileSha256
                 }
                 if (-not $priorOutputIsValid) {
-                    throw 'The destination changed during replacement recovery. The replacement was not published.'
+                    throw 'The destination changed during replacement. The replacement was not published.'
                 }
             }
             [System.IO.File]::Move($outputPartialPath, $outputPath, $replaceExistingOutput)

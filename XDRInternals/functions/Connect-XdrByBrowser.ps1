@@ -74,7 +74,10 @@
 
     process {
         if ($PrivateSession -and $ProfilePath) {
-            throw 'Do not combine -PrivateSession with -ProfilePath. Private session uses a temporary profile automatically.'
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod Browser -Stage InputValidation -DefaultCode RequestInvalid
+            $failure.Message = 'Do not combine -PrivateSession with -ProfilePath. Private session uses a temporary profile automatically.'
+            $failure.RecommendedAction = 'Remove -ProfilePath to use a temporary private profile, or remove -PrivateSession to use the explicit profile.'
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         $authParams = @{
@@ -102,9 +105,15 @@
             $authParams.UserAgent = $UserAgent
         }
 
-        $browserAuth = Invoke-XdrBrowserAuthentication @authParams
+        try {
+            $browserAuth = Invoke-XdrBrowserAuthentication @authParams
+        } catch {
+            $failure = Get-XdrAuthenticationFailure -ErrorRecord $_ -AuthenticationMethod Browser -Stage BrowserSignIn
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure -ErrorRecord $_)
+        }
         if (-not $browserAuth) {
-            throw 'Browser sign-in failed - no authentication cookies were returned.'
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod Browser -Stage ArtifactCapture -DefaultCode NoAuthenticationArtifact
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         $estsAuthCookieValue = if ($browserAuth -is [string]) { $browserAuth } else { $browserAuth.EstsAuthCookieValue }

@@ -357,6 +357,8 @@ function Invoke-XdrSsoAuthentication {
         $xsrfToken = $null
         $firstEstsCookieObservedAt = $null
         $lastObservedTargetDescription = $null
+        $lastObservedTargetHost = $null
+        $lastObservedPageErrorState = $null
 
         do {
             Start-Sleep -Seconds 2
@@ -364,35 +366,38 @@ function Invoke-XdrSsoAuthentication {
             if ($browserProcess) {
                 $browserProcess.Refresh()
                 if ($browserProcess.HasExited) {
-                    if ($Visible) {
-                        $message = 'The browser window closed before SSO authentication completed.'
-                        if ($lastObservedTargetDescription) {
-                            $message += " Last observed browser page: $lastObservedTargetDescription"
-                        }
-
-                        throw $message
+                    $failure = Get-XdrAuthenticationFailure -AuthenticationMethod SSO -Stage BrowserSignIn -DefaultCode BrowserClosed -SafeEvidence @{
+                        Host = $lastObservedTargetHost
                     }
-
-                    $message = 'The browser exited before SSO authentication completed. Retry with -Visible to observe the flow on this device.'
-                    if ($lastObservedTargetDescription) {
-                        $message += " Last observed browser page: $lastObservedTargetDescription"
-                    }
-
-                    throw $message
+                    throw (New-XdrAuthenticationErrorRecord -Failure $failure)
                 }
             }
 
             try {
                 $targetContext = Get-XdrBrowserPreferredTargetContext -Port $debugPort -FallbackWebSocketUrl $versionInfo.webSocketDebuggerUrl
-                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url -Title $targetContext.Title
+                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url
                 if ($currentTargetDescription -and $currentTargetDescription -ne $lastObservedTargetDescription) {
                     $lastObservedTargetDescription = $currentTargetDescription
+                    try { $lastObservedTargetHost = ([uri]$targetContext.Url).Host } catch { $lastObservedTargetHost = $null }
                     Write-Verbose "Observed browser page: $currentTargetDescription"
                 }
+            } catch {
+                Write-Verbose 'Browser target polling failed.'
+                continue
+            }
 
+            $pageErrorState = $null
+            try {
+                $pageErrorState = Get-XdrBrowserAuthenticationPageError -WebSocketUrl $targetContext.WebSocketUrl
+                $lastObservedPageErrorState = $pageErrorState
+            } catch {
+                Write-Verbose 'Browser page diagnostics were unavailable.'
+            }
+
+            try {
                 $cookies = @(Get-XdrBrowserCookieJar -WebSocketUrl $targetContext.WebSocketUrl)
             } catch {
-                Write-Verbose "Cookie polling failed: $($_.Exception.Message)"
+                Write-Verbose 'Browser cookie polling failed.'
                 continue
             }
 
@@ -413,12 +418,19 @@ function Invoke-XdrSsoAuthentication {
         } while ((Get-Date) -lt $deadline)
 
         if (-not $sccAuthCookieValue -and -not $estsAuthCookieValue) {
-            $message = 'SSO authentication did not produce Defender portal or ESTS cookies before the timeout expired.'
-            if ($lastObservedTargetDescription) {
-                $message += " Last observed browser page: $lastObservedTargetDescription"
+            $failureParams = @{
+                AuthenticationMethod = 'SSO'
+                Stage = 'BrowserSignIn'
+                DefaultCode = 'BrowserTimeout'
+                SafeEvidence = @{
+                    Host = $lastObservedTargetHost
+                }
             }
-
-            throw $message
+            if ($lastObservedPageErrorState) {
+                $failureParams.AuthState = $lastObservedPageErrorState
+            }
+            $failure = Get-XdrAuthenticationFailure @failureParams
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         $selectedTenant = $null

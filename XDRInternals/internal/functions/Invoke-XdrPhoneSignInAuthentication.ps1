@@ -10,14 +10,14 @@
     try {
         return $Response.Content | ConvertFrom-Json -Depth 30
     } catch {
-        Write-Verbose "Response content was not a plain JSON payload: $($_.Exception.Message)"
+        Write-Verbose 'Response content was not a plain JSON payload.'
     }
 
     if ($Response.Content -match '{(.*)}') {
         try {
             return $Matches[0] | ConvertFrom-Json -Depth 30
         } catch {
-            Write-Verbose "Embedded JSON payload could not be parsed: $($_.Exception.Message)"
+            Write-Verbose 'Embedded JSON payload could not be parsed.'
         }
     }
 
@@ -317,8 +317,8 @@ function Invoke-XdrPhoneSignInStartRemoteNgcChallenge {
     }
 
     if ([string]::IsNullOrWhiteSpace($sessionLookupKey)) {
-        $summary = $challengeResponse | ConvertTo-Json -Compress -Depth 10
-        throw "Phone sign-in challenge start did not return an active RemoteNGC session. Response: $summary"
+        $failure = Get-XdrAuthenticationFailure -AuthenticationMethod PhoneSignIn -Stage ChallengeStart -DefaultCode ProviderRejected -SafeEvidence @{ Status = [string]$challengeResponse.status }
+        throw (New-XdrAuthenticationErrorRecord -Failure $failure)
     }
 
     return [pscustomobject]@{
@@ -576,7 +576,10 @@ function Test-XdrPhoneSignInApproved {
         2 { return $true }
         3 { return $false }
         6 { return $false }
-        1 { throw 'Phone sign-in was denied.' }
+        1 {
+            $failure = Get-XdrAuthenticationFailure -AuthenticationMethod PhoneSignIn -Stage PhoneApproval -DefaultCode MfaDenied
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
+        }
         default { throw "Phone sign-in polling returned unexpected AuthorizationState '$($PollResponse.AuthorizationState)'." }
     }
 }
@@ -775,7 +778,8 @@ function Invoke-XdrPhoneSignInAuthentication {
         }
 
         if ($sasOutcome.Outcome.AuthState -and $sasOutcome.Outcome.AuthState.sErrorCode) {
-            throw "Phone sign-in failed with error $($sasOutcome.Outcome.AuthState.sErrorCode): $($sasOutcome.Outcome.AuthState.sErrTxt)"
+            $failure = Get-XdrAuthenticationFailure -AuthState $sasOutcome.Outcome.AuthState -AuthenticationMethod PhoneSignIn -Stage SasCompletion
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         throw 'Phone sign-in completed, but no ESTSAUTH cookie was captured.'
@@ -827,7 +831,8 @@ function Invoke-XdrPhoneSignInAuthentication {
         }
 
         if ($submitResult.AuthState -and $submitResult.AuthState.sErrorCode) {
-            throw "Phone sign-in login submission failed with error $($submitResult.AuthState.sErrorCode): $($submitResult.AuthState.sErrTxt)"
+            $failure = Get-XdrAuthenticationFailure -AuthState $submitResult.AuthState -AuthenticationMethod PhoneSignIn -Stage LoginSubmission
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         throw 'Phone sign-in completed and approved, but no ESTSAUTH cookie was captured.'
@@ -847,7 +852,8 @@ function Invoke-XdrPhoneSignInAuthentication {
         }
 
         if ($sasOutcome.Outcome.AuthState -and $sasOutcome.Outcome.AuthState.sErrorCode) {
-            throw "Phone sign-in failed with error $($sasOutcome.Outcome.AuthState.sErrorCode): $($sasOutcome.Outcome.AuthState.sErrTxt)"
+            $failure = Get-XdrAuthenticationFailure -AuthState $sasOutcome.Outcome.AuthState -AuthenticationMethod PhoneSignIn -Stage SasCompletion
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         throw 'Phone sign-in completed, but no ESTSAUTH cookie was captured.'
@@ -873,7 +879,8 @@ function Invoke-XdrPhoneSignInAuthentication {
         }
 
         if ($sasOutcome.Outcome.AuthState -and $sasOutcome.Outcome.AuthState.sErrorCode) {
-            throw "Phone sign-in failed with error $($sasOutcome.Outcome.AuthState.sErrorCode): $($sasOutcome.Outcome.AuthState.sErrTxt)"
+            $failure = Get-XdrAuthenticationFailure -AuthState $sasOutcome.Outcome.AuthState -AuthenticationMethod PhoneSignIn -Stage SasCompletion
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         throw 'Phone sign-in completed, but no ESTSAUTH cookie was captured.'

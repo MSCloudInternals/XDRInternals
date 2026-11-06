@@ -47,7 +47,7 @@
     }
 
     process {
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/huntingService/queries/encode"
+        $Uri = "https://security.microsoft.com/apiproxy/hunting/huntingService/queries/encode"
         
         $body = @{
             QueryText = $QueryText

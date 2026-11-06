@@ -614,6 +614,9 @@
             $webSession = $SharedParameters.WebSession
             if (-not $webSession) {
                 $webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+                if (-not [string]::IsNullOrWhiteSpace([string]$SharedParameters.UserAgent)) {
+                    $webSession.UserAgent = [string]$SharedParameters.UserAgent
+                }
                 foreach ($cookieInfo in $SharedParameters.CookieData) {
                     $cookie = [System.Net.Cookie]::new($cookieInfo.Name, $cookieInfo.Value, $cookieInfo.Path, $cookieInfo.Domain)
                     $webSession.Cookies.Add($cookie)
@@ -977,6 +980,7 @@
             BaseUrl     = $requestContext.BaseUrl
             CookieData  = $requestContext.CookieData
             HeadersData = $requestContext.HeadersData
+            UserAgent   = $requestContext.UserAgent
         }
 
         foreach ($batchResult in @($batchResults | Sort-Object @{ Expression = { if ([string]::IsNullOrWhiteSpace($_.Item.DeviceName)) { '~' } else { $_.Item.DeviceName } } }, @{ Expression = { $_.Item.SessionId } })) {

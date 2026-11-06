@@ -31,6 +31,10 @@
     .PARAMETER Force
         Bypass cache and force a fresh API call.
 
+    .PARAMETER ResolveOnly
+        Return the identity from one resolve request without enrichment or caching. This is
+        useful when only basic user identifiers and profile fields are needed.
+
     .EXAMPLE
         Get-XdrIdentityUser -Upn "nathan@contoso.com"
 
@@ -40,6 +44,11 @@
         Get-XdrIdentityUser -AadId "a2307c5a-76df-4513-b575-0537842c1d8b"
 
         Retrieves user identity information by Azure AD object ID.
+
+    .EXAMPLE
+        Get-XdrIdentityUser -AadId "a2307c5a-76df-4513-b575-0537842c1d8b" -ResolveOnly
+
+        Resolves one identity without fetching enrichment data.
 
     .EXAMPLE
         Get-XdrIdentityUser -Upn "nathan@contoso.com"
@@ -77,7 +86,10 @@
         [string]$RadiusUserId,
 
         [Parameter()]
-        [switch]$Force
+        [switch]$Force,
+
+        [Parameter()]
+        [switch]$ResolveOnly
     )
 
     begin {
@@ -91,6 +103,7 @@
     }
 
     process {
+        if ($ResolveOnly) { $Force = $true }
         # Build userIdentifiers based on parameter set
         $userIdentifiers = @{}
 
@@ -210,6 +223,8 @@
                 return
             }
         }
+
+        if ($ResolveOnly) { return $user }
 
         # Get the full userIdentifiers for enrichment API calls
         $fullIdentifiers = ConvertTo-XdrIdentityUserIdentifiers -ResolvedUser $user

@@ -97,7 +97,8 @@ function Invoke-XdrSasBeginAuth {
             $beginAuth.SessionId = $AuthState.sessionId
         }
     } elseif (-not $beginAuth.Success -and $beginAuth.ErrCode -ne 0) {
-        throw "$FailureLabel BeginAuth failed (ErrCode: $($beginAuth.ErrCode)): $($beginAuth.Message)"
+        $failure = Get-XdrAuthenticationFailure -SasResult $beginAuth -AuthenticationMethod $FailureLabel -Stage MfaBegin -DefaultCode ProviderRejected
+        throw (New-XdrAuthenticationErrorRecord -Failure $failure)
     }
 
     Write-Verbose "BeginAuth response: Success=$($beginAuth.Success), ResultValue=$($beginAuth.ResultValue)"
@@ -233,19 +234,23 @@ function Invoke-XdrSasPushNotificationPolling {
         }
 
         if ($pollResult.ResultValue -ne 'AuthenticationPending') {
-            throw "$FailureLabel denied or failed: $($pollResult.ResultValue) - $($pollResult.Message)"
+            $failure = Get-XdrAuthenticationFailure -SasResult $pollResult -AuthenticationMethod $FailureLabel -Stage MfaPolling -DefaultCode MfaDenied
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         if (-not $pollResult.Retry) {
-            throw "$FailureLabel timed out. Retry is false."
+            $failure = Get-XdrAuthenticationFailure -SasResult $pollResult -AuthenticationMethod $FailureLabel -Stage MfaPolling -DefaultCode MfaTimeout
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
     }
 
     if ($TimeoutMessage) {
-        throw ($TimeoutMessage -f ($pollCount * $PollingIntervalSeconds))
+        $failure = Get-XdrAuthenticationFailure -AuthenticationMethod $FailureLabel -Stage MfaPolling -DefaultCode MfaTimeout
+        throw (New-XdrAuthenticationErrorRecord -Failure $failure)
     }
 
-    throw "$FailureLabel did not complete before the timeout expired."
+    $failure = Get-XdrAuthenticationFailure -AuthenticationMethod $FailureLabel -Stage MfaPolling -DefaultCode MfaTimeout
+    throw (New-XdrAuthenticationErrorRecord -Failure $failure)
 }
 
 function Invoke-XdrSasProcessAuth {

@@ -43,7 +43,7 @@
         } else {
             Write-Verbose "XDR Advanced Hunting table schema cache is missing or expired"
         }
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/huntingService/schema"
+        $Uri = "https://security.microsoft.com/apiproxy/hunting/huntingService/schema"
         Write-Verbose "Retrieving XDR Advanced Hunting table schema"
         try {
             $XdrAdvancedHuntingTableSchema = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers | Select-Object -ExpandProperty Tables

@@ -813,20 +813,20 @@ function Format-XdrBrowserTargetDescription {
     [OutputType([string])]
     [CmdletBinding()]
     param(
-        [string]$Url,
-
-        [string]$Title
+        [string]$Url
     )
 
     if ([string]::IsNullOrWhiteSpace($Url)) {
         return $null
     }
 
-    if ([string]::IsNullOrWhiteSpace($Title)) {
-        return $Url
+    try {
+        $parsedUrl = [uri]$Url
+        if ($parsedUrl.Scheme -notin @('http', 'https') -or -not $parsedUrl.Host) { return $null }
+        return "$($parsedUrl.Scheme)://$($parsedUrl.Host)"
+    } catch {
+        return $null
     }
-
-    return "$Title [$Url]"
 }
 
 function Invoke-XdrBrowserCdpCommand {
@@ -893,6 +893,75 @@ function Invoke-XdrBrowserCdpCommand {
     } finally {
         $webSocket.Dispose()
         $cancellation.Dispose()
+    }
+}
+
+function Get-XdrBrowserAuthenticationPageError {
+    <#
+    .SYNOPSIS
+        Reads allowlisted authentication error state from the current browser page.
+
+    .DESCRIPTION
+        Uses the Chrome DevTools Runtime domain to project only numeric Entra error code and
+        correlation identifiers from the page's $Config object. It does not read provider error
+        text, HTML, DOM content, scripts, or authentication flow and session fields.
+
+    .PARAMETER WebSocketUrl
+        The DevTools WebSocket URL for the current browser page target.
+
+    .EXAMPLE
+        Get-XdrBrowserAuthenticationPageError -WebSocketUrl $targetContext.WebSocketUrl
+
+        Returns allowlisted error state when the current sign-in page exposes an exact error code.
+
+    .OUTPUTS
+        PSCustomObject containing exact provider error state, or no output when none is available.
+    #>
+    [OutputType([pscustomobject])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$WebSocketUrl
+    )
+
+    $expression = @'
+(() => {
+    const config = globalThis.$Config;
+    if (!config || typeof config !== 'object') return null;
+    const projected = {};
+    for (const key of ['sErrorCode', 'iErrorCode', 'correlationId', 'traceId']) {
+        const value = config[key];
+        if (value !== undefined && value !== null && value !== '') projected[key] = String(value);
+    }
+    return Object.keys(projected).length ? JSON.stringify(projected) : null;
+})()
+'@
+
+    $evaluation = Invoke-XdrBrowserCdpCommand -WebSocketUrl $WebSocketUrl -Method 'Runtime.evaluate' -Params @{
+        expression    = $expression
+        returnByValue = $true
+        awaitPromise  = $false
+    }
+    $serializedState = [string]$evaluation.result.value
+    if ([string]::IsNullOrWhiteSpace($serializedState)) {
+        return $null
+    }
+
+    try {
+        $state = $serializedState | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        return $null
+    }
+
+    $providerCode = if ($state.sErrorCode) { [string]$state.sErrorCode } else { [string]$state.iErrorCode }
+    if ($providerCode -eq '0' -or $providerCode -notmatch '^(?i:AADSTS)?\d{5,8}$') {
+        return $null
+    }
+
+    return [pscustomobject][ordered]@{
+        sErrorCode    = $providerCode
+        correlationId = [string]$state.correlationId
+        traceId       = [string]$state.traceId
     }
 }
 
@@ -1091,6 +1160,8 @@ function Invoke-XdrBrowserAuthentication {
         $selectedXsrfToken = $null
         $firstEstsCookieObservedAt = $null
         $lastObservedTargetDescription = $null
+        $lastObservedTargetHost = $null
+        $lastObservedPageErrorState = $null
 
         do {
             Start-Sleep -Seconds 2
@@ -1098,26 +1169,38 @@ function Invoke-XdrBrowserAuthentication {
             if ($browserProcess) {
                 $browserProcess.Refresh()
                 if ($browserProcess.HasExited) {
-                    $message = 'The browser window was closed before the browser sign-in completed.'
-                    if ($lastObservedTargetDescription) {
-                        $message += " Last observed browser page: $lastObservedTargetDescription"
+                    $failure = Get-XdrAuthenticationFailure -AuthenticationMethod Browser -Stage BrowserSignIn -DefaultCode BrowserClosed -SafeEvidence @{
+                        Host = $lastObservedTargetHost
                     }
-
-                    throw $message
+                    throw (New-XdrAuthenticationErrorRecord -Failure $failure)
                 }
             }
 
             try {
                 $targetContext = Get-XdrBrowserPreferredTargetContext -Port $debugPort -FallbackWebSocketUrl $versionInfo.webSocketDebuggerUrl
-                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url -Title $targetContext.Title
+                $currentTargetDescription = Format-XdrBrowserTargetDescription -Url $targetContext.Url
                 if ($currentTargetDescription -and $currentTargetDescription -ne $lastObservedTargetDescription) {
                     $lastObservedTargetDescription = $currentTargetDescription
+                    try { $lastObservedTargetHost = ([uri]$targetContext.Url).Host } catch { $lastObservedTargetHost = $null }
                     Write-Verbose "Observed browser page: $currentTargetDescription"
                 }
+            } catch {
+                Write-Verbose 'Browser target polling failed.'
+                continue
+            }
 
+            $pageErrorState = $null
+            try {
+                $pageErrorState = Get-XdrBrowserAuthenticationPageError -WebSocketUrl $targetContext.WebSocketUrl
+                $lastObservedPageErrorState = $pageErrorState
+            } catch {
+                Write-Verbose 'Browser page diagnostics were unavailable.'
+            }
+
+            try {
                 $cookies = @(Get-XdrBrowserCookieJar -WebSocketUrl $targetContext.WebSocketUrl)
             } catch {
-                Write-Verbose "Cookie polling failed: $($_.Exception.Message)"
+                Write-Verbose 'Browser cookie polling failed.'
                 continue
             }
 
@@ -1136,12 +1219,19 @@ function Invoke-XdrBrowserAuthentication {
         } while ((Get-Date) -lt $deadline)
 
         if (-not $selectedSccAuth -and -not $selectedEstsCookie) {
-            $message = 'Browser sign-in did not produce Defender portal or ESTS authentication cookies before the timeout expired.'
-            if ($lastObservedTargetDescription) {
-                $message += " Last observed browser page: $lastObservedTargetDescription"
+            $failureParams = @{
+                AuthenticationMethod = 'Browser'
+                Stage = 'BrowserSignIn'
+                DefaultCode = 'BrowserTimeout'
+                SafeEvidence = @{
+                    Host = $lastObservedTargetHost
+                }
             }
-
-            throw $message
+            if ($lastObservedPageErrorState) {
+                $failureParams.AuthState = $lastObservedPageErrorState
+            }
+            $failure = Get-XdrAuthenticationFailure @failureParams
+            throw (New-XdrAuthenticationErrorRecord -Failure $failure)
         }
 
         if ($selectedSccAuth) {

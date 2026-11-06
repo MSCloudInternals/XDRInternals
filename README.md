@@ -40,6 +40,8 @@ Get-XdrTenantContext
 Get-XdrTenantContext -Force
 ```
 
+Portal reporting is available through `Get-XdrReportDefinition`, `Get-XdrReport`, and `Get-XdrEndpointDeviceControlReport`. See [report coverage and validation](docs/reporting.md) for examples, discovered operations, and availability limits.
+
 ## Available Cmdlets
 
 | Cmdlet | Description |
@@ -55,6 +57,10 @@ Get-XdrTenantContext -Force
 | ConvertTo-XdrEncodedAdvancedHuntingQuery                        | Encodes an Advanced Hunting query for use in Microsoft Defender XDR. |
 | Disconnect-XdrEndpointDeviceLiveResponse                        | Closes an active Live Response session in Microsoft Defender XDR. |
 | Export-XdrAzureDataExplorer                                     | Exports pipeline data to Azure Data Explorer using queued ingestion. |
+| Export-XdrCloudAppsActivityTimeline                             | Exports Microsoft Defender for Cloud Apps activity timeline data to NDJSON. |
+| Export-XdrEndpointDeviceTimeline                                | Exports a Microsoft Defender XDR device timeline to NDJSON. |
+| Export-XdrIdentityUserTimeline                                  | Exports a Microsoft Defender for Identity user timeline to NDJSON. |
+| Export-XdrKustainer                                             | Exports pipeline data to a local Kusto emulator (Kustainer). |
 | Export-XdrToSentinel                                            | Exports XDR data to a Microsoft Sentinel (Log Analytics) custom table. |
 | Get-XdrActionsCenterHistory                                     | Retrieves historical actions from the Microsoft Defender XDR Action Center. |
 | Get-XdrActionsCenterPending                                     | Retrieves pending actions from the Microsoft Defender XDR Action Center. |
@@ -84,15 +90,21 @@ Get-XdrTenantContext -Force
 | Get-XdrDatalakeTableSchema                                      | Retrieves database entities schema from Microsoft Defender XDR datalake. |
 | Get-XdrEndpointAdvancedFeatures                                 | Retrieves comprehensive advanced features configuration for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointConfigurationAdvancedFeatures                    | Retrieves the advanced features configuration settings for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationAttackDisruptionExclusion           | Retrieves device exclusions from automated attack disruption. |
 | Get-XdrEndpointConfigurationAuthenticatedTelemetry              | Retrieves the Authenticated Telemetry status for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationAutomatedInvestigation              | Retrieves advanced automated investigation settings for Defender for Endpoint. |
+| Get-XdrEndpointConfigurationAutomatedInvestigationExclusion     | Retrieves automated investigation memory or folder exclusions. |
+| Get-XdrEndpointConfigurationCustomCollectionModel               | Retrieves the available custom data collection platforms and tables for Defender for Endpoint. |
 | Get-XdrEndpointConfigurationCustomCollectionRule                | Retrieves custom collection rules for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointConfigurationIntuneConnection                    | Retrieves the Intune connection status for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointConfigurationIsolationAllowRule                  | Retrieves Defender for Endpoint device isolation allow rules. |
 | Get-XdrEndpointConfigurationLiveResponse                        | Retrieves the Live Response configuration settings for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointConfigurationPotentiallyUnwantedApplications     | Retrieves the potentially unwanted applications (PUA) configuration for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointConfigurationPreviewFeature                      | Retrieves the preview features configuration for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointConfigurationPurviewSharing                      | Retrieves the Purview alert sharing configuration for Microsoft Defender for Endpoint. |
 | Get-XdrEndpointDevice                                           | Retrieves endpoint devices from Microsoft Defender XDR. |
 | Get-XdrEndpointDeviceActionResult                               | Gets device action results and download URIs from Microsoft Defender XDR. |
+| Get-XdrEndpointDeviceControlReport                              | Retrieves Microsoft Defender for Endpoint Device Control report data. |
 | Get-XdrEndpointDeviceLiveResponseLibrary                        | Retrieves the Live Response library files from Microsoft Defender XDR. |
 | Get-XdrEndpointDeviceLiveResponseLibraryFile                    | Downloads a script file from the Live Response library. |
 | Get-XdrEndpointDeviceModel                                      | Retrieves all device models from Microsoft Defender for Endpoint. |
@@ -105,6 +117,9 @@ Get-XdrTenantContext -Force
 | Get-XdrEndpointDeviceVendor                                     | Retrieves all device vendors from Microsoft Defender for Endpoint. |
 | Get-XdrEndpointDeviceWindowsReleaseVersion                      | Retrieves all Windows release versions from Microsoft Defender for Endpoint. |
 | Get-XdrEndpointLicenseReport                                    | Retrieves license usage report for Microsoft Defender for Endpoint. |
+| Get-XdrEndpointOnboardingActivator                              | Lists Defender for Endpoint Windows onboarding activators. |
+| Get-XdrEndpointOnboardingStatus                                 | Retrieves Defender for Endpoint onboarding status. |
+| Get-XdrEndpointWebContentFilteringPolicy                        | Retrieves Defender for Endpoint web content filtering policies. |
 | Get-XdrExposureManagementRecommendations                        | Retrieves recommendations from Exposure Management. |
 | Get-XdrIdentityAlertThreshold                                   | Retrieves alert threshold configuration for Microsoft Defender for Identity. |
 | Get-XdrIdentityConfigurationDirectoryServiceAccount             | Retrieves directory service accounts for Microsoft Defender for Identity. |
@@ -119,6 +134,9 @@ Get-XdrTenantContext -Force
 | Get-XdrIncident                                                 | Retrieves incidents from Microsoft Defender XDR. |
 | Get-XdrIncidentAssociatedAlert                                  | Retrieves alerts associated with a specific incident from Microsoft Defender XDR. |
 | Get-XdrMtoTenantList                                            | Retrieves the list of accessible tenants from Microsoft Defender XDR. |
+| Get-XdrReport                                                   | Retrieves Microsoft Defender portal report data. |
+| Get-XdrReportDefinition                                         | Lists supported Microsoft Defender portal report operations. |
+| Get-XdrSentinelConfigurationSetting                             | Retrieves a Microsoft Sentinel workspace service setting. |
 | Get-XdrStreamingApiConfiguration                                | Retrieves Streaming API configuration from Microsoft Defender XDR. |
 | Get-XdrSuppressionRule                                          | Retrieves alert suppression rules from Microsoft Defender XDR. |
 | Get-XdrTenantContext                                            | Retrieves the tenant context information from Microsoft Defender XDR. |
@@ -143,6 +161,7 @@ Get-XdrTenantContext -Force
 | Invoke-XdrEndpointDeviceLiveResponseCommand                     | Sends a command to an active Live Response session in Microsoft Defender XDR. |
 | Invoke-XdrEndpointDevicePolicySync                              | Forces a policy sync on an endpoint device in Microsoft Defender XDR. |
 | Invoke-XdrHuntingQueryValidation                                | Validates an Advanced Hunting query for custom detection rules in Microsoft Defender XDR. |
+| Invoke-XdrKustainerQuery                                        | Executes a KQL query or management command against Kustainer. |
 | Invoke-XdrMtoAdvancedHunting                                    | Executes an Advanced Hunting query across multiple tenants in MTO (Multi-Tenant Organization). |
 | Invoke-XdrRestMethod                                            | Invokes a REST API call to Microsoft Defender XDR with authenticated session. |
 | Invoke-XdrXspmHuntingQuery                                      | Executes a hunting query against the Microsoft Defender XDR XSPM attack surface API. |
@@ -172,6 +191,7 @@ Get-XdrTenantContext -Force
 | Set-XdrEndpointDeviceRbacGroup                                  | Updates Defender for Endpoint device groups. |
 | Set-XdrEndpointDeviceTag                                        | Sets, adds, or removes user-defined tags on endpoint devices in Microsoft Defender XDR. |
 | Set-XdrIdentityConfigurationRemediationActionAccount            | Configures the remediation action account type for Microsoft Defender for Identity. |
+| Set-XdrKustainer                                                | Configures the local Kusto emulator connection used by Export-XdrKustainer. |
 | Set-XdrSentinelConnection                                       | Configures the Sentinel (Log Analytics) workspace connection for data export. |
 | Stop-XdrEndpointDeviceAction                                    | Cancels a pending device action in Microsoft Defender XDR. |
 | Update-XdrConnectionSettings                                    | Updates XDR connection session cookies and authentication tokens. |
@@ -199,6 +219,8 @@ Import-Module .\XDRInternals\XDRInternals.psd1
 ```
 
 ## Usage
+
+For a local, investigation-only MCP integration, see [the read-only MCP server](mcp/README.md). It is optional and does not expose Defender actions or accept credentials as tool inputs.
 
 ### Connect to Microsoft Defender XDR
 
@@ -314,6 +336,12 @@ Get-XdrCloudAppsActivityTimeline -LastNDays 1
 # Push harder for time-sensitive incident response while preserving completeness checks
 Get-XdrCloudAppsActivityTimeline -LastNDays 7 -Aggressive -ExportPath ".\cloud-apps-activity.ndjson" -ExportFormat Ndjson
 
+# Export a large, resumable activity timeline without retaining it in memory
+Export-XdrCloudAppsActivityTimeline `
+    -FromDate (Get-Date).ToUniversalTime().AddDays(-90) `
+    -ToDate (Get-Date).ToUniversalTime() `
+    -Path ".\cloud-apps-activity-90d.ndjson"
+
 # Explore grouped app and discovery surfaces
 Get-XdrCloudAppsApp -Type Discovered -Limit 50
 Get-XdrCloudAppsDiscovery -ListStreams
@@ -324,108 +352,180 @@ Get-XdrCloudAppsGovernance
 Get-XdrCloudAppsPolicy -Type OAuth -Metadata
 ```
 
+#### Large endpoint timeline exports
+
+Use `Export-XdrEndpointDeviceTimeline` for long incident-response exports. It writes
+newline-delimited JSON (NDJSON) to disk instead of retaining the complete timeline in
+memory:
+
+```powershell
+$from = (Get-Date).ToUniversalTime().AddDays(-90)
+$to = (Get-Date).ToUniversalTime()
+
+Export-XdrEndpointDeviceTimeline `
+    -DeviceId $deviceId `
+    -FromDate $from `
+    -ToDate $to `
+    -Path '.\timeline-90d.ndjson' `
+    -IncludeSentinelEvents
+```
+
+The export is resumable. If the process, connection, or computer stops during the
+download, run the same command again with the same `Path`; completed parts are validated
+by length and SHA-256 and only incomplete windows are downloaded again. Use `-Force` only
+when intentionally discarding the resumable state.
+
+The cmdlet currently uses four-hour windows, four concurrent workers, and 1,000 records
+per API page. These are deliberately internal implementation choices; `ChunkHours` and
+`ThrottleLimit` are not public parameters. Benchmarking showed that smaller windows and
+more workers can be faster for some short ranges, but they also increased API retries,
+window restarts, or memory use during long exports. More time-range and tenant-specific
+research is needed before exposing tuning options.
+
+The cmdlet emits progress updates and a 30-second informational heartbeat containing
+time coverage, completed windows, event count, bytes written, active/queued work, elapsed
+time, and a rough ETA.
+
+See [Timeline export functions](docs/export-functions.md) for the export lifecycle,
+correctness guarantees, resume behavior, and implementation rationale.
+
+The following physical-disk benchmarks used the same device and a 90-day range. Counts
+can vary slightly because the portal's historical response is not immutable between runs:
+
+| Configuration | Total time | Peak working set | Retries / window restarts |
+| --- | ---: | ---: | ---: |
+| 4-hour / 4 workers | 41m 49s | 1.75 GiB | 0 / 0 |
+| 2-hour / 4 workers | 44m 16s | 1.65 GiB | 20 / 8 |
+| 2-hour / 6 workers | 41m 08s | 2.17 GiB | 50 / 26 |
+
+The 4-hour/four-worker balance is therefore the initial release default: it completed the
+90-day export without retries or restarts while remaining competitive on elapsed time and
+memory. A later fixed-UTC seven-day matrix exercised all 36 combinations of 250, 500, or
+1,000 records per page; two-, four-, or eight-hour windows; and 2, 4, 8, or 16 workers.
+Only 16 combinations completed. The current 1,000/4-hour/4-worker configuration completed
+in 176 seconds with no retries or restarts and a 1.40 GiB peak working set. The nearest
+clean challenger, 1,000/8-hour/4-worker, was only 2% faster and used about 12% more peak
+memory, so it did not meet the 10% speed and memory gates. The defaults remain unchanged
+and can be revisited as more devices, tenants, and time ranges are available for testing.
+
+The baseline and two strongest valid challengers were then run twice over the same fixed
+30-day UTC range, first in baseline/8-hour/2-hour order and then in reverse:
+
+| Configuration | Elapsed pair | Peak working-set pair | Retries / restarts pair |
+| --- | ---: | ---: | ---: |
+| 1,000 / 4-hour / 4 workers | 919s / 924s | 1.47 / 1.48 GiB | 1/0 / 1/0 |
+| 1,000 / 8-hour / 4 workers | 696s / 947s | 1.76 / 1.77 GiB | 0/0 / 1/0 |
+| 1,000 / 2-hour / 4 workers | 787s / 927s | 1.50 / 1.57 GiB | 21/9 / 6/2 |
+
+Each run independently validated 805,109–805,115 lines, 853–998 pages, 4.37 GB, and the
+final SHA-256. The 8-hour challenger exceeded the memory gate in both runs and was slower
+in the reverse comparison. The 2-hour challenger added retries and restarts in both runs
+and was also slower in the reverse comparison. Neither challenger qualified to replace
+the defaults.
+
+#### Large identity timeline exports
+
+Use `Export-XdrIdentityUserTimeline` for a full, disk-backed Defender for Identity user
+timeline. The identity API has different pagination and boundary rules from the device
+timeline, so this command uses a separate worker while preserving the same resumable
+NDJSON contract:
+
+```powershell
+$from = (Get-Date).ToUniversalTime().AddDays(-90)
+$to = (Get-Date).ToUniversalTime()
+
+Export-XdrIdentityUserTimeline `
+    -Upn 'user@contoso.com' `
+    -FromDate $from `
+    -ToDate $to `
+    -Path '.\identity-timeline-90d.ndjson'
+```
+
+The command accepts `-Upn`, `-AadId`, `-Sid`, or `-RadiusUserId`, exports one identity
+per invocation, and uses fixed internal 12-hour windows with eight workers. Completed
+parts are length- and SHA-256-validated before resume. An existing final file remains in
+place during a `-Force` replacement and is atomically replaced only after the new export
+has been fully validated.
+
+Identity Sentinel anomalies are not included in this initial exporter. The current
+identity Sentinel route is a separate API and requires additional completeness and
+pagination validation before it can be used for incident-response export. A live entity
+resolved by AadId and SID exposed an `armId`; its ARM timeline accepted 7-, 30-, and
+31-day requests but rejected 60-, 89-, and 90-day requests with HTTP 400. Values above
+six for `numberOfBucket` were also rejected. The successful responses contained no
+anomalies, so result limits and pagination under load remain unvalidated.
+
+Live validation found that offset pages are not stable enough for high-fidelity export.
+On a dense six-hour range, adjacent offset pages repeated 13 EventIds while page
+membership and `Description` values changed between identical requests. Deduplicating
+those pages yielded fewer logical events than timestamp-keyset retrieval.
+
+The exporter therefore always requests `skip = 0`. After a full page, it withholds the
+oldest timestamp group and repeats the request with that second as the new upper bound.
+Two delayed, fresh-context 30-day probes for a dense test identity each produced the
+same 23,490-event logical set across 36 requests; the largest tied boundary contained
+723 events in one second. Two probes for a lower-volume identity likewise produced the
+same logical set. Duplicate
+representations are counted, the first raw object is retained unchanged, and the export
+fails if one second fills all 1,000 rows because completeness cannot then be proven.
+
+Follow-up testing kept the 1,000-row page size. On a dense 30-day range, both 250- and
+500-row pages failed closed because two API seconds each filled an entire page; the
+1,000-row run completed with 23,502 events and a maximum of 723 events in one second.
+A separate low-volume 30-day range returned the same 335-event canonical set with page
+sizes 250, 500, and 1,000, supporting the short-page terminal assumption where the page
+can represent a complete second.
+
+The same follow-up compared 6-, 12-, and 24-hour windows with 4, 8, and 16 workers on a
+dense fixed seven-day range. All nine aligned runs produced the same 10,070-event
+canonical set. The 12-hour/eight-worker candidate was then interleaved with the prior
+24-hour/eight-worker default over 30 days: 12-hour runs completed in 56.2 and 61.0
+seconds versus 70.8 and 68.2 seconds for 24 hours. All four returned the same 23,502
+events with no retries or restarts; peak working set ranged from 573 to 700 MiB for 12
+hours and 658 to 678 MiB for 24 hours. The repeatable improvement earned the 12-hour
+default, while worker count and page size remain unchanged and private.
+
+A midnight-aligned stress range also exposed a service boundary violation: the API
+repeatedly returned a 23:59:59 event outside its exclusive lower bound. Every tested
+window size rejected that response after fresh-window restarts instead of publishing
+overlapping output.
+
+Independent validation also confirmed line count, half-open range, global ordering,
+byte length, SHA-256, interruption/resume, and adjacent-window set equality. A live
+12-hour-window export resumed 18 of 60 hash-validated parts after interruption and
+completed 23,502 rows with matching length and SHA-256. On a fixed
+six-hour range, the public `Get-` and `Export-` commands returned identical 1,845-event
+stable sets. Repeated raw-file hashes are not expected to match: the service changed
+only `Id`, `RowNumber`, and `Description` on otherwise identical logical events during
+the delayed 30-day comparison. The service also added one 44-day-old event without an
+`EventId` between delayed 90-day snapshots. Treat an export as a point-in-time service
+snapshot and preserve its manifest timestamps; rerun important historical ranges when
+late backend enrichment matters.
+#### Large Cloud Apps timeline exports
+
+`Export-XdrCloudAppsActivityTimeline` writes six-hour recent or archived parts with up to
+eight concurrent workers. It uses timestamp-keyset pagination because the activity APIs
+cap pages at 250 records. Dense recent timestamps are further paginated by creation time;
+dense archived timestamps use bounded, stable-ID-validated offset sweeps because the
+archived API does not expose creation time as a filter. Completed parts are length- and
+SHA-256-validated, so rerunning the same command resumes
+only incomplete or corrupted windows. The final file is published atomically after every
+part and the merged SHA-256 are validated; `-Force` keeps an existing final export in place
+until its replacement is complete.
+
+The Cloud Apps count API is used as a consistency signal, but it is not an exact snapshot
+of the activity list. A shortfall restarts the affected window once with a fresh request
+contexts. Persistent count differences are recorded in the result and manifest as
+`CountDelta`, while the exporter preserves the complete unique payload returned by the
+list API. Exact repeated payloads are suppressed at pagination boundaries. Normal keyset
+pagination retains records that reuse identifiers but differ in content; archived dense
+timestamp recovery requires stable activity IDs to verify convergence.
+
 #### Azure Data Explorer export
+#### Exporting data
 
-Export XDR data directly to Azure Data Explorer for long-term investigation and custom analytics. The cmdlet supports two modes: **typed source routing** (recommended) which automatically creates well-structured tables, and **manual table** mode for custom schemas.
+See [Export functions](docs/export-functions.md) for Azure Data Explorer and Kustainer setup, authentication, typed table routing, request sizing, ingestion-mode selection, large-data guidance, and query examples.
 
-##### Authentication
-
-`Export-XdrAzureDataExplorer` requires a separate Azure Data Explorer token -- this is independent of your XDR portal session. The token is acquired automatically using the following priority:
-
-| Method | When available |
-| --- | --- |
-| Explicit token | `-AccessToken` on `Set-XdrAzureDataExplorerConnection` |
-| ESTS CLI bridge | `Connect-XdrByCredential`, `Connect-XdrByBrowser`, `Connect-XdrBySoftwarePasskey`, `Connect-XdrByPhoneSignIn`, or `Connect-XdrByTemporaryAccessPass` (captures ESTS cookies) |
-| Az.Accounts | `Connect-AzAccount` is active |
-| Azure CLI | `az login` session exists |
-| Managed identity | Running on Azure with IMDS |
-
-> **Important:** `Connect-XdrBySSO` and `Set-XdrConnection` (with raw sccauth/xsrf tokens) do **not** capture ESTS cookies, so the module cannot self-bridge Azure tokens from that session alone. When using these methods, ensure you have an active `Connect-AzAccount` or `az login` session, use managed identity, or provide an explicit `-AccessToken`.
-
-##### Discover clusters and databases
-
-If your authenticated Azure context can access the target ADX resources, you can discover cluster and database details directly:
-
-```powershell
-# Enumerate all visible ADX clusters
-Get-XdrAzureDataExplorerCluster
-
-# Include databases to find a ready-to-use connection target
-Get-XdrAzureDataExplorerCluster -IncludeDatabases
-
-# In automation, fail instead of prompting if the discovery result is ambiguous
-Set-XdrAzureDataExplorerConnection -ClusterName 'nm-test-cluster' -DatabaseName 'Investigations' -NonInteractive
-
-# Use -AccessToken only when you are configuring an explicit cluster/database connection
-Set-XdrAzureDataExplorerConnection -ClusterUri 'https://mycluster.westeurope.kusto.windows.net' -Database 'Investigations' -AccessToken $token
-```
-
-##### Typed source routing
-
-Use `-Source` to automatically route events into purpose-built typed tables with promoted columns:
-
-```powershell
-# Configure the target ADX cluster once per session
-Set-XdrAzureDataExplorerConnection `
-    -ClusterUri 'https://mycluster.westeurope.kusto.windows.net' `
-    -Database 'Investigations'
-
-# Device timeline
-Get-XdrEndpointDeviceTimeline -DeviceId $deviceId -LastNDays 7 |
-    Export-XdrAzureDataExplorer -Source DeviceTimeline -WaitForIngestion -Verbose
-
-# Identity timeline
-Get-XdrIdentityUserTimeline -Upn 'user@contoso.com' -LastNDays 7 |
-    Export-XdrAzureDataExplorer -Source IdentityTimeline -Verbose
-
-# Cloud Apps activity timeline
-Get-XdrCloudAppsActivityTimeline -LastNDays 1 |
-    Export-XdrAzureDataExplorer -Source CloudAppsActivityTimeline -Verbose
-
-# Standalone sources
-Get-XdrAlert | Export-XdrAzureDataExplorer -Source Alert
-Get-XdrIncident | Export-XdrAzureDataExplorer -Source Incident
-Get-XdrEndpointDevice | Export-XdrAzureDataExplorer -Source Device
-```
-
-Typed tables created automatically:
-
-| Source | Tables |
-| --- | --- |
-| DeviceTimeline | `XDRDeviceTimelineProcessEvents`, `XDRDeviceTimelineFileEvents`, `XDRDeviceTimelineNetworkEvents`, `XDRDeviceTimelineRegistryEvents`, `XDRDeviceTimelineLogonEvents`, `XDRDeviceTimelineAlertEvents`, `XDRDeviceTimelineOtherEvents` |
-| IdentityTimeline | `XDRIdentityTimelineCloudAppEvents`, `XDRIdentityTimelineSignInEvents`, `XDRIdentityTimelineAlerts` |
-| CloudAppsActivityTimeline | `XDRCloudAppsActivityTimeline` |
-| Alert | `XDRAlerts` |
-| Incident | `XDRIncidents` |
-| Device | `XDRDevices` |
-| AdvancedHunting | `XDRAdvancedHuntingResults` |
-
-Every typed table includes an `Event` dynamic column containing the complete original event, so no data is lost even when specific columns aren't promoted.
-
-##### Manual table mode
-
-For custom schemas or ad-hoc exports, specify a table name directly:
-
-```powershell
-Get-XdrEndpointDeviceTimeline -DeviceId $deviceId -LastNDays 7 |
-    Export-XdrAzureDataExplorer -TableName 'DeviceTimeline'
-
-# Track ingestion and wait for completion
-Get-XdrEndpointDeviceTimeline -DeviceId $deviceId -LastNDays 7 |
-    Export-XdrAzureDataExplorer -TableName 'DeviceTimeline' -WaitForIngestion -Verbose
-
-# Check status of a tracked operation
-Get-XdrAzureDataExplorerIngestionStatus -TableName 'DeviceTimeline' -OperationId 'op-id' -Details
-```
-
-##### Notes
-
-- Uses queued ingestion -- uploads are asynchronous and data may take a few minutes to become queryable.
-- Batches already submitted to queued ingestion cannot be rolled back if a later batch or pipeline stage fails.
-- Pipeline cancellation closes local writers and removes unsubmitted staging files unless `-KeepTempFiles` is used.
-- Payload files are gzip-compressed before upload unless `-DisableCompression` is specified.
-- Long-running exports automatically refresh the queued-ingestion storage configuration before SAS expiry.
-- Prefer `-TrackIngestion` only when you need operation IDs for troubleshooting.
 #### Live Response
 
 ```powershell

@@ -58,7 +58,7 @@
         } | ConvertTo-Json -Depth 10
 
         try {
-            $Uri = "https://security.microsoft.com/apiproxy/mtp/huntingService/rules/validateQuery"
+            $Uri = "https://security.microsoft.com/apiproxy/hunting/huntingService/rules/validateQuery"
         
             Write-Verbose "Validating Advanced Hunting query"
             $result = Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:session -Headers $script:headers

@@ -136,6 +136,8 @@
     begin {
         Update-XdrConnectionSettings
         $mdiHeaders = Get-XdrIdentityHeaders
+        # Keep the public Dsc spelling while using the API's SortDirectionType value.
+        $apiSortDirection = if ($SortDirection -eq 'Dsc') { 'Desc' } else { 'Asc' }
     }
 
     process {
@@ -221,7 +223,7 @@
                     Skip       = $currentSkip
                     SortBy     = @{
                         Field     = $SortByField
-                        Direction = $SortDirection
+                        Direction = $apiSortDirection
                     }
                     Filters    = $filters
                     SearchText = $SearchText
@@ -300,7 +302,7 @@
             Skip       = $Skip
             SortBy     = @{
                 Field     = $SortByField
-                Direction = $SortDirection
+                Direction = $apiSortDirection
             }
             Filters    = $filters
             SearchText = $SearchText

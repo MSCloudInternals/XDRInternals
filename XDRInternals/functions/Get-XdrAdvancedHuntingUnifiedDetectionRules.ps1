@@ -45,7 +45,7 @@
             Write-Verbose "Get-XdrAdvancedHuntingUnifiedDetectionRules cache is missing or expired"
         }
 
-        $Uri = "https://security.microsoft.com/apiproxy/mtp/huntingService/rules/unified?pageIndex=1&pageSize=10000&sortOrder=Ascending&isUnifiedRulesListEnabled=true"
+        $Uri = "https://security.microsoft.com/apiproxy/hunting/huntingService/rules/unified?pageIndex=1&pageSize=10000&sortOrder=Ascending&isUnifiedRulesListEnabled=true"
         Write-Verbose "Retrieving Get-XdrAdvancedHuntingUnifiedDetectionRules data"
         
         $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers

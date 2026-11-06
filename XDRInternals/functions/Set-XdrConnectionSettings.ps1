@@ -61,6 +61,12 @@
         [switch]$ResetWebSession
     )
 
+    # Explicit connection replacement may change accounts within the same tenant.
+    # Retain cached data only when resetting the existing authenticated session.
+    if ($PSBoundParameters.ContainsKey('SccAuth') -or $PSBoundParameters.ContainsKey('WebSession')) {
+        Clear-XdrCache
+    }
+
     # Determine sccauth and xsrf format, then create session and cookies
     Write-Verbose "Setting session cookies for XDR webpage requests"
     if ($PSBoundParameters.ContainsKey('SccAuth')) {
@@ -77,6 +83,7 @@
         }
         # Create session and cookies
         $script:session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+        $script:session.UserAgent = Get-XdrDefaultUserAgent
         $script:session.Cookies.Add((New-Object System.Net.Cookie("sccauth", $SccAuthValue, "/", "security.microsoft.com")))
 
         if ($PSBoundParameters.ContainsKey('Xsrf')) {
@@ -116,12 +123,14 @@
     if ($PSBoundParameters.ContainsKey('ResetWebSession')) {
         # Set tenant id
         $TenantId = $script:headers["x-tid"]
+        $userAgent = [string]$script:session.UserAgent
         # Reset the existing WebSession by creating a new one
         Write-Verbose "Resetting existing WebSession to remove old headers and cookies"
         $SccAuthValue = $script:session.cookies.GetCookies("https://security.microsoft.com")['sccauth'].Value
         $XsrfValue = $script:session.cookies.GetCookies("https://security.microsoft.com")['xsrf-token'].Value
         # Create session and cookies
         $script:session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+        $script:session.UserAgent = if ([string]::IsNullOrWhiteSpace($userAgent)) { Get-XdrDefaultUserAgent } else { $userAgent }
         $script:session.Cookies.Add((New-Object System.Net.Cookie("sccauth", $SccAuthValue, "/", "security.microsoft.com")))
         $script:session.Cookies.Add((New-Object System.Net.Cookie("XSRF-TOKEN", $XsrfValue, "/", "security.microsoft.com")))
     }

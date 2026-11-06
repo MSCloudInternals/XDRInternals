@@ -7,6 +7,8 @@
         Gets saved functions for Advanced Hunting queries in Microsoft Defender XDR.
         Functions can be filtered by ID or retrieved all at once.
         This function includes caching support with a 30-minute TTL to reduce API calls.
+        Failed requests are not cached. Only a typed HTTP 404 for a specific ID is
+        reported as a missing function; other provider errors are preserved.
 
     .PARAMETER Id
         Optional ID of a specific function to retrieve.
@@ -68,14 +70,19 @@
         # If ID is specified, query the specific function directly
         if ($PSBoundParameters.ContainsKey('Id')) {
             Write-Verbose "Retrieving specific function with ID: $Id"
-            $Uri = "https://security.microsoft.com/apiproxy/mtp/huntingService/functions/defender/savedfunctions/$Id"
+            $Uri = "https://security.microsoft.com/apiproxy/hunting/huntingService/functions/defender/savedfunctions/$Id"
             
             try {
-                $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
+                $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers -ErrorAction Stop
                 return $result
             } catch {
-                Write-Warning "No function found with ID: $Id"
-                return $null
+                if ($_.Exception -is [Microsoft.PowerShell.Commands.HttpResponseException] -and
+                    $_.Exception.Response.StatusCode -eq [System.Net.HttpStatusCode]::NotFound) {
+                    Write-Warning "No function found with ID: $Id"
+                } else {
+                    Write-Error -ErrorRecord $_
+                }
+                return
             }
         }
 
@@ -84,31 +91,27 @@
         $currentCacheValue = Get-XdrCache -CacheKey "XdrAdvancedHuntingFunction" -ErrorAction SilentlyContinue
         if (-not $Force -and $currentCacheValue.NotValidAfter -gt (Get-Date)) {
             Write-Verbose "Using cached XDR Advanced Hunting functions"
-            $result = $currentCacheValue.Value
+            return $currentCacheValue.Value
         } elseif ($Force) {
             Write-Verbose "Force parameter specified, bypassing cache"
             Clear-XdrCache -CacheKey "XdrAdvancedHuntingFunction"
         }
         
-        if (-not $result) {
-            Write-Verbose "XDR Advanced Hunting functions cache is missing or expired"
-            
-            $Uri = "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions"
-            Write-Verbose "Retrieving XDR Advanced Hunting functions"
-            try {
-                $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers
-            } catch {
-                Write-Error "Failed to retrieve Advanced Hunting functions: $_"
-                $result = @()
-            }
-
-            if ($null -eq $result) {
-                $result = @()
-            }
-
-            Write-Verbose "Retrieved $($result.Count) Advanced Hunting function(s)"
-            Set-XdrCache -CacheKey "XdrAdvancedHuntingFunction" -Value $result -TTLMinutes 30
+        $Uri = "https://security.microsoft.com/apiproxy/hunting/huntingService/savedFunctions"
+        Write-Verbose "Retrieving XDR Advanced Hunting functions"
+        try {
+            $result = Invoke-RestMethod -Uri $Uri -Method Get -ContentType "application/json" -WebSession $script:session -Headers $script:headers -ErrorAction Stop
+        } catch {
+            Write-Error -ErrorRecord $_
+            return
         }
+
+        if ($null -eq $result) {
+            $result = @()
+        }
+
+        Write-Verbose "Retrieved $($result.Count) Advanced Hunting function(s)"
+        Set-XdrCache -CacheKey "XdrAdvancedHuntingFunction" -Value $result -TTLMinutes 30
 
         return $result
     }

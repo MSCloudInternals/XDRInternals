@@ -1,7 +1,7 @@
 ﻿[
   {
     "Cmdlet": "ConvertTo-XdrEncodedAdvancedHuntingQuery",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/queries/encode",
+    "ApiUri": "https://security.microsoft.com/apiproxy/hunting/huntingService/queries/encode",
     "Parameters": {
       "QueryText": "body.QueryText"
     }
@@ -23,11 +23,11 @@
   },
   {
     "Cmdlet": "Get-XdrAdvancedHuntingFunction",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/functions/defender/savedfunctions/{Id}"
+    "ApiUri": "https://security.microsoft.com/apiproxy/hunting/huntingService/functions/defender/savedfunctions/{Id}"
   },
   {
     "Cmdlet": "Get-XdrAdvancedHuntingFunction",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/savedFunctions"
+    "ApiUri": "https://security.microsoft.com/apiproxy/hunting/huntingService/savedFunctions"
   },
   {
     "Cmdlet": "Get-XdrAdvancedHuntingTableSchema",
@@ -35,7 +35,7 @@
   },
   {
     "Cmdlet": "Get-XdrAdvancedHuntingUnifiedDetectionRules",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/rules/unified"
+    "ApiUri": "https://security.microsoft.com/apiproxy/hunting/huntingService/rules/unified"
   },
   {
     "Cmdlet": "Get-XdrAdvancedHuntingUserHistory",
@@ -3448,7 +3448,7 @@
   },
   {
     "Cmdlet": "Invoke-XdrHuntingQueryValidation",
-    "ApiUri": "https://security.microsoft.com/apiproxy/mtp/huntingService/rules/validateQuery",
+    "ApiUri": "https://security.microsoft.com/apiproxy/hunting/huntingService/rules/validateQuery",
     "Parameters": {
       "HuntingRule": "body.HuntingRule",
       "QueryText": "body.QueryText"
